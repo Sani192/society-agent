@@ -14,5 +14,21 @@ INTENTS = {
     "REFUND": "refund",
     "ADD_EXPENSE": "expense",
     "SUMMARY": "summary",
-    "BLOCK_REPORT": "block report"
+    "BLOCK_REPORT": "block report",
+    "PENDING_PAYMENTS": "pending payments",
+    "REMIND_FLAT": "remind",
+    "JOIN": "join",
+    "APPROVE": "approve user",
+    "JOIN_STATUS": "join status",
+    "PENDING_USERS": "pending users",
+    
+    # personal read-only
+    "MY_PASS": "my pass",
+    "MY_PAYMENT": "my payment",
+    "MY_BALANCE": "my balance",
+    "MY_STATUS": "my status",
+    
+    # help
+    "HELP": "help",
+    "COMMANDS": "commands"
 }

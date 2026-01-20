@@ -9,7 +9,7 @@ Created on Sat Jan 10 13:22:14 2026
 # app/db/models.py
 
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Date
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy import ForeignKey
@@ -35,7 +35,6 @@ class Society(Base):
     is_active = Column(Boolean, nullable=False, default=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
 
 
 class CommitteeMember(Base):
@@ -67,7 +66,6 @@ class CommitteeMember(Base):
     society = relationship("Society", backref="committee_members")
     
     
-
 class Flat(Base):
     __tablename__ = "flats"
 
@@ -94,7 +92,6 @@ class Flat(Base):
     )
 
     society = relationship("Society", backref="flats")
-
 
 
 class Event(Base):
@@ -256,3 +253,84 @@ class AuditLog(Base):
 
     performed_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
     performed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserFlatMapping(Base):
+    __tablename__ = "user_flat_mappings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+
+    # External user identity (platform-agnostic)
+    # WhatsApp: phone number
+    # Telegram: user_id
+    # Web: user_id
+    user_identifier = Column(String, nullable=False, index=True)
+
+    role = Column(String, default="member")  
+    # member / owner / tenant (future-proof)
+
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    
+class ReminderConfig(Base):
+    __tablename__ = "reminder_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    society_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("societies.id"),
+        nullable=False,
+        unique=True
+    )
+
+    enabled = Column(Boolean, default=True)
+
+    # time in 24h format
+    run_hour = Column(Integer, nullable=False)    # 0–23
+    run_minute = Column(Integer, nullable=False)  # 0–59
+
+    frequency = Column(String, default="daily")
+    # daily / weekly (future)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PaymentReminder(Base):
+    __tablename__ = "payment_reminders"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+
+    pending_amount = Column(Integer, nullable=False)
+
+    reminder_date = Column(Date, nullable=False)
+    status = Column(String, default="generated")  
+    # generated / sent / skipped
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+        
+    
+class PendingUser(Base):
+    __tablename__ = "pending_users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+
+    request_code = Column(String, nullable=False, index=True)
+    # e.g. REQ-001
+
+    user_identifier = Column(String, nullable=False, index=True)
+    flat_number = Column(String, nullable=False)
+
+    status = Column(String, default="pending")
+    # pending / approved / rejected
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
