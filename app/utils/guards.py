@@ -9,10 +9,28 @@ Created on Sun Jan 11 07:28:42 2026
 # app/utils/guards.py
 
 from app.config import settings
+from app.db.models import CommitteeMember
+from app.db.session import SessionLocal
+from app.utils.logger import logger
+from app.modules.users.user_flat_service import UserFlatService
+import re
 
+def normalize_phone(phone: str) -> str | None:
+    if not phone:
+        return None
 
-def normalize_phone(phone: str) -> str:
-    return phone.replace("+", "").strip()
+    # keep digits only
+    digits = re.sub(r"\D", "", phone)
+
+    # handle India country code
+    #if digits.startswith("91") and len(digits) == 12:
+    #    digits = digits[2:]
+
+    # final validation
+    #if len(digits) != 10:
+    #    return None
+
+    return digits
 
 
 def ensure_admin(phone_number: str):
@@ -26,3 +44,46 @@ def ensure_admin(phone_number: str):
 def ensure_reason(reason: str):
     if not reason or len(reason.strip()) < 5:
         raise Exception("Override reason must be at least 5 characters")
+        
+def ensure_member_of_society(
+    phone_number: str,
+    db: SessionLocal,
+    society_id
+):
+    normalized = normalize_phone(phone_number)
+    if not normalized:
+        raise Exception("Invalid phone number")
+        
+    mappings = UserFlatService.get_flats_for_user(
+        db=db,
+        society_id=society_id,
+        user_identifier=phone_number
+    )
+    
+    if not mappings:
+        raise Exception("Your flat is not registered. Please contact admin.")
+    
+    return mappings
+
+
+def ensure_committee_member(
+    phone_number: str,
+    db: SessionLocal
+) -> CommitteeMember:
+    normalized = normalize_phone(phone_number)
+    if not normalized:
+        raise Exception("You are not authorized.")
+
+    member = (
+        db.query(CommitteeMember)
+        .filter(CommitteeMember.phone_number == normalized)
+        .first()
+    )
+    
+
+    if not member or not member.is_active:
+        raise Exception("You are not authorized.")
+
+    return member
+
+

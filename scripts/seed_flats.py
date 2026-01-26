@@ -7,6 +7,7 @@ Created on Sun Jan 11 20:55:31 2026
 """
 
 # scripts/seed_flats.py
+# python -m scripts.seed_flats
 
 from app.db.session import SessionLocal
 from app.db.models import Society, Flat
@@ -17,9 +18,7 @@ society = db.query(Society).first()
 
 
 flats = [
-    ("B-1002", "B"),
-    ("B-1003", "B"),
-    ("B-1004", "B"),
+    ("C-403", "B")
 ]
 
 for flat_no, block in flats:

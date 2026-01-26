@@ -7,6 +7,7 @@ Created on Sat Jan 17 10:55:29 2026
 """
 
 # scripts/map_user_to_flat.py
+# python -m scripts.map_user_to_flat
 
 from app.db.session import SessionLocal
 from app.db.models import Society, Flat
@@ -18,7 +19,7 @@ society = db.query(Society).first()
 
 flat = (
     db.query(Flat)
-    .filter(Flat.flat_number == "B-1001", Flat.society_id == society.id)
+    .filter(Flat.flat_number == "C-403", Flat.society_id == society.id)
     .first()
 )
 
@@ -26,7 +27,7 @@ UserFlatService.assign_user_to_flat(
     db=db,
     society_id=society.id,
     flat_id=flat.id,
-    user_identifier="91XXXXXXXXXX"
+    user_identifier="916666666666"
 )
 
 db.close()

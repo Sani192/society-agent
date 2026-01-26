@@ -21,11 +21,11 @@ from app.modules.payments.payment_service import PaymentService
 from app.modules.payments.refund_service import RefundService
 from app.modules.expenses.expense_service import ExpenseService
 #from app.modules.reports.event_summary import EventSummaryReport
-#from app.modules.reports.pending_payment_report import PendingPaymentReport
+from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.users.user_flat_service import UserFlatService
 from app.modules.users.user_query_service import UserQueryService
 from app.utils.response import success, error, warning
-from app.utils.guards import ensure_admin
+from app.utils.guards import ensure_admin, ensure_committee_member, ensure_member_of_society
 from app.utils.logger import logger
 from app.permissions.guard import is_action_allowed
 from app.whatsapp.router import detect_intent
@@ -39,14 +39,12 @@ def handle_message(phone_number: str, message: str):
     logger.info(f"Incoming message from {phone_number}: {message}")
     db = SessionLocal()
 
-    member = (
-        db.query(CommitteeMember)
-        .filter(CommitteeMember.phone_number == phone_number)
-        .first()
-    )
-
-    if not member or not member.is_active:
-        return error("You are not authorized.")
+    member = None
+    try:
+        member = ensure_committee_member(phone_number, db)
+    except Exception as e:
+        logger.info("Not a committee member – allowed for member-level commands")
+        pass
 
 # =============================================================================
 #     try:
@@ -66,21 +64,28 @@ def handle_message(phone_number: str, message: str):
     try:
         # ---------- ADD PASS ----------
         if intent == "ADD_PASS":
-            if not is_action_allowed(member.role, "ADD_PASS"):
+            # committee override check only if member exists
+            if member and not is_action_allowed(member.role, "ADD_PASS"):
                 return warning(
                     "This action normally requires Secretary approval. "
                     "Please ask Chairman to override."
                 )
+            
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
         
-            mappings = UserFlatService.get_flats_for_user(db=db, society_id=event.society_id, user_identifier=phone_number)
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
             flat = db.query(Flat).get(mappings[0].flat_id)
         
             counts = parse_pass_counts(message)
         
             if sum(counts.values()) == 0:
-                return error("Specify counts. Example: add pass veg 2 jain 1")
+                return error("Specify counts. Example: add pass veg 2 jain 1 kid 1")
         
             FoodPassService.add_or_update_pass(
                 db=db,
@@ -90,8 +95,8 @@ def handle_message(phone_number: str, message: str):
                 jain_count=counts["jain"],
                 kids_count=counts["kids"],
                 charge_per_person=300,
-                performed_by=member.id,
-                override_reason="Via WhatsApp"
+                performed_by=member.id if member else None,
+                override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
             )
         
             return success(
@@ -100,15 +105,22 @@ def handle_message(phone_number: str, message: str):
 
         # ---------- PAYMENT ----------
         if intent == "PAY":
-            if not is_action_allowed(member.role, "PAY"):
+            # committee override check only if member exists
+            if member and not is_action_allowed(member.role, "PAY"):
                 return warning(
                     "This action normally requires Treasurer approval. "
                     "Please ask Chairman to override."
                 )
             
-            mappings = UserFlatService.get_flats_for_user(db=db, society_id=event.society_id, user_identifier=phone_number)
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
+            
             flat = db.query(Flat).get(mappings[0].flat_id)
             
             amount = parse_amount(message)
@@ -121,22 +133,28 @@ def handle_message(phone_number: str, message: str):
                 flat_id=flat.id,
                 amount=amount,
                 payment_mode="upi",
-                performed_by=member.id,
-                override_reason="Via WhatsApp"
+                performed_by=member.id if member else None,
+                override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
             )
             return success(f"💰 Payment received: ₹{amount}")
 
         # ---------- REFUND ----------
         if intent == "REFUND":
-            if not is_action_allowed(member.role, "REFUND"):
+            # committee override check only if member exists
+            if member and not is_action_allowed(member.role, "REFUND"):
                 return warning(
                     "This action normally requires Treasurer approval. "
                     "Please ask Chairman to override."
                 )
             
-            mappings = UserFlatService.get_flats_for_user(db=db, society_id=event.society_id, user_identifier=phone_number)
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
             flat = db.query(Flat).get(mappings[0].flat_id)
         
             amount = parse_amount(message)
@@ -150,9 +168,9 @@ def handle_message(phone_number: str, message: str):
                 event_id=event.id,
                 flat_id=flat.id,
                 amount=amount,
-                performed_by=member.id,
+                performed_by=member.id if member else None,
                 reason=reason,
-                override_reason="Via WhatsApp"
+                override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
             )
         
             return success(f"↩️ Refund processed: ₹{amount}")
@@ -165,6 +183,15 @@ def handle_message(phone_number: str, message: str):
                     "This action normally requires Secretary approval. "
                     "Please ask Chairman to override."
                 )
+            
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
             
             amount = parse_amount(message)
             if not amount:
@@ -190,6 +217,9 @@ def handle_message(phone_number: str, message: str):
 #                     "This action normally requires approval. "
 #                     "Please ask Chairman to override."
 #                 )
+#
+#             if not event:
+#                 return error("No active event found. Please contact committee.")
 #             
 #             summary = EventSummaryReport.generate(db=db, event_id=event.id)
 #             return success(
@@ -201,30 +231,31 @@ def handle_message(phone_number: str, message: str):
 # =============================================================================
         
         # ---------- PENDING PAYMENTS ----------
-# =============================================================================
-#         if intent == "PENDING_PAYMENTS":
-#             if not is_action_allowed(member.role, "PAY"):
-#                 return warning(
-#                     "This action normally requires Treasurer approval."
-#                 )
-#         
-#             pending = PendingPaymentReport.get_pending_flats(
-#                 db=db,
-#                 event_id=event.id,
-#                 society_id=event.society_id
-#             )
-#         
-#             if not pending:
-#                 return success("🎉 All flats have completed payments.")
-#         
-#             lines = ["⏳ *Pending Payments*"]
-#             for p in pending:
-#                 lines.append(
-#                     f"{p['flat']} – Pending ₹{p['pending']}"
-#                 )
-#         
-#             return success("\n".join(lines))
-# =============================================================================
+        if intent == "PENDING_PAYMENTS":
+            if not is_action_allowed(member.role, "PAY"):
+                return warning(
+                    "This action normally requires Treasurer approval."
+                )
+            
+            if not event:
+               return error("No active event found. Please contact committee.")
+           
+            pending = PendingPaymentReport.get_pending_flats(
+                db=db,
+                event_id=event.id,
+                society_id=event.society_id
+            )
+        
+            if not pending:
+                return success("🎉 All flats have completed payments.")
+        
+            lines = ["⏳ *Pending Payments*"]
+            for p in pending:
+                lines.append(
+                    f"{p['flat']} – Pending ₹{p['pending']}"
+                )
+                
+            return success("\n".join(lines))
         
         # ---------- REMIND FLAT ----------
         if intent == "REMIND_FLAT":
@@ -232,6 +263,9 @@ def handle_message(phone_number: str, message: str):
                 return warning(
                     "This action normally requires Treasurer approval."
                 )
+            
+            if not event:
+                return error("No active event found. Please contact committee.")
         
             parts = message.split()
             if len(parts) < 2:
@@ -317,8 +351,11 @@ def handle_message(phone_number: str, message: str):
         
         # ---------- JOIN STATUS ----------
         if intent == "JOIN_STATUS":
-            society = db.query(Event).order_by(Event.created_at.desc()).first()
-            society_id = society.society_id
+            latest_event = db.query(Event).order_by(Event.created_at.desc()).first()
+            if not latest_event:
+                return error("No society context found.")
+            
+            society_id = latest_event.society_id
         
             status = OnboardingQueryService.get_user_join_status(
                 db=db,
@@ -340,8 +377,11 @@ def handle_message(phone_number: str, message: str):
             if not is_action_allowed(member.role, "ALL"):
                 return warning("Only Chairman can view pending users.")
 
-            society = db.query(Event).order_by(Event.created_at.desc()).first()
-            society_id = society.society_id
+            latest_event = db.query(Event).order_by(Event.created_at.desc()).first()
+            if not latest_event:
+                return error("No society context found.")
+            
+            society_id = latest_event.society_id
 
             pending = AdminOnboardingQueryService.list_pending_users(
                 db=db,
@@ -365,13 +405,14 @@ def handle_message(phone_number: str, message: str):
         
         # ---------- MY PASS ----------
         if intent == "MY_PASS":
-            mappings = UserFlatService.get_flats_for_user(
-                db=db,
-                society_id=event.society_id,
-                user_identifier=phone_number
-            )
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
         
             flat = db.query(Flat).get(mappings[0].flat_id)
         
@@ -393,13 +434,14 @@ def handle_message(phone_number: str, message: str):
         
         # ---------- MY PAYMENT ----------
         if intent == "MY_PAYMENT":
-            mappings = UserFlatService.get_flats_for_user(
-                db=db,
-                society_id=event.society_id,
-                user_identifier=phone_number
-            )
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
         
             flat = db.query(Flat).get(mappings[0].flat_id)
         
@@ -418,13 +460,14 @@ def handle_message(phone_number: str, message: str):
         
         # ---------- MY BALANCE ----------
         if intent == "MY_BALANCE":
-            mappings = UserFlatService.get_flats_for_user(
-                db=db,
-                society_id=event.society_id,
-                user_identifier=phone_number
-            )
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
         
             flat = db.query(Flat).get(mappings[0].flat_id)
         
@@ -443,13 +486,14 @@ def handle_message(phone_number: str, message: str):
 
         # ---------- MY STATUS ----------
         if intent == "MY_STATUS":
-            mappings = UserFlatService.get_flats_for_user(
-                db=db,
-                society_id=event.society_id,
-                user_identifier=phone_number
-            )
-            if not mappings:
-                return error("Your flat is not registered. Please contact admin.")
+            if not event:
+                return error("No active event found. Please contact committee.")
+            
+            mappings = []
+            try:
+                mappings = ensure_member_of_society(phone_number, db, event.society_id)
+            except Exception as e:
+                return error(e)
 
             flat = db.query(Flat).get(mappings[0].flat_id)
 
