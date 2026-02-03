@@ -8,6 +8,8 @@ Created on Sat Jan 10 15:19:25 2026
 
 # app/modules/payments/payment_service.py
 
+import uuid
+
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -15,6 +17,8 @@ from app.db.models import (
     Event,
     Flat,
     Payment,
+    PaymentRequest,
+    UserFlatMapping,
     EventFoodPass,
     AuditLog
 )
@@ -46,6 +50,53 @@ class PaymentService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
+            
+        
+        # --------------------------------------------------
+        # STEP 1: MEMBER PAYMENT → CREATE PAYMENT REQUEST
+        # --------------------------------------------------
+        if performed_by is None:
+            # member payment should not mark paid directly
+        
+            mapping = (
+                db.query(UserFlatMapping)
+                .filter(
+                    UserFlatMapping.flat_id == flat_id,
+                    UserFlatMapping.is_active.is_(True)
+                )
+                .first()
+            )
+        
+            if not mapping:
+                raise Exception("User is not mapped to this flat.")
+        
+            request = PaymentRequest(
+                id=uuid.uuid4(),
+                event_id=event_id,
+                flat_id=flat_id,
+                requested_by=mapping.id,
+                amount=amount,
+                status="pending"
+            )
+        
+            db.add(request)
+        
+            # IMPORTANT: do NOT touch payment.paid_amount here
+            # IMPORTANT: do NOT call WorkflowEngine
+            # IMPORTANT: do NOT mark payment as paid/partial
+            
+            db.add(AuditLog(
+                society_id=event.society_id,
+                entity_type="payment_request",
+                entity_id=request.id,
+                action="PAYMENT_REQUESTED",
+                reason="Member payment request",
+                performed_by=performed_by
+            ))
+        
+            db.commit()
+            return
+        
 
         decision = WorkflowEngine.check_action(
             db=db,

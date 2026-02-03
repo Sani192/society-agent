@@ -7,6 +7,7 @@ Created on Sun Jan 11 05:44:25 2026
 """
 
 # app/modules/payments/refund_service.py
+import uuid
 
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -15,7 +16,9 @@ from app.db.models import (
     Event,
     Flat,
     Payment,
+    PaymentRequest,
     Refund,
+    UserFlatMapping,
     AuditLog
 )
 from app.workflows.engine import WorkflowEngine
@@ -46,6 +49,65 @@ class RefundService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
+            
+        payment = (
+            db.query(Payment)
+            .filter(
+                Payment.event_id == event_id,
+                Payment.flat_id == flat_id
+            )
+            .first()
+        )
+
+        if not payment or payment.paid_amount <= 0:
+            raise Exception("No payment available for refund")
+
+        if amount > payment.paid_amount:
+            raise Exception("Refund amount exceeds paid amount")    
+            
+        # --------------------------------------------------
+        # STEP 1: MEMBER PAYMENT → CREATE PAYMENT REQUEST
+        # --------------------------------------------------
+        if performed_by is None:
+            # member payment should not mark paid directly
+        
+            mapping = (
+                db.query(UserFlatMapping)
+                .filter(
+                    UserFlatMapping.flat_id == flat_id,
+                    UserFlatMapping.is_active.is_(True)
+                )
+                .first()
+            )
+        
+            if not mapping:
+                raise Exception("User is not mapped to this flat.")
+        
+            # Create refund record
+            refund = Refund(
+                id=uuid.uuid4(),
+                event_id=event_id,
+                flat_id=flat_id,
+                amount=amount,
+                reason=reason,
+                status="refunded",
+                created_by=performed_by
+            )
+
+            db.add(refund)
+            
+            db.add(AuditLog(
+                society_id=event.society_id,
+                entity_type="refund_request",
+                entity_id=refund.id,
+                action="REFUND_REQUESTED",
+                reason="Member refund request",
+                performed_by=performed_by
+            ))
+        
+            db.commit()
+            return
+            
 
         decision = WorkflowEngine.check_action(
             db=db,
@@ -66,21 +128,6 @@ class RefundService:
                 reason=override_reason,
                 performed_by=performed_by
             )
-
-        payment = (
-            db.query(Payment)
-            .filter(
-                Payment.event_id == event_id,
-                Payment.flat_id == flat_id
-            )
-            .first()
-        )
-
-        if not payment or payment.paid_amount <= 0:
-            raise Exception("No payment available for refund")
-
-        if amount > payment.paid_amount:
-            raise Exception("Refund amount exceeds paid amount")
 
         # Create refund record
         refund = Refund(

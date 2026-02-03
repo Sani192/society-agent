@@ -18,7 +18,7 @@ society = db.query(Society).first()
 
 
 flats = [
-    ("C-403", "B")
+    ("D-204", "D")
 ]
 
 for flat_no, block in flats:

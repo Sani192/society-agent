@@ -14,6 +14,7 @@ from datetime import datetime
 from app.db.models import (
     Event,
     Flat,
+    Payment,
     EventFoodPass,
     WorkflowState,
     AuditLog
@@ -103,6 +104,32 @@ class FoodPassService:
             )
             db.add(food_pass)
             action = "ADD_PASS"
+            
+        payment = (
+            db.query(Payment)
+            .filter(
+                Payment.event_id == event_id,
+                Payment.flat_id == flat_id
+            )
+            .first()
+        )
+
+        if not payment:
+            payment = Payment(
+                event_id=event_id,
+                flat_id=flat_id,
+                expected_amount=total_amount,
+                paid_amount=0,
+                status="pending"
+            )
+            db.add(payment)
+        else:
+            payment.expected_amount = total_amount
+            payment.status = (
+                "paid"
+                if payment.paid_amount >= total_amount
+                else "pending"
+            )
 
         db.add(AuditLog(
             society_id=event.society_id,
