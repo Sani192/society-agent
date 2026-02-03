@@ -334,3 +334,23 @@ class PendingUser(Base):
     # pending / approved / rejected
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+
+class PaymentRequest(Base):
+    __tablename__ = "payment_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+
+    requested_by = Column(UUID(as_uuid=True), ForeignKey("user_flat_mappings.id"), nullable=False)
+
+    amount = Column(Integer, nullable=False)
+
+    status = Column(String, default="pending")
+    # pending / approved / rejected
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
