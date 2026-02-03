@@ -15,6 +15,7 @@ from app.db.models import (
     Event,
     Flat,
     EventFoodPass,
+    Payment,
     WorkflowState,
     AuditLog
 )
@@ -117,6 +118,32 @@ class FoodPassService:
             performed_by=performed_by
         ))
 
+        payment = (
+            db.query(Payment)
+            .filter(
+                Payment.event_id == event_id,
+                Payment.flat_id == flat_id
+            )
+            .first()
+        )
+
+        if not payment:
+            payment = Payment(
+                event_id=event_id,
+                flat_id=flat_id,
+                expected_amount=total_amount,
+                paid_amount=0,
+                status="pending"
+            )
+        else:
+            payment.expected_amount = total_amount
+            if payment.paid_amount >= total_amount:
+                payment.status = "paid"
+                payment.paid_amount = total_amount
+            else:
+                payment.status = "partial" if payment.paid_amount > 0 else "pending"
+
+        db.add(payment)
 
         db.commit()
 
