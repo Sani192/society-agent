@@ -210,7 +210,7 @@ def test_committee_approve_user(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE",
-        message="approve user REQ-001",
+        message="Approve User req-001",
         event=event,
         member=member
     )
@@ -226,7 +226,7 @@ def test_committee_approve_user_forbidden():
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE",
-        message="approve user REQ-001",
+        message="Approve User req-001",
         event=event,
         member=member
     )
@@ -284,7 +284,7 @@ def test_committee_approve_payment(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE_PAYMENT",
-        message="approve payment PAY-001",
+        message="Approve Payment pay-001",
         event=event,
         member=member
     )
@@ -305,7 +305,7 @@ def test_committee_approve_payment_not_found(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE_PAYMENT",
-        message="approve payment PAY-999",
+        message="Approve Payment pay-999",
         event=event,
         member=member
     )
@@ -326,7 +326,7 @@ def test_committee_approve_payment_already_processed(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE_PAYMENT",
-        message="approve payment PAY-002",
+        message="Approve Payment pay-002",
         event=event,
         member=member
     )
@@ -357,7 +357,7 @@ def test_committee_approve_refund(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE_REFUND",
-        message="approve refund REF-001",
+        message="Approve Refund ref-001",
         event=event,
         member=member
     )
@@ -379,7 +379,7 @@ def test_committee_approve_refund_already_processed(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="APPROVE_REFUND",
-        message="approve refund REF-002",
+        message="Approve Refund ref-002",
         event=event,
         member=member
     )

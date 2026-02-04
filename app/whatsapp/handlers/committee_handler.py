@@ -186,7 +186,7 @@ def handle_committee_intent(
         if len(parts) < 3:
             return error("Example: approve user REQ-003")
 
-        request_code = parts[2]
+        request_code = parts[2].upper()
 
         AdminApprovalService.approve_user(
             db=db,
@@ -204,7 +204,7 @@ def handle_committee_intent(
         if len(parts) < 3:
             return error("Example: approve payment PAY-001")
 
-        request_code = parts[2]
+        request_code = parts[2].upper()
         request = PaymentRequestService.get_request_by_code(
             db=db,
             request_code=request_code
@@ -229,7 +229,7 @@ def handle_committee_intent(
         if len(parts) < 3:
             return error("Example: approve refund REF-001")
 
-        request_code = parts[2]
+        request_code = parts[2].upper()
         request = RefundRequestService.get_request_by_code(
             db=db,
             request_code=request_code
