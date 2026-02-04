@@ -20,5 +20,12 @@ def error(message: str):
     return f"❌ {message}"
 
 
+def error_envelope(message: str):
+    return {
+        "status": "error",
+        "message": message
+    }
+
+
 def info(message: str):
     return f"ℹ️ {message}"

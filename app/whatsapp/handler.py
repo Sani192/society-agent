@@ -80,8 +80,9 @@ def handle_message(phone_number: str, message: str):
         return error("Command not supported.")
 
 
-    except Exception as e:
-        return error(str(e))
+    except Exception:
+        logger.exception("Unhandled error in WhatsApp handler")
+        return error("Something went wrong. Please try again later.")
 
     finally:
         db.close()

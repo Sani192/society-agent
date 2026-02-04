@@ -14,7 +14,8 @@ from app.db.models import Society
 from app.permissions.report_guard import ensure_report_access
 from app.utils.audit_logger import log_report_access
 from app.utils.guards import ensure_committee_member
-from app.utils.response import error
+from app.utils.logger import logger
+from app.utils.response import error_envelope
 
 from app.modules.reports.administrative.member_directory_report import MemberDirectoryReport
 from app.modules.reports.administrative.onboarding_status_report import OnboardingStatusReport
@@ -36,8 +37,9 @@ def export_member_directory(
             role=member.role,
             report_code="MEMBER_DIRECTORY"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize member directory export")
+        return error_envelope("Unable to authorize report access.")
 
     society = db.query(Society).get(member.society_id)
     report = MemberDirectoryReport.generate(db, society.id)
@@ -71,7 +73,7 @@ def export_member_directory(
             media_type="application/pdf"
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")
 
 @router.get("/onboarding/export")
 def export_onboarding_status(
@@ -85,8 +87,9 @@ def export_onboarding_status(
             role=member.role,
             report_code="ONBOARDING_STATUS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize onboarding status export")
+        return error_envelope("Unable to authorize report access.")
 
     society = db.query(Society).get(member.society_id)
     report = OnboardingStatusReport.generate(db, society.id)
@@ -120,4 +123,4 @@ def export_onboarding_status(
             media_type="application/pdf"
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")

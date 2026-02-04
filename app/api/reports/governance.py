@@ -14,7 +14,8 @@ from app.db.models import Society
 from app.permissions.report_guard import ensure_report_access
 from app.utils.audit_logger import log_report_access
 from app.utils.guards import ensure_committee_member
-from app.utils.response import error
+from app.utils.logger import logger
+from app.utils.response import error_envelope
 
 from app.modules.reports.governance.audit_report import GovernanceAuditReport
 from app.modules.reports.pdf.governance_audit_pdf import generate_governance_audit_pdf
@@ -34,8 +35,9 @@ def export_governance_audit(
             role=member.role,
             report_code="GOVERNANCE_AUDIT"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize governance audit export")
+        return error_envelope("Unable to authorize report access.")
 
     society = db.query(Society).get(member.society_id)
     report = GovernanceAuditReport.generate(db, society.id)
@@ -81,4 +83,4 @@ def export_governance_audit(
             headers={"Content-Disposition": "attachment; filename=governance_audit.pdf"}
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")

@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import Event, Society
-from app.utils.response import error
+from app.utils.logger import logger
+from app.utils.response import error_envelope
 from app.modules.reports.common.resolvers import get_event
 from app.utils.guards import ensure_member_of_society
 from app.modules.reports.public.public_event_summary_report import PublicEventSummaryReport
@@ -27,12 +28,13 @@ def public_event_summary_pdf(
 ):
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
     
     try:
         ensure_member_of_society(phone, db, event.society_id)
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize public event summary export")
+        return error_envelope("Unable to authorize report access.")
 
     society = db.query(Society).get(event.society_id)
     summary = PublicEventSummaryReport.generate(db, event.id)
