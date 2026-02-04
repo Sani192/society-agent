@@ -18,18 +18,18 @@ from app.modules.reports.financial.sponsor_contribution_report import SponsorCon
 from app.modules.reports.financial.contribution_refund_report import ContributionRefundReport
 from app.modules.reports.financial.balance_continuity_report import BalanceContinuityReport
 from app.modules.reports.common.exporters import export_csv, export_excel
-from app.modules.reports.common.resolvers import get_event
+from app.api.reports.common import (
+    authorize_committee_member_report,
+    record_report_access,
+    require_event,
+)
 from app.modules.reports.pdf.flat_payment_pdf import generate_flat_payment_pdf
 from app.modules.reports.pdf.block_payment_pdf import generate_block_payment_pdf
 from app.modules.reports.pdf.event_financial_summary_pdf import generate_event_financial_summary_pdf
 from app.modules.reports.pdf.sponsor_contribution_pdf import generate_sponsor_contribution_pdf
 from app.modules.reports.pdf.contribution_refund_pdf import generate_contribution_refund_pdf
 from app.modules.reports.pdf.balance_continuity_pdf import generate_balance_continuity_pdf
-from app.utils.logger import logger
 from app.utils.response import success, error_envelope
-from app.permissions.report_guard import ensure_report_access
-from app.utils.guards import ensure_committee_member
-from app.utils.audit_logger import log_report_access
 
 router = APIRouter(prefix="/reports/financial", tags=["Reports | Financial"])
 
@@ -39,29 +39,27 @@ def event_summary(
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="EVENT_FINANCIAL_SUMMARY"
-        )
-    except Exception:
-        logger.exception("Failed to authorize event financial summary report")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="EVENT_FINANCIAL_SUMMARY",
+        log_message="Failed to authorize event financial summary report",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
     
     data = EventFinancialSummaryReport.generate(db, event.id)
     
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="EVENT_FINANCIAL_SUMMARY",
-        performed_by=member.id,
-        format="JSON"
+        format="JSON",
+        event=event,
     )
     
     return success(data)
@@ -74,29 +72,27 @@ def export_event_financial_summary(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="EVENT_FINANCIAL_SUMMARY"
-        )
-    except Exception:
-        logger.exception("Failed to authorize event financial summary export")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="EVENT_FINANCIAL_SUMMARY",
+        log_message="Failed to authorize event financial summary export",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
 
     report = EventFinancialSummaryReport.generate(db, event.id)
     
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="EVENT_FINANCIAL_SUMMARY",
-        performed_by=member.id,
-        format=format
+        format=format,
+        event=event,
     )
 
     if format == "csv":
@@ -151,29 +147,27 @@ def flat_payment_report(
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="FLAT_PAYMENTS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize flat payments report")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="FLAT_PAYMENTS",
+        log_message="Failed to authorize flat payments report",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
 
     report = FlatPaymentReport.generate(db, event.id)
     
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="FLAT_PAYMENTS",
-        performed_by=member.id,
-        format="JSON"
+        format="JSON",
+        event=event,
     )
     
     return success(report)
@@ -186,29 +180,27 @@ def export_flat_payment_report(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="FLAT_PAYMENTS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize flat payments export")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="FLAT_PAYMENTS",
+        log_message="Failed to authorize flat payments export",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
 
     report = FlatPaymentReport.generate(db, event.id)
     
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="FLAT_PAYMENTS",
-        performed_by=member.id,
-        format=format
+        format=format,
+        event=event,
     )
 
     if format == "csv":
@@ -263,29 +255,27 @@ def block_payment_report(
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="BLOCK_PAYMENTS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize block payments report")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="BLOCK_PAYMENTS",
+        log_message="Failed to authorize block payments report",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
 
     report = BlockPaymentReport.generate(db, event.id)
     
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="BLOCK_PAYMENTS",
-        performed_by=member.id,
-        format="JSON"
+        format="JSON",
+        event=event,
     )
     
     return success(report)
@@ -298,29 +288,27 @@ def export_block_payment_report(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="BLOCK_PAYMENTS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize block payments export")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="BLOCK_PAYMENTS",
+        log_message="Failed to authorize block payments export",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
     
     report = BlockPaymentReport.generate(db, event.id)
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="BLOCK_PAYMENTS",
-        performed_by=member.id,
-        format=format
+        format=format,
+        event=event,
     )
 
     if format == "csv":
@@ -377,29 +365,27 @@ def export_sponsor_contributions(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="SPONSOR_CONTRIBUTIONS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize sponsor contributions export")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="SPONSOR_CONTRIBUTIONS",
+        log_message="Failed to authorize sponsor contributions export",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
 
     report = SponsorContributionReport.generate(db, event.id)
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="SPONSOR_CONTRIBUTIONS",
-        performed_by=member.id,
-        format=format
+        format=format,
+        event=event,
     )
 
     if format == "csv":
@@ -451,29 +437,27 @@ def export_contribution_refunds(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="CONTRIBUTION_REFUNDS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize contribution refunds export")
-        return error_envelope("Unable to authorize report access.")
-    
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="CONTRIBUTION_REFUNDS",
+        log_message="Failed to authorize contribution refunds export",
+    )
+    if error_response:
+        return error_response
+
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
 
     report = ContributionRefundReport.generate(db, event.id)
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=event.society_id,
-        event_id=event.id,
+        member=member,
         report_code="CONTRIBUTION_REFUNDS",
-        performed_by=member.id,
-        format=format
+        format=format,
+        event=event,
     )
 
     if format == "csv":
@@ -527,28 +511,26 @@ def export_balance_continuity(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="BALANCE_CONTINUITY"
-        )
-    except Exception:
-        logger.exception("Failed to authorize balance continuity export")
-        return error_envelope("Unable to authorize report access.")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="BALANCE_CONTINUITY",
+        log_message="Failed to authorize balance continuity export",
+    )
+    if error_response:
+        return error_response
 
     report = BalanceContinuityReport.generate(
         db=db,
         society_id=member.society_id
     )
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=member.society_id,
-        event_id=None,
+        member=member,
         report_code="BALANCE_CONTINUITY",
-        performed_by=member.id,
-        format=format
+        format=format,
+        society_id=member.society_id,
     )
 
     if format == "csv":

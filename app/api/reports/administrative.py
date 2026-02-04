@@ -11,11 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import Society
-from app.permissions.report_guard import ensure_report_access
-from app.utils.audit_logger import log_report_access
-from app.utils.guards import ensure_committee_member
-from app.utils.logger import logger
 from app.utils.response import error_envelope
+from app.api.reports.common import authorize_committee_member_report, record_report_access
 
 from app.modules.reports.administrative.member_directory_report import MemberDirectoryReport
 from app.modules.reports.administrative.onboarding_status_report import OnboardingStatusReport
@@ -31,26 +28,24 @@ def export_member_directory(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="MEMBER_DIRECTORY"
-        )
-    except Exception:
-        logger.exception("Failed to authorize member directory export")
-        return error_envelope("Unable to authorize report access.")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="MEMBER_DIRECTORY",
+        log_message="Failed to authorize member directory export",
+    )
+    if error_response:
+        return error_response
 
     society = db.query(Society).get(member.society_id)
     report = MemberDirectoryReport.generate(db, society.id)
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=society.id,
-        event_id=None,
+        member=member,
         report_code="MEMBER_DIRECTORY",
-        performed_by=member.id,
-        format=format
+        format=format,
+        society_id=society.id,
     )
 
     if format == "csv":
@@ -81,26 +76,24 @@ def export_onboarding_status(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="ONBOARDING_STATUS"
-        )
-    except Exception:
-        logger.exception("Failed to authorize onboarding status export")
-        return error_envelope("Unable to authorize report access.")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="ONBOARDING_STATUS",
+        log_message="Failed to authorize onboarding status export",
+    )
+    if error_response:
+        return error_response
 
     society = db.query(Society).get(member.society_id)
     report = OnboardingStatusReport.generate(db, society.id)
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=society.id,
-        event_id=None,
+        member=member,
         report_code="ONBOARDING_STATUS",
-        performed_by=member.id,
-        format=format
+        format=format,
+        society_id=society.id,
     )
 
     if format == "csv":
