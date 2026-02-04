@@ -13,7 +13,11 @@ from app.modules.payments.payment_service import PaymentService
 from app.modules.payments.refund_service import RefundService
 from app.modules.payments.payment_request_service import PaymentRequestService
 from app.modules.payments.refund_request_service import RefundRequestService
+from app.modules.reports.block.block_contribution_service import BlockContributionReport
+from app.modules.reports.public.public_event_summary_report import PublicEventSummaryReport
+from app.db.models import AuditLog
 from app.modules.users.user_query_service import UserQueryService
+from app.utils.logger import logger
 from app.utils.response import success, error
 from app.whatsapp.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
 from app.whatsapp.handlers.common import resolve_flat
@@ -269,6 +273,66 @@ def handle_public_intent(
 
         return success(f"📌 Event Status: {status}")
 
+    if intent == "SUMMARY":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        logger.info("Generating public event summary for event %s", event.id)
+        summary = PublicEventSummaryReport.generate(
+            db=db,
+            event_id=event.id
+        )
+        db.add(AuditLog(
+            society_id=event.society_id,
+            entity_type="report",
+            entity_id=event.id,
+            action="VIEW_EVENT_SUMMARY",
+            reason="WhatsApp public summary",
+            performed_by=member.id if member else None
+        ))
+        db.commit()
+
+        lines = [
+            "📊 *Event Summary*",
+            f"Participants: {summary['participants']}",
+            f"Total Income: ₹{summary['income']}",
+            f"Total Expenses: ₹{summary['expenses']}",
+            f"Closing Balance: ₹{summary['closing_balance']}"
+        ]
+
+        if summary["sponsors"]:
+            lines.append(f"Sponsors: {', '.join(summary['sponsors'])}")
+
+        return success("\n".join(lines))
+
+    if intent == "BLOCK_REPORT":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        logger.info("Generating block contribution report for event %s", event.id)
+        report = BlockContributionReport.generate(
+            db=db,
+            event_id=event.id
+        )
+        db.add(AuditLog(
+            society_id=event.society_id,
+            entity_type="report",
+            entity_id=event.id,
+            action="VIEW_BLOCK_REPORT",
+            reason="WhatsApp block report",
+            performed_by=member.id if member else None
+        ))
+        db.commit()
+
+        if not report:
+            return success("🏢 No block contributions recorded yet.")
+
+        lines = ["🏢 *Block Contribution Report*"]
+        for block, amount in report.items():
+            lines.append(f"{block}: ₹{amount}")
+
+        return success("\n".join(lines))
+
     if intent == "HELP":
         return success(
             "🤖 *Society Assistant Help*\n\n"
@@ -302,6 +366,9 @@ def handle_public_intent(
             "📊 *Reports* (Committee)\n"
             "- participation report\n"
             "- pending payments\n\n"
+            "📈 *Group-safe Reports*\n"
+            "- summary\n"
+            "- block report\n\n"
             "✅ *Approvals* (Treasurer)\n"
             "- approve payment PAY-001\n"
             "- approve refund REF-001\n\n"
