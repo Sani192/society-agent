@@ -23,12 +23,12 @@ def normalize_phone(phone: str) -> str | None:
     digits = re.sub(r"\D", "", phone)
 
     # handle India country code
-    #if digits.startswith("91") and len(digits) == 12:
-    #    digits = digits[2:]
+    if digits.startswith("91") and len(digits) == 12:
+        digits = digits[2:]
 
     # final validation
-    #if len(digits) != 10:
-    #    return None
+    if len(digits) != 10:
+        return None
 
     return digits
 
@@ -57,7 +57,7 @@ def ensure_member_of_society(
     mappings = UserFlatService.get_flats_for_user(
         db=db,
         society_id=society_id,
-        user_identifier=phone_number
+        user_identifier=normalized
     )
     
     if not mappings:
@@ -85,5 +85,4 @@ def ensure_committee_member(
         raise Exception("You are not authorized.")
 
     return member
-
 
