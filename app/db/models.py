@@ -167,6 +167,46 @@ class Refund(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class PaymentRequest(Base):
+    __tablename__ = "payment_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+
+    request_code = Column(String(50), nullable=False, index=True)
+    amount = Column(Integer, nullable=False)
+    payment_mode = Column(String(50), nullable=True)
+
+    status = Column(String(50), nullable=False)  # requested / approved / rejected
+
+    requested_by = Column(String, nullable=False)
+    requested_at = Column(DateTime(timezone=True), server_default=func.now())
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
+    approved_at = Column(DateTime(timezone=True))
+
+
+class RefundRequest(Base):
+    __tablename__ = "refund_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+
+    request_code = Column(String(50), nullable=False, index=True)
+    amount = Column(Integer, nullable=False)
+    reason = Column(String(255), nullable=False)
+
+    status = Column(String(50), nullable=False)  # requested / approved / rejected
+
+    requested_by = Column(String, nullable=False)
+    requested_at = Column(DateTime(timezone=True), server_default=func.now())
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
+    approved_at = Column(DateTime(timezone=True))
+
+
 class EventContribution(Base):
     __tablename__ = "event_contributions"
 

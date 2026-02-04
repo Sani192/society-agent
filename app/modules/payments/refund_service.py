@@ -79,7 +79,18 @@ class RefundService:
         if not payment or payment.paid_amount <= 0:
             raise Exception("No payment available for refund")
 
-        if amount > payment.paid_amount:
+        refunded_total = (
+            db.query(Refund)
+            .filter(
+                Refund.event_id == event_id,
+                Refund.flat_id == flat_id,
+                Refund.status == "refunded"
+            )
+            .all()
+        )
+        total_refunded = sum(r.amount for r in refunded_total)
+
+        if amount + total_refunded > payment.paid_amount:
             raise Exception("Refund amount exceeds paid amount")
 
         # Create refund record
@@ -94,13 +105,7 @@ class RefundService:
 
         db.add(refund)
 
-        # Adjust payment
-        payment.paid_amount -= amount
-
-        if payment.paid_amount == 0:
-            payment.status = "refunded"
-        elif payment.paid_amount < payment.expected_amount:
-            payment.status = "partial"
+        payment.status = "refunded"
 
         # Audit log (ONE entry only)
         db.add(AuditLog(

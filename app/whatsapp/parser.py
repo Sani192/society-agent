@@ -30,3 +30,15 @@ def parse_pass_counts(message: str):
 def parse_reason(message: str):
     match = re.search(r"reason\s+(.*)", message)
     return match.group(1).strip() if match else None
+
+
+def parse_target_flat(message: str):
+    match = re.search(r"\bfor\s+([A-Za-z0-9-]+)\b", message, re.IGNORECASE)
+    if not match:
+        match = re.search(r"\bflat\s+([A-Za-z0-9-]+)\b", message, re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+
+def parse_target_phone(message: str):
+    match = re.search(r"\bphone\s+(\+?\d{10,15})\b", message, re.IGNORECASE)
+    return match.group(1).strip() if match else None

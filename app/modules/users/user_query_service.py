@@ -47,7 +47,8 @@ class UserQueryService:
             db.query(func.coalesce(func.sum(Refund.amount), 0))
             .filter(
                 Refund.event_id == event_id,
-                Refund.flat_id == flat_id
+                Refund.flat_id == flat_id,
+                Refund.status == "refunded"
             )
             .scalar()
         )
@@ -60,26 +61,44 @@ class UserQueryService:
 
     @staticmethod
     def get_my_balance(db: Session, *, event_id, flat_id):
-        payment = (
-            db.query(Payment)
+        food_pass = (
+            db.query(EventFoodPass)
             .filter(
-                Payment.event_id == event_id,
-                Payment.flat_id == flat_id
+                EventFoodPass.event_id == event_id,
+                EventFoodPass.flat_id == flat_id
             )
             .first()
         )
 
-        if not payment:
-            return {
-                "expected": 0,
-                "paid": 0,
-                "balance": 0
-            }
+        expected_amount = food_pass.total_amount if food_pass else 0
+
+        paid_amount = (
+            db.query(func.coalesce(func.sum(Payment.paid_amount), 0))
+            .filter(
+                Payment.event_id == event_id,
+                Payment.flat_id == flat_id
+            )
+            .scalar()
+        )
+
+        refunded_amount = (
+            db.query(func.coalesce(func.sum(Refund.amount), 0))
+            .filter(
+                Refund.event_id == event_id,
+                Refund.flat_id == flat_id,
+                Refund.status == "refunded"
+            )
+            .scalar()
+        )
+
+        balance = expected_amount - paid_amount - refunded_amount
+        if balance < 0:
+            balance = 0
 
         return {
-            "expected": payment.expected_amount,
-            "paid": payment.paid_amount,
-            "balance": payment.expected_amount - payment.paid_amount
+            "expected": expected_amount,
+            "paid": paid_amount,
+            "balance": balance
         }
 
     @staticmethod
