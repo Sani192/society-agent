@@ -259,3 +259,129 @@ def test_committee_pending_users(monkeypatch):
     )
 
     assert "REQ-001" in response
+
+
+def test_committee_approve_payment(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+    request = SimpleNamespace(request_code="PAY-001", status="requested")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
+        lambda **kwargs: request
+    )
+
+    called = {}
+
+    def fake_approve_request(**kwargs):
+        called["approved"] = kwargs["request"].request_code
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.PaymentRequestService.approve_request",
+        fake_approve_request
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="APPROVE_PAYMENT",
+        message="approve payment PAY-001",
+        event=event,
+        member=member
+    )
+
+    assert called["approved"] == "PAY-001"
+    assert response == "✅ ✅ Payment approved (PAY-001)"
+
+
+def test_committee_approve_payment_not_found(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
+        lambda **kwargs: None
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="APPROVE_PAYMENT",
+        message="approve payment PAY-999",
+        event=event,
+        member=member
+    )
+
+    assert response == "❌ Payment request not found."
+
+
+def test_committee_approve_payment_already_processed(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+    request = SimpleNamespace(request_code="PAY-002", status="approved")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
+        lambda **kwargs: request
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="APPROVE_PAYMENT",
+        message="approve payment PAY-002",
+        event=event,
+        member=member
+    )
+
+    assert response == "⚠️ Payment request already processed."
+
+
+def test_committee_approve_refund(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+    request = SimpleNamespace(request_code="REF-001", status="requested")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.RefundRequestService.get_request_by_code",
+        lambda **kwargs: request
+    )
+
+    called = {}
+
+    def fake_approve_refund(**kwargs):
+        called["approved"] = kwargs["request"].request_code
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.RefundRequestService.approve_request",
+        fake_approve_refund
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="APPROVE_REFUND",
+        message="approve refund REF-001",
+        event=event,
+        member=member
+    )
+
+    assert called["approved"] == "REF-001"
+    assert response == "✅ ✅ Refund approved (REF-001)"
+
+
+def test_committee_approve_refund_already_processed(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+    request = SimpleNamespace(request_code="REF-002", status="approved")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.RefundRequestService.get_request_by_code",
+        lambda **kwargs: request
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="APPROVE_REFUND",
+        message="approve refund REF-002",
+        event=event,
+        member=member
+    )
+
+    assert response == "⚠️ Refund request already processed."

@@ -134,3 +134,11 @@ class RefundRequestService:
         db.commit()
 
         return refund
+
+    @staticmethod
+    def get_request_by_code(db: Session, *, request_code):
+        return (
+            db.query(RefundRequest)
+            .filter(RefundRequest.request_code == request_code)
+            .first()
+        )

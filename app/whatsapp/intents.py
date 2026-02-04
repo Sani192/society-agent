@@ -18,6 +18,8 @@ INTENTS = {
     "PENDING_PAYMENTS": "pending payments",
     "PARTICIPATION_REPORT": "participation report",
     "REMIND_FLAT": "remind",
+    "APPROVE_PAYMENT": "approve payment",
+    "APPROVE_REFUND": "approve refund",
     "JOIN": "join",
     "APPROVE": "approve user",
     "JOIN_STATUS": "join status",

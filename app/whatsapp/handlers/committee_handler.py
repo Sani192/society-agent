@@ -14,6 +14,8 @@ from app.db.models import Flat, Payment, Refund, EventFoodPass
 from app.modules.expenses.expense_service import ExpenseService
 from app.modules.onboarding.admin_approval_service import AdminApprovalService
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
+from app.modules.payments.payment_request_service import PaymentRequestService
+from app.modules.payments.refund_request_service import RefundRequestService
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.permissions.guard import is_action_allowed
@@ -193,6 +195,56 @@ def handle_committee_intent(
         )
 
         return success(f"✅ User approved ({request_code})")
+
+    if intent == "APPROVE_PAYMENT":
+        if not is_action_allowed(member.role, "PAY"):
+            return warning("Only Treasurer can approve payments.")
+
+        parts = message.split()
+        if len(parts) < 3:
+            return error("Example: approve payment PAY-001")
+
+        request_code = parts[2]
+        request = PaymentRequestService.get_request_by_code(
+            db=db,
+            request_code=request_code
+        )
+        if not request:
+            return error("Payment request not found.")
+        if request.status != "requested":
+            return warning("Payment request already processed.")
+
+        PaymentRequestService.approve_request(
+            db=db,
+            request=request,
+            performed_by=member.id
+        )
+        return success(f"✅ Payment approved ({request_code})")
+
+    if intent == "APPROVE_REFUND":
+        if not is_action_allowed(member.role, "REFUND"):
+            return warning("Only Treasurer can approve refunds.")
+
+        parts = message.split()
+        if len(parts) < 3:
+            return error("Example: approve refund REF-001")
+
+        request_code = parts[2]
+        request = RefundRequestService.get_request_by_code(
+            db=db,
+            request_code=request_code
+        )
+        if not request:
+            return error("Refund request not found.")
+        if request.status != "requested":
+            return warning("Refund request already processed.")
+
+        RefundRequestService.approve_request(
+            db=db,
+            request=request,
+            performed_by=member.id
+        )
+        return success(f"✅ Refund approved ({request_code})")
 
     if intent == "PENDING_USERS":
         if not is_action_allowed(member.role, "ALL"):

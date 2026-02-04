@@ -135,3 +135,11 @@ class PaymentRequestService:
         db.commit()
 
         return payment
+
+    @staticmethod
+    def get_request_by_code(db: Session, *, request_code):
+        return (
+            db.query(PaymentRequest)
+            .filter(PaymentRequest.request_code == request_code)
+            .first()
+        )
