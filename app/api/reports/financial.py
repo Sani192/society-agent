@@ -25,7 +25,8 @@ from app.modules.reports.pdf.event_financial_summary_pdf import generate_event_f
 from app.modules.reports.pdf.sponsor_contribution_pdf import generate_sponsor_contribution_pdf
 from app.modules.reports.pdf.contribution_refund_pdf import generate_contribution_refund_pdf
 from app.modules.reports.pdf.balance_continuity_pdf import generate_balance_continuity_pdf
-from app.utils.response import success, error
+from app.utils.logger import logger
+from app.utils.response import success, error_envelope
 from app.permissions.report_guard import ensure_report_access
 from app.utils.guards import ensure_committee_member
 from app.utils.audit_logger import log_report_access
@@ -44,12 +45,13 @@ def event_summary(
             role=member.role,
             report_code="EVENT_FINANCIAL_SUMMARY"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize event financial summary report")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
     
     data = EventFinancialSummaryReport.generate(db, event.id)
     
@@ -78,12 +80,13 @@ def export_event_financial_summary(
             role=member.role,
             report_code="EVENT_FINANCIAL_SUMMARY"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize event financial summary export")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
 
     report = EventFinancialSummaryReport.generate(db, event.id)
     
@@ -139,7 +142,7 @@ def export_event_financial_summary(
             }
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")
 
 
 @router.get("/flat-payments")
@@ -154,12 +157,13 @@ def flat_payment_report(
             role=member.role,
             report_code="FLAT_PAYMENTS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize flat payments report")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
 
     report = FlatPaymentReport.generate(db, event.id)
     
@@ -188,12 +192,13 @@ def export_flat_payment_report(
             role=member.role,
             report_code="FLAT_PAYMENTS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize flat payments export")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
 
     report = FlatPaymentReport.generate(db, event.id)
     
@@ -249,7 +254,7 @@ def export_flat_payment_report(
             }
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")
 
 
 @router.get("/block-payments")
@@ -264,12 +269,13 @@ def block_payment_report(
             role=member.role,
             report_code="BLOCK_PAYMENTS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize block payments report")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
 
     report = BlockPaymentReport.generate(db, event.id)
     
@@ -298,12 +304,13 @@ def export_block_payment_report(
             role=member.role,
             report_code="BLOCK_PAYMENTS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize block payments export")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
     
     report = BlockPaymentReport.generate(db, event.id)
 
@@ -361,7 +368,7 @@ def export_block_payment_report(
             }
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")
 
 @router.get("/sponsor-contributions/export")
 def export_sponsor_contributions(
@@ -376,12 +383,13 @@ def export_sponsor_contributions(
             role=member.role,
             report_code="SPONSOR_CONTRIBUTIONS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize sponsor contributions export")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
 
     report = SponsorContributionReport.generate(db, event.id)
 
@@ -434,7 +442,7 @@ def export_sponsor_contributions(
             headers={"Content-Disposition": "attachment; filename=sponsor_contributions.pdf"}
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")
 
 @router.get("/contribution-refunds/export")
 def export_contribution_refunds(
@@ -449,12 +457,13 @@ def export_contribution_refunds(
             role=member.role,
             report_code="CONTRIBUTION_REFUNDS"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize contribution refunds export")
+        return error_envelope("Unable to authorize report access.")
     
     event = get_event(db, event_id)
     if not event:
-        return error("Event not found")
+        return error_envelope("Event not found")
 
     report = ContributionRefundReport.generate(db, event.id)
 
@@ -510,7 +519,7 @@ def export_contribution_refunds(
             }
         )
 
-    return error("Supported formats: csv, excel, pdf")
+    return error_envelope("Supported formats: csv, excel, pdf")
 
 @router.get("/balance-continuity/export")
 def export_balance_continuity(
@@ -524,8 +533,9 @@ def export_balance_continuity(
             role=member.role,
             report_code="BALANCE_CONTINUITY"
         )
-    except Exception as e:
-        return error(e)
+    except Exception:
+        logger.exception("Failed to authorize balance continuity export")
+        return error_envelope("Unable to authorize report access.")
 
     report = BalanceContinuityReport.generate(
         db=db,
@@ -580,5 +590,4 @@ def export_balance_continuity(
             }
         )
 
-    return error("Supported formats: csv, excel, pdf")
-
+    return error_envelope("Supported formats: csv, excel, pdf")
