@@ -18,7 +18,6 @@ from app.db.models import (
     Payment
 )
 from app.modules.payments.refund_service import RefundService
-from app.workflows.engine import WorkflowEngine
 
 
 class RefundRequestService:
@@ -41,15 +40,6 @@ class RefundRequestService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
-
-        decision = WorkflowEngine.check_action(
-            db=db,
-            event_id=event_id,
-            action="REQUEST_REFUND"
-        )
-
-        if not decision.allowed:
-            raise Exception(decision.message)
 
         payment = (
             db.query(Payment)

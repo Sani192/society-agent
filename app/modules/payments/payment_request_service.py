@@ -18,7 +18,6 @@ from app.db.models import (
     EventFoodPass
 )
 from app.modules.payments.payment_service import PaymentService
-from app.workflows.engine import WorkflowEngine
 
 
 class PaymentRequestService:
@@ -41,15 +40,6 @@ class PaymentRequestService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
-
-        decision = WorkflowEngine.check_action(
-            db=db,
-            event_id=event_id,
-            action="MARK_PAID"
-        )
-
-        if not decision.allowed:
-            raise Exception(decision.message)
 
         food_pass = (
             db.query(EventFoodPass)
