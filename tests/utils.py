@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+from unittest.mock import MagicMock
+
+import pytest
 
 
 @dataclass
@@ -28,3 +31,8 @@ class QueryMock:
 
     def count(self):
         return self.count_result
+
+
+@pytest.fixture
+def db_session():
+    return MagicMock()
