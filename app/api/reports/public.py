@@ -10,10 +10,10 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.db.models import Event, Society
+from app.db.models import Society
+from app.api.reports.common import require_event
 from app.utils.logger import logger
 from app.utils.response import error_envelope
-from app.modules.reports.common.resolvers import get_event
 from app.utils.guards import ensure_member_of_society
 from app.modules.reports.public.public_event_summary_report import PublicEventSummaryReport
 from app.modules.reports.pdf.public_event_summary_pdf import generate_public_event_summary_pdf
@@ -26,9 +26,9 @@ def public_event_summary_pdf(
     event_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
-    event = get_event(db, event_id)
-    if not event:
-        return error_envelope("Event not found")
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
     
     try:
         ensure_member_of_society(phone, db, event.society_id)

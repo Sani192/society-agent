@@ -11,11 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import Society
-from app.permissions.report_guard import ensure_report_access
-from app.utils.audit_logger import log_report_access
-from app.utils.guards import ensure_committee_member
-from app.utils.logger import logger
 from app.utils.response import error_envelope
+from app.api.reports.common import authorize_committee_member_report, record_report_access
 
 from app.modules.reports.governance.audit_report import GovernanceAuditReport
 from app.modules.reports.pdf.governance_audit_pdf import generate_governance_audit_pdf
@@ -29,26 +26,24 @@ def export_governance_audit(
     format: str = Query(default="csv"),
     db: Session = Depends(get_db)
 ):
-    try:
-        member = ensure_committee_member(phone, db)
-        ensure_report_access(
-            role=member.role,
-            report_code="GOVERNANCE_AUDIT"
-        )
-    except Exception:
-        logger.exception("Failed to authorize governance audit export")
-        return error_envelope("Unable to authorize report access.")
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="GOVERNANCE_AUDIT",
+        log_message="Failed to authorize governance audit export",
+    )
+    if error_response:
+        return error_response
 
     society = db.query(Society).get(member.society_id)
     report = GovernanceAuditReport.generate(db, society.id)
 
-    log_report_access(
+    record_report_access(
         db=db,
-        society_id=society.id,
-        event_id=None,
+        member=member,
         report_code="GOVERNANCE_AUDIT",
-        performed_by=member.id,
-        format=format
+        format=format,
+        society_id=society.id,
     )
 
     if format == "csv":
