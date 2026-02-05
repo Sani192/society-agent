@@ -11,12 +11,14 @@ Created on Sun Jan 11 05:57:35 2026
 from sqlalchemy.orm import Session
 
 from app.db.models import EventContribution
+from app.modules.reports.common.resolvers import get_event_or_raise
 
 
 class SponsorWiseReport:
 
     @staticmethod
     def generate(db: Session, *, event_id):
+        get_event_or_raise(db, event_id)
         contributions = (
             db.query(EventContribution)
             .filter(EventContribution.event_id == event_id)

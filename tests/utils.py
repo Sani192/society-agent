@@ -7,6 +7,7 @@ import pytest
 @dataclass
 class QueryMock:
     first_result: object = None
+    get_result: object = None
     scalar_result: object = None
     all_result: object = None
     count_result: object = None
@@ -20,8 +21,14 @@ class QueryMock:
     def order_by(self, *args, **kwargs):
         return self
 
+    def group_by(self, *args, **kwargs):
+        return self
+
     def first(self):
         return self.first_result
+
+    def get(self, *args, **kwargs):
+        return self.get_result if self.get_result is not None else self.first_result
 
     def scalar(self):
         return self.scalar_result
