@@ -12,13 +12,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.db.models import (
-    Event,
     Payment,
     Refund,
     EventExpense,
     EventContribution,
     SocietyBalance
 )
+from app.modules.reports.common.resolvers import get_event_or_raise
 
 
 class EventSummaryReport:
@@ -26,14 +26,7 @@ class EventSummaryReport:
     @staticmethod
     def generate(db: Session, *, event_id: str):
         # 1️ Load event
-        event = (
-            db.query(Event)
-            .filter(Event.id == event_id)
-            .first()
-        )
-
-        if not event:
-            raise Exception("Event not found.")
+        event = get_event_or_raise(db, event_id)
 
         # 2️ Income from flats (actual paid)
         flat_income = (

@@ -12,12 +12,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.db.models import Flat, Payment
+from app.modules.reports.common.resolvers import get_event_or_raise
 
 
 class BlockWiseReport:
 
     @staticmethod
     def generate(db: Session, *, event_id):
+        get_event_or_raise(db, event_id)
         rows = (
             db.query(
                 Flat.block,

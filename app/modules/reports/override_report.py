@@ -11,12 +11,14 @@ Created on Sun Jan 11 05:58:01 2026
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog
+from app.modules.reports.common.resolvers import get_event_or_raise
 
 
 class OverrideReport:
 
     @staticmethod
     def generate(db: Session, *, event_id):
+        get_event_or_raise(db, event_id)
         logs = (
             db.query(AuditLog)
             .filter(

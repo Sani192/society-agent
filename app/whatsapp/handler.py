@@ -22,29 +22,28 @@ def handle_message(phone_number: str, message: str):
     logger.info(f"Incoming message from {phone_number}: {message}")
     db = SessionLocal()
 
-    member = None
     try:
-        member = ensure_committee_member(phone_number, db)
-    except Exception as e:
-        logger.info("Not a committee member – allowed for member-level commands")
-        pass
+        member = None
+        try:
+            member = ensure_committee_member(phone_number, db)
+        except Exception as e:
+            logger.info("Not a committee member – allowed for member-level commands")
+            pass
 
-# =============================================================================
-#     try:
-#         ensure_admin(phone_number)
-#     except Exception as e:
-#         logger.exception("Unhandled error in WhatsApp handler")
-#         return error("Something went wrong. Please contact admin.")
-# =============================================================================
+    # =============================================================================
+    #     try:
+    #         ensure_admin(phone_number)
+    #     except Exception as e:
+    #         logger.exception("Unhandled error in WhatsApp handler")
+    #         return error("Something went wrong. Please contact admin.")
+    # =============================================================================
 
+        event = get_latest_event(db)
 
-    event = get_latest_event(db)
+        intent = detect_intent(message)
+        if not intent:
+            return "❓ Sorry, I didn’t understand this command."
 
-    intent = detect_intent(message)
-    if not intent:
-        return "❓ Sorry, I didn’t understand this command."
-
-    try:
         onboarding_response = handle_onboarding_intent(
             db=db,
             intent=intent,
@@ -79,10 +78,8 @@ def handle_message(phone_number: str, message: str):
 
         return error("Command not supported.")
 
-
     except Exception:
         logger.exception("Unhandled error in WhatsApp handler")
         return error("Something went wrong. Please try again later.")
-
     finally:
         db.close()
