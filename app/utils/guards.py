@@ -23,12 +23,12 @@ def normalize_phone(phone: str) -> str | None:
     digits = re.sub(r"\D", "", phone)
 
     # handle India country code
-    if digits.startswith("91") and len(digits) == 12:
-        digits = digits[2:]
+    # if digits.startswith("91") and len(digits) == 12:
+    #    digits = digits[2:]
 
     # final validation
-    if len(digits) != 10:
-        return None
+    # if len(digits) != 10:
+    #    return None
 
     return digits
 
