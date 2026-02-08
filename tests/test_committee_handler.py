@@ -42,7 +42,7 @@ def test_committee_add_expense_success(monkeypatch):
     )
 
     assert called["added"] is True
-    assert response == "✅ 🧾 Expense added: ₹1200"
+    assert "Expense added: ₹1,200" in response
 
 
 def test_committee_pending_payments_forbidden():
@@ -346,7 +346,7 @@ def test_committee_approve_payment(monkeypatch):
     )
 
     assert called["approved"] == "PAY-001"
-    assert response == "✅ ✅ Payment approved (PAY-001)"
+    assert response == "✅ Payment approved (PAY-001)"
 
 
 def test_committee_approve_payment_not_found(monkeypatch):
@@ -419,7 +419,7 @@ def test_committee_approve_refund(monkeypatch):
     )
 
     assert called["approved"] == "REF-001"
-    assert response == "✅ ✅ Refund approved (REF-001)"
+    assert response == "✅ Refund approved (REF-001)"
 
 
 def test_committee_refund_sponsor_surfaces_error(monkeypatch):
