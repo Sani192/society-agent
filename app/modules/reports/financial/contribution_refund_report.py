@@ -6,17 +6,23 @@ Created on Sun Jan 25 16:53:39 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.db.models import (
     ContributionRefund,
     EventContribution
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class ContributionRefundReport:
 
     @staticmethod
+    @log_service_call(logger, "ContributionRefundReport.generate")
     def generate(db: Session, event_id):
+        context = build_log_context(event_id=event_id)
         records = (
             db.query(
                 EventContribution.contribution_type,
@@ -32,6 +38,11 @@ class ContributionRefundReport:
             .filter(EventContribution.event_id == event_id)
             .all()
         )
+        if not records:
+            logger.info(
+                "Workflow decision: no contribution refunds found | context=%s",
+                context
+            )
 
         rows = []
         total_refunded = 0
@@ -49,6 +60,11 @@ class ContributionRefundReport:
                 status
             ])
 
+        if not rows:
+            logger.info(
+                "Workflow decision: contribution refund report empty | context=%s",
+                context
+            )
         return {
             "headers": [
                 "Contribution Type",

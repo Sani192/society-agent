@@ -8,6 +8,7 @@ Created on Sat Jan 17 11:38:47 2026
 
 # app/modules/reports/pending_payment_report.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
@@ -17,15 +18,20 @@ from app.db.models import (
     EventFoodPass,
     Refund
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class PendingPaymentReport:
 
     @staticmethod
+    @log_service_call(logger, "PendingPaymentReport.get_pending_flats")
     def get_pending_flats(db: Session, *, event_id, society_id):
         """
         Returns flats with pending balance (> 0)
         """
+        context = build_log_context(event_id=event_id, society_id=society_id)
         results = (
             db.query(
                 Flat.flat_number.label("flat_number"),
@@ -68,6 +74,11 @@ class PendingPaymentReport:
             .order_by(Flat.flat_number)
             .all()
         )
+        if not results:
+            logger.info(
+                "Workflow decision: no payment records for pending report | context=%s",
+                context
+            )
 
         pending = []
         for r in results:
@@ -82,4 +93,9 @@ class PendingPaymentReport:
                 "pending": remaining
             })
 
+        if not pending:
+            logger.info(
+                "Workflow decision: no pending balances found | context=%s",
+                context
+            )
         return pending

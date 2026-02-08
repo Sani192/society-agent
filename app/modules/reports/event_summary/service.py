@@ -8,6 +8,7 @@ Created on Mon Jan 19 21:16:26 2026
 
 # app/modules/reports/event_summary/service.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -19,12 +20,17 @@ from app.db.models import (
     SocietyBalance
 )
 from app.modules.reports.common.resolvers import get_event_or_raise
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class EventSummaryReport:
 
     @staticmethod
+    @log_service_call(logger, "EventSummaryReport.generate")
     def generate(db: Session, *, event_id: str):
+        context = build_log_context(event_id=event_id)
         # 1️ Load event
         event = get_event_or_raise(db, event_id)
 
@@ -83,6 +89,10 @@ class EventSummaryReport:
             + sponsor_income
             - expenses
             - refunds
+        )
+        logger.info(
+            "Workflow decision: calculated closing balance | context=%s",
+            context
         )
 
         return {

@@ -6,6 +6,7 @@ Created on Sun Jan 25 17:27:31 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.db.models import (
     Event,
@@ -15,18 +16,28 @@ from app.db.models import (
     Refund,
     EventContribution
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class BalanceContinuityReport:
 
     @staticmethod
+    @log_service_call(logger, "BalanceContinuityReport.generate")
     def generate(db: Session, society_id):
+        context = build_log_context(society_id=society_id)
         events = (
             db.query(Event)
             .filter(Event.society_id == society_id)
             .order_by(Event.event_date.asc())
             .all()
         )
+        if not events:
+            logger.info(
+                "Workflow decision: no events found for balance continuity | context=%s",
+                context
+            )
 
         rows = []
         previous_closing = 0
@@ -73,6 +84,11 @@ class BalanceContinuityReport:
 
             previous_closing = closing_balance
 
+        if not rows:
+            logger.info(
+                "Workflow decision: balance continuity report empty | context=%s",
+                context
+            )
         return {
             "headers": [
                 "Event",

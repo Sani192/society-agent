@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:22:18 2026
 # app/modules/payments/payment_request_service.py
 
 from datetime import datetime
+import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -18,6 +19,9 @@ from app.db.models import (
     EventFoodPass
 )
 from app.modules.payments.payment_service import PaymentService
+from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentRequestService:
@@ -32,13 +36,27 @@ class PaymentRequestService:
         payment_mode,
         requested_by
     ):
+        context = build_log_context(
+            event_id=event_id,
+            flat_id=flat_id,
+            performed_by=requested_by
+        )
+        log_entry(logger, "PaymentRequestService.request_payment", context)
         if amount <= 0:
+            logger.warning(
+                "Validation failed for payment request: amount <= 0 | context=%s",
+                context
+            )
             raise Exception("Payment amount must be greater than zero")
 
         event = db.query(Event).filter(Event.id == event_id).first()
         flat = db.query(Flat).filter(Flat.id == flat_id).first()
 
         if not event or not flat:
+            logger.warning(
+                "Validation failed for payment request: invalid event/flat | context=%s",
+                context
+            )
             raise Exception("Invalid event or flat")
 
         food_pass = (
@@ -52,6 +70,10 @@ class PaymentRequestService:
         )
 
         if not food_pass:
+            logger.warning(
+                "Validation failed for payment request: missing food pass | context=%s",
+                context
+            )
             raise Exception("Food pass not found or flat not participating")
 
         existing = (
@@ -66,6 +88,14 @@ class PaymentRequestService:
         )
 
         if existing:
+            logger.info(
+                "Workflow decision: returning existing payment request | context=%s",
+                {
+                    **context,
+                    "request_code": existing.request_code
+                }
+            )
+            log_exit(logger, "PaymentRequestService.request_payment", context)
             return existing
 
         count = (
@@ -86,12 +116,42 @@ class PaymentRequestService:
             requested_by=requested_by
         )
 
+        logger.info(
+            "DB write: creating payment request | context=%s",
+            {
+                **context,
+                "society_id": event.society_id,
+                "request_code": request_code
+            }
+        )
         db.add(request)
-        db.commit()
+        try:
+            db.commit()
+            logger.info(
+                "Commit success: payment request created | context=%s",
+                {
+                    **context,
+                    "society_id": event.society_id,
+                    "request_code": request_code
+                }
+            )
+        except Exception:
+            logger.exception(
+                "Commit failure: payment request create | context=%s",
+                {
+                    **context,
+                    "society_id": event.society_id,
+                    "request_code": request_code
+                }
+            )
+            db.rollback()
+            raise
 
+        log_exit(logger, "PaymentRequestService.request_payment", context)
         return request
 
     @staticmethod
+    @log_service_call(logger, "PaymentRequestService.find_matching_request")
     def find_matching_request(
         db: Session,
         *,
@@ -118,6 +178,18 @@ class PaymentRequestService:
         request: PaymentRequest,
         performed_by
     ):
+        context = build_log_context(
+            event_id=request.event_id,
+            flat_id=request.flat_id,
+            society_id=request.society_id,
+            performed_by=performed_by,
+            request_code=request.request_code
+        )
+        log_entry(logger, "PaymentRequestService.approve_request", context)
+        logger.info(
+            "Workflow decision: approving payment request | context=%s",
+            context
+        )
         payment = PaymentService.record_payment(
             db=db,
             event_id=request.event_id,
@@ -132,11 +204,26 @@ class PaymentRequestService:
         request.approved_by = performed_by
         request.approved_at = datetime.utcnow()
 
-        db.commit()
+        logger.info("DB write: updating payment request status | context=%s", context)
+        try:
+            db.commit()
+            logger.info(
+                "Commit success: payment request approved | context=%s",
+                context
+            )
+        except Exception:
+            logger.exception(
+                "Commit failure: payment request approve | context=%s",
+                context
+            )
+            db.rollback()
+            raise
 
+        log_exit(logger, "PaymentRequestService.approve_request", context)
         return payment
 
     @staticmethod
+    @log_service_call(logger, "PaymentRequestService.get_request_by_code")
     def get_request_by_code(db: Session, *, request_code):
         return (
             db.query(PaymentRequest)
@@ -145,6 +232,7 @@ class PaymentRequestService:
         )
 
     @staticmethod
+    @log_service_call(logger, "PaymentRequestService.list_requests")
     def list_requests(
         db: Session,
         *,

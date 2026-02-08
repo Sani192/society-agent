@@ -6,6 +6,7 @@ Created on Sun Feb  8 17:23:45 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -18,12 +19,17 @@ from app.db.models import (
     SocietyBalance,
     Flat
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class LedgerReport:
 
     @staticmethod
+    @log_service_call(logger, "LedgerReport.generate")
     def generate(db: Session, *, event_id, society_id):
+        context = build_log_context(event_id=event_id, society_id=society_id)
         ledger = []
 
         # --------------------------------------------------
@@ -150,6 +156,11 @@ class LedgerReport:
                 desc,
                 -amount
             ])
+        if len(ledger) <= 1:
+            logger.info(
+                "Workflow decision: ledger has only opening entries | context=%s",
+                context
+            )
 
         # --------------------------------------------------
         # CLOSING BALANCE
@@ -161,6 +172,11 @@ class LedgerReport:
             "-",
             closing
         ])
+        if len(ledger) <= 2:
+            logger.info(
+                "Workflow decision: ledger has no transaction rows | context=%s",
+                context
+            )
         
         return {
             "headers": [
