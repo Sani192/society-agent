@@ -287,11 +287,17 @@ def test_public_my_pass_requires_event():
 def test_public_my_payment_requests(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     request = SimpleNamespace(request_code="PAY-003", amount=250, status="requested")
-    flat = SimpleNamespace(flat_number="A-101")
+    member_flat = SimpleNamespace(id="flat-1")
+    request_flat = SimpleNamespace(flat_number="A-101")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.resolve_flat",
+        lambda *args, **kwargs: member_flat
+    )
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
-        lambda **kwargs: [(request, flat)]
+        lambda **kwargs: [(request, request_flat)]
     )
 
     response = handle_public_intent(
@@ -310,11 +316,17 @@ def test_public_my_payment_requests(monkeypatch):
 def test_public_my_refund_requests(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     request = SimpleNamespace(request_code="REF-003", amount=150, status="requested")
-    flat = SimpleNamespace(flat_number="B-101")
+    member_flat = SimpleNamespace(id="flat-1")
+    request_flat = SimpleNamespace(flat_number="B-101")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.resolve_flat",
+        lambda *args, **kwargs: member_flat
+    )
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.public_handler.RefundRequestService.list_requests",
-        lambda **kwargs: [(request, flat)]
+        lambda **kwargs: [(request, request_flat)]
     )
 
     response = handle_public_intent(
@@ -333,11 +345,22 @@ def test_public_my_refund_requests(monkeypatch):
 def test_public_my_payments(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     request = SimpleNamespace(request_code="PAY-010", amount=400, status="approved")
-    flat = SimpleNamespace(flat_number="C-301")
+    member_flat = SimpleNamespace(id="flat-1")
+    request_flat = SimpleNamespace(flat_number="C-301")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.resolve_flat",
+        lambda *args, **kwargs: member_flat
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_payment_summary",
+        lambda **kwargs: {"paid": 400, "refunded": 0, "net_paid": 400}
+    )
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
-        lambda **kwargs: [(request, flat)]
+        lambda **kwargs: [(request, request_flat)]
     )
 
     response = handle_public_intent(
@@ -351,6 +374,7 @@ def test_public_my_payments(monkeypatch):
 
     assert "PAY-010" in response
     assert "C-301" in response
+    assert "Payment Summary" in response
 
 
 def test_public_help_and_commands():

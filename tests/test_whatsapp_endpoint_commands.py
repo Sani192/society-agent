@@ -86,7 +86,6 @@ PUBLIC_CASES = [
     ("PAY", "pay 500"),
     ("REFUND", "refund 200 reason guest absent"),
     ("MY_PASS", "my pass"),
-    ("MY_PAYMENT", "my payment"),
     ("MY_PAYMENT_REQUESTS", "my payment requests"),
     ("MY_REFUND_REQUESTS", "my refund requests"),
     ("MY_PAYMENTS", "my payments"),
