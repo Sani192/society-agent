@@ -17,6 +17,8 @@ from app.modules.reports.financial.block_payment_report import BlockPaymentRepor
 from app.modules.reports.financial.sponsor_contribution_report import SponsorContributionReport
 from app.modules.reports.financial.contribution_refund_report import ContributionRefundReport
 from app.modules.reports.financial.balance_continuity_report import BalanceContinuityReport
+from app.modules.reports.financial.member_refund_report import MemberRefundReport
+from app.modules.reports.financial.ledger_report import LedgerReport
 from app.modules.reports.common.exporters import export_csv, export_excel
 from app.api.reports.common import (
     authorize_committee_member_report,
@@ -29,6 +31,8 @@ from app.modules.reports.pdf.event_financial_summary_pdf import generate_event_f
 from app.modules.reports.pdf.sponsor_contribution_pdf import generate_sponsor_contribution_pdf
 from app.modules.reports.pdf.contribution_refund_pdf import generate_contribution_refund_pdf
 from app.modules.reports.pdf.balance_continuity_pdf import generate_balance_continuity_pdf
+from app.modules.reports.pdf.member_refund_pdf import generate_member_refund_pdf
+from app.modules.reports.pdf.ledger_pdf import generate_ledger_pdf
 from app.utils.response import success, error_envelope
 
 router = APIRouter(prefix="/reports/financial", tags=["Reports | Financial"])
@@ -569,6 +573,157 @@ def export_balance_continuity(
             media_type="application/pdf",
             headers={
                 "Content-Disposition": "attachment; filename=balance_continuity.pdf"
+            }
+        )
+
+    return error_envelope("Supported formats: csv, excel, pdf")
+
+@router.get("/member-refunds/export")
+def export_member_refunds(
+    phone: str = Query(...),
+    event_id: str | None = Query(default=None),
+    format: str = Query(default="csv"),
+    db: Session = Depends(get_db)
+):
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="MEMBER_REFUNDS",
+        log_message="Failed to authorize member refunds export",
+    )
+    if error_response:
+        return error_response
+    
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
+
+    report = MemberRefundReport.generate(
+        db=db,
+        event_id=event.id
+    )
+
+    record_report_access(
+        db=db,
+        member=member,
+        report_code="MEMBER_REFUNDS",
+        format=format,
+        society_id=member.society_id,
+    )
+
+    if format == "csv":
+        return Response(
+            export_csv(report["headers"], report["rows"]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=member_refunds.csv"
+            }
+        )
+
+    if format == "excel":
+        return Response(
+            export_excel(
+                sheet_name="Member Refunds",
+                headers=report["headers"],
+                rows=report["rows"]
+            ),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": "attachment; filename=member_refunds.xlsx"
+            }
+        )
+
+    if format == "pdf":
+        society = db.query(Society).get(member.society_id)
+        branding = (society.config_json or {}).get("branding", {})
+        logo_path = branding.get("logo_path")
+
+        return Response(
+            generate_member_refund_pdf(
+                society_name=society.name,
+                event_name=event.name,
+                report=report,
+                logo_path=logo_path
+            ),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=member_refund.pdf"
+            }
+        )
+
+    return error_envelope("Supported formats: csv, excel, pdf")
+
+@router.get("/ledger/export")
+def export_ledger(
+    phone: str = Query(...),
+    event_id: str | None = Query(default=None),
+    format: str = Query(default="csv"),
+    db: Session = Depends(get_db)
+):
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="LEDGER",
+        log_message="Failed to authorize ledger export",
+    )
+    if error_response:
+        return error_response
+    
+    event, error_response = require_event(db=db, event_id=event_id)
+    if error_response:
+        return error_response
+
+    report = LedgerReport.generate(
+        db=db,
+        event_id=event.id,
+        society_id=member.society_id
+    )
+
+    record_report_access(
+        db=db,
+        member=member,
+        report_code="LEDGER",
+        format=format,
+        society_id=member.society_id,
+    )
+
+    if format == "csv":
+        return Response(
+            export_csv(report["headers"], report["rows"]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=ledger_{event.name}.csv"
+            }
+        )
+
+    if format == "excel":
+        return Response(
+            export_excel(
+                sheet_name="Ledger",
+                headers=report["headers"],
+                rows=report["rows"]
+            ),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename=ledger_{event.name}.xlsx"
+            }
+        )
+
+    if format == "pdf":
+        society = db.query(Society).get(member.society_id)
+        branding = (society.config_json or {}).get("branding", {})
+        logo_path = branding.get("logo_path")
+
+        return Response(
+            generate_ledger_pdf(
+                society_name=society.name,
+                event_name=event.name,
+                report=report,
+                logo_path=logo_path
+            ),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=ledger_{event.name}.pdf"
             }
         )
 

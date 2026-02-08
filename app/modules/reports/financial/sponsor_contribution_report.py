@@ -18,6 +18,7 @@ class SponsorContributionReport:
             db.query(
                 EventContribution.contribution_type,
                 EventContribution.source_name,
+                EventContribution.contribution_code,
                 Flat.flat_number,
                 EventContribution.amount,
                 EventContribution.in_kind_details
@@ -30,13 +31,14 @@ class SponsorContributionReport:
         rows = []
         total_cash = 0
 
-        for ctype, source, flat, amount, in_kind in records:
+        for ctype, source, code, flat, amount, in_kind in records:
             cash = amount or 0
             total_cash += cash
 
             rows.append([
                 ctype,
                 source,
+                code,
                 flat or "-",
                 cash,
                 in_kind or "-"
@@ -46,6 +48,7 @@ class SponsorContributionReport:
             "headers": [
                 "Contribution Type",
                 "Source",
+                "Contribution Code",
                 "Flat",
                 "Cash Amount",
                 "In-kind Contribution"

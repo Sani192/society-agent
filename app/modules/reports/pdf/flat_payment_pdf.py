@@ -54,18 +54,20 @@ def generate_flat_payment_pdf(
     })
 
     # Table
-    headers = ["Flat", "Block", "Expected", "Paid", "Pending"]
+    headers = ["Flat", "Block", "Expected", "Paid", "Refunded", "Pending"]
     table = build_table(headers, rows)
     elements.append(table)
     total_expected = sum(r[2] for r in rows)
     total_paid = sum(r[3] for r in rows)
-    total_pending = sum(r[4] for r in rows)
+    total_refunded = sum(r[4] for r in rows)
+    total_pending = sum(r[5] for r in rows)
     
     elements.append(Spacer(1, 18))
     elements.append(
         pdf.summary_box("Payment Summary", [
             ["Total Expected", f"₹ {total_expected:,}"],
             ["Total Paid", f"₹ {total_paid:,}"],
+            ["Total Refunded", f"₹ {total_refunded:,}"],
             ["Total Pending", f"₹ {total_pending:,}"],
         ])
     )

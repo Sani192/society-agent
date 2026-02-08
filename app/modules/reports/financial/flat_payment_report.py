@@ -7,7 +7,8 @@ Created on Fri Jan 23 16:54:23 2026
 """
 
 from sqlalchemy.orm import Session
-from app.db.models import Flat, Payment
+from sqlalchemy import func
+from app.db.models import Flat, Payment, Refund
 
 class FlatPaymentReport:
 
@@ -24,16 +25,31 @@ class FlatPaymentReport:
 
             paid = payment.paid_amount if payment else 0
             expected = payment.expected_amount if payment else 0
+            
+            # sum of refunds
+            refunded = (
+                db.query(func.coalesce(func.sum(Refund.amount), 0))
+                .filter(
+                    Refund.event_id == event_id,
+                    Refund.flat_id == flat.id,
+                    Refund.status.in_(["approved", "refunded"])
+                )
+                .scalar()
+            )
+
+            net_paid = paid - refunded
+            pending = expected - net_paid
 
             rows.append([
                 flat.flat_number,
                 flat.block,
                 expected,
                 paid,
-                expected - paid
+                refunded,
+                pending
             ])
 
         return {
-            "headers": ["Flat", "Block", "Expected", "Paid", "Pending"],
+            "headers": ["Flat", "Block", "Expected", "Paid", "Refunded", "Pending"],
             "rows": rows
         }

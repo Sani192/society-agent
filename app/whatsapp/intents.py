@@ -9,29 +9,48 @@ Created on Sun Jan 11 06:06:33 2026
 # app/whatsapp/intents.py
 
 INTENTS = {
-    "ADD_PASS": "add pass",
-    "PAY": "pay",
-    "REFUND": "refund",
-    "ADD_EXPENSE": "expense",
-    "SUMMARY": "summary",
-    "BLOCK_REPORT": "block report",
-    "PENDING_PAYMENTS": "pending payments",
-    "PARTICIPATION_REPORT": "participation report",
-    "REMIND_FLAT": "remind",
+    # ========= MOST SPECIFIC (multi-word, high risk of conflict) =========
+
+    # sponsor
+    "REFUND_SPONSOR": "refund sponsor",
+    "ADD_SPONSOR": "add sponsor",
+
+    # approvals (specific before generic)
     "APPROVE_PAYMENT": "approve payment",
     "APPROVE_REFUND": "approve refund",
-    "JOIN": "join",
     "APPROVE": "approve user",
+
+    # join
     "JOIN_STATUS": "join status",
+    "JOIN": "join",
+
+    # reports (specific phrases first)
+    "BLOCK_REPORT": "block report",
+    "PARTICIPATION_REPORT": "participation report",
+    "PENDING_PAYMENTS": "pending payments",
+    "SUMMARY": "summary",
+
+    # actions
+    "ADD_PASS": "add pass",
+    "ADD_EXPENSE": "expense",
+    "REMIND_FLAT": "remind",
+
+    # payments & refunds (generic AFTER sponsor-specific)
+    "REFUND": "refund",
+    "PAY": "pay",
+
+    # onboarding admin
     "PENDING_USERS": "pending users",
-    
-    # personal read-only
+
+    # ========= PERSONAL (read-only, very specific) =========
     "MY_PASS": "my pass",
     "MY_PAYMENT": "my payment",
     "MY_BALANCE": "my balance",
     "MY_STATUS": "my status",
-    
-    # help
+
+    # ========= HELP (last, lowest risk) =========
     "HELP": "help",
-    "COMMANDS": "commands"
+    "COMMANDS": "commands",
 }
+
+

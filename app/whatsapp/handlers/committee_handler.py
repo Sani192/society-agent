@@ -16,11 +16,13 @@ from app.modules.onboarding.admin_approval_service import AdminApprovalService
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
 from app.modules.payments.payment_request_service import PaymentRequestService
 from app.modules.payments.refund_request_service import RefundRequestService
+from app.modules.contributions.contribution_service import ContributionService
+from app.modules.contributions.contribution_refund_service import ContributionRefundService
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.permissions.guard import is_action_allowed
 from app.utils.response import success, error, warning
-from app.whatsapp.parser import parse_amount
+from app.whatsapp.parser import parse_amount, parse_reason
 
 
 def handle_committee_intent(
@@ -274,5 +276,145 @@ def handle_committee_intent(
             )
 
         return success("\n".join(lines))
+    
+    if intent == "ADD_SPONSOR":
+        if not is_action_allowed(member.role, "ADD_SPONSOR"):
+            return warning("Only committee members can add sponsors.")
+    
+        raw = message.replace("add sponsor", "", 1).strip()
+    
+        if not raw:
+            return error("Example: add sponsor Shree Caterers 10000")
+    
+        flat_id = None
+    
+        # ------------------------------------------------
+        # IN-KIND SPONSOR (name + in-kind + details)
+        # ------------------------------------------------
+        if "in-kind" in raw:
+            before, after = raw.split("in-kind", 1)
+    
+            sponsor_name = before.strip()
+            details = after.strip()
+    
+            if not sponsor_name or not details:
+                return error(
+                    "Example: add sponsor Shree Caterers in-kind water cans"
+                )
+    
+            # detect flat-based sponsor
+            flat = (
+                db.query(Flat)
+                .filter(
+                    Flat.flat_number == sponsor_name,
+                    Flat.society_id == event.society_id
+                )
+                .first()
+            )
+    
+            if flat:
+                flat_id = flat.id
+                sponsor_name = f"Flat {flat.flat_number}"
+    
+            ContributionService.add_contribution(
+                db=db,
+                event_id=event.id,
+                society_id=event.society_id,
+                contribution_type="in_kind",
+                source_name=sponsor_name,
+                flat_id=flat_id,
+                in_kind_details=details,
+                performed_by=member.id,
+                notes="Via WhatsApp"
+            )
+    
+            return success("🤝 In-kind sponsor added successfully.")
+    
+        # ------------------------------------------------
+        # MONETARY SPONSOR
+        # ------------------------------------------------
+        parts = raw.split()
+    
+        if len(parts) < 2:
+            return error("Example: add sponsor Shree Caterers 5000")
+    
+        try:
+            amount = int(parts[-1])
+        except ValueError:
+            return error("Amount must be numeric. Example: add sponsor ABC 5000")
+    
+        sponsor_name = " ".join(parts[:-1]).strip()
+    
+        if not sponsor_name:
+            return error("Sponsor name is required.")
+    
+        # detect flat-based sponsor
+        flat = (
+            db.query(Flat)
+            .filter(
+                Flat.flat_number == sponsor_name,
+                Flat.society_id == event.society_id
+            )
+            .first()
+        )
+    
+        if flat:
+            flat_id = flat.id
+            sponsor_name = f"Flat {flat.flat_number}"
+    
+        ContributionService.add_contribution(
+            db=db,
+            event_id=event.id,
+            society_id=event.society_id,
+            contribution_type="sponsor",
+            source_name=sponsor_name,
+            flat_id=flat_id,
+            amount=amount,
+            performed_by=member.id,
+            notes="Via WhatsApp"
+        )
+    
+        return success("🤝 Sponsor added successfully.")
+
+    
+    if intent == "REFUND_SPONSOR":
+        if not is_action_allowed(member.role, "REFUND"):
+            return warning("Only Treasurer or Chairman can refund sponsors.")
+    
+        parts = message.split()
+    
+        if len(parts) < 6:
+            return error(
+                "Example: refund sponsor SP-001 500 reason banner cancelled"
+            )
+    
+        contribution_code = parts[2]
+        
+        # ✅ amount is ALWAYS the token after contribution code
+        try:
+            amount = int(parts[3])
+        except ValueError:
+            return error("Invalid refund amount. Example: refund sponsor SP-007 500 reason xyz")
+    
+        # reason = everything after 'reason'
+        if "reason" not in parts:
+            return error("Please specify reason. Example: refund sponsor SP-007 500 reason xyz")
+    
+        reason_index = parts.index("reason")
+        reason = " ".join(parts[reason_index + 1:]).strip()
+    
+        if not reason:
+            return error("Refund reason is required.")
+    
+        ContributionRefundService.process_refund(
+            db=db,
+            event_id=event.id,
+            contribution_code=contribution_code,
+            amount=amount,
+            reason=reason,
+            performed_by=member.id
+        )
+    
+        return success(f"↩️ Sponsor refund processed ({contribution_code}).")
 
     return None

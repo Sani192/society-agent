@@ -19,7 +19,7 @@ society = db.query(Society).first()
 
 flat = (
     db.query(Flat)
-    .filter(Flat.flat_number == "C-403", Flat.society_id == society.id)
+    .filter(Flat.flat_number == "E-303", Flat.society_id == society.id)
     .first()
 )
 
@@ -27,7 +27,7 @@ UserFlatService.assign_user_to_flat(
     db=db,
     society_id=society.id,
     flat_id=flat.id,
-    user_identifier="916666666666"
+    user_identifier="913333333333"
 )
 
 db.close()

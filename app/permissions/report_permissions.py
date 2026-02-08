@@ -14,6 +14,8 @@ REPORT_PERMISSIONS = {
     "SPONSOR_CONTRIBUTIONS": {"chairman", "treasurer"},
     "CONTRIBUTION_REFUNDS": {"chairman", "treasurer"},
     "BALANCE_CONTINUITY": {"chairman", "treasurer"},
+    "MEMBER_REFUNDS": {"chairman", "treasurer"},
     "MEMBER_DIRECTORY": {"chairman", "secretary"},
-    "ONBOARDING_STATUS": {"chairman", "secretary"}
+    "ONBOARDING_STATUS": {"chairman", "secretary"},
+    "LEDGER": {"chairman", "secretary", "treasurer"}
 }

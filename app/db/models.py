@@ -213,6 +213,8 @@ class EventContribution(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    contribution_code = Column(String(20), nullable=False, index=True)
+    # example: SP-001
 
     contribution_type = Column(String(50), nullable=False)
     source_name = Column(String(255), nullable=False)

@@ -18,10 +18,10 @@ society = db.query(Society).first()
 
 
 flats = [
-    ("C-403", "B")
+    ("A-804", "A", "JK")
 ]
 
-for flat_no, block in flats:
+for flat_no, block, owner_name in flats:
     exists = (
         db.query(Flat)
         .filter(Flat.flat_number == flat_no, Flat.society_id == society.id)
@@ -32,7 +32,8 @@ for flat_no, block in flats:
             Flat(
                 society_id=society.id,
                 flat_number=flat_no,
-                block=block
+                block=block,
+                owner_name=owner_name
             )
         )
 

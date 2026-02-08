@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Jan 25 16:28:17 2026
+Created on Sun Feb  8 17:01:29 2026
 
 @author: anonymous
 """
@@ -16,7 +16,7 @@ from app.modules.reports.pdf.base import BasePDF
 from app.modules.reports.pdf.table import build_table
 
 
-def generate_sponsor_contribution_pdf(
+def generate_member_refund_pdf(
     *,
     society_name: str,
     event_name: str,
@@ -28,7 +28,7 @@ def generate_sponsor_contribution_pdf(
     pdf = BasePDF(
         buffer=buffer,
         society_name=society_name,
-        report_title="Sponsor & Contribution Report",
+        report_title="Member Refunds Report",
         logo_path=logo_path
     )
 
@@ -40,7 +40,7 @@ def generate_sponsor_contribution_pdf(
         topMargin=4 * 28,
         bottomMargin=3 * 28,
     )
-    
+
     styles = getSampleStyleSheet()
     elements = []
 
@@ -52,20 +52,17 @@ def generate_sponsor_contribution_pdf(
     })
     
     # Table
-    elements.append(build_table(
-        report["headers"],
-        [
-            [r[0], r[1], r[2], r[3], f"₹ {r[4]:,}", r[5]]
-            for r in report["rows"]
-        ]
-    ))
-    elements.append(Spacer(1, 18))
     elements.append(
-        pdf.summary_box(
-            "Total Cash Sponsorship",
-            [["Total Cash", f"₹ {report['total_cash']:,}"]]
+        build_table(
+            report["headers"],
+            [
+                [r[0], f"₹ {r[1]:,}", r[2], r[3], r[4]]
+                for r in report["rows"]
+            ]
         )
     )
+
+    elements.append(Spacer(1, 18))
 
     def on_page(canvas, doc):
         pdf.header_footer(canvas, doc.page)

@@ -19,12 +19,15 @@ ROLE_ACTIONS = {
         "PENDING_PAYMENTS",
         "ONBOARDING_PENDING",
         "OVERRIDE_REPORT",
-        "AUDIT_SUMMARY"
+        "AUDIT_SUMMARY",
+        "ADD_SPONSOR"
     },
     "treasurer": {
         "PAY",
         "REFUND",
         "SUMMARY",
-        "PENDING_PAYMENTS"
+        "PENDING_PAYMENTS",
+        "ADD_SPONSOR",
+        "REFUND_SPONSOR"
     }
 }
