@@ -24,7 +24,7 @@ The system is designed with **full transparency** and **audit safety**.
 
 ## ⚙️ Environment Variables
 
-Create a `.env` file at the repo root (the app loads it automatically) and set:
+Copy `.env.example` to `.env` at the repo root (the app loads it automatically) and update:
 
 ### Database (required)
 - `DB_HOST`
@@ -48,7 +48,7 @@ Create a `.env` file at the repo root (the app loads it automatically) and set:
 ### WhatsApp (optional)
 - `WHATSAPP_MODE` (e.g. `SIMULATOR`)
 
-Example `.env`:
+Example `.env` (based on `.env.example`):
 
 ```bash
 APP_ENV=local
@@ -123,3 +123,4 @@ The API will be available at: `http://localhost:8000`
 
 Swagger UI is available at: `http://localhost:8000/docs`
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
