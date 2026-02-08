@@ -18,7 +18,8 @@ def test_create_event_creates_workflow_and_audit():
         name="Ganesh Chaturthi Dinner",
         event_date=datetime(2026, 9, 14, 19, 0),
         food_types=["veg", "jain"],
-        charge_per_person=300,
+        charge_per_adult=300,
+        charge_per_child=150,
         payment_deadline=datetime(2026, 9, 10, 23, 59),
         created_by="member-1"
     )

@@ -103,7 +103,8 @@ class Event(Base):
     name = Column(String(255), nullable=False)
     event_date = Column(DateTime(timezone=True), nullable=False)
 
-    charge_per_person = Column(Integer, nullable=True)
+    charge_per_adult = Column(Integer, nullable=True)
+    charge_per_child = Column(Integer, nullable=True)
 
     food_types = Column(JSONB, nullable=False)
     payment_deadline = Column(DateTime(timezone=True), nullable=True)

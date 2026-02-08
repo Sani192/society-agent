@@ -31,7 +31,8 @@ def test_add_or_update_pass_creates_food_pass_and_payment(monkeypatch):
         veg_count=2,
         jain_count=1,
         kids_count=0,
-        charge_per_person=300,
+        charge_per_adult=300,
+        charge_per_child=150,
         performed_by="member-1"
     )
 
@@ -66,7 +67,8 @@ def test_add_or_update_pass_requires_nonzero_counts(monkeypatch):
             veg_count=0,
             jain_count=0,
             kids_count=0,
-            charge_per_person=300,
+            charge_per_adult=300,
+            charge_per_child=150,
             performed_by="member-1"
         )
 

@@ -33,7 +33,8 @@ class FoodPassService:
         veg_count=0,
         jain_count=0,
         kids_count=0,
-        charge_per_person,
+        charge_per_adult,
+        charge_per_child,
         performed_by,
         override_reason=None
     ):
@@ -67,12 +68,13 @@ class FoodPassService:
                 performed_by=performed_by
             )
 
-        total_persons = veg_count + jain_count + kids_count
+        total_adults = veg_count + jain_count
+        total_persons = total_adults + kids_count
 
         if total_persons <= 0:
             raise Exception("At least one food count must be greater than zero")
 
-        total_amount = total_persons * charge_per_person
+        total_amount = (total_adults * charge_per_adult) + (kids_count * charge_per_child)
 
         food_pass = (
             db.query(EventFoodPass)

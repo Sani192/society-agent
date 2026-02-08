@@ -26,7 +26,8 @@ class EventService:
         event_date,
         food_types,
         created_by,
-        charge_per_person=None,
+        charge_per_adult=None,
+        charge_per_child=None,
         payment_deadline=None
     ):
         """
@@ -39,7 +40,8 @@ class EventService:
             name=name,
             event_date=event_date,
             food_types=food_types,
-            charge_per_person=charge_per_person,
+            charge_per_adult=charge_per_adult,
+            charge_per_child=charge_per_child,
             payment_deadline=payment_deadline,
             status="DRAFT",
             created_by=created_by
@@ -257,5 +259,4 @@ class EventService:
         ))
 
         db.commit()
-
 

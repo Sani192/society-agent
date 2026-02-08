@@ -76,7 +76,8 @@ def handle_public_intent(
             veg_count=counts["veg"],
             jain_count=counts["jain"],
             kids_count=counts["kids"],
-            charge_per_person=300,
+            charge_per_adult=event.charge_per_adult,
+            charge_per_child=event.charge_per_child,
             performed_by=member.id if member else None,
             override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
         )

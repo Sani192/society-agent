@@ -81,6 +81,21 @@ GRANT ALL PRIVILEGES ON DATABASE society_db TO society_user;
 3. Ensure your `.env` matches these values.
 4. The app auto-creates tables on startup.
 
+### Schema updates
+
+For existing databases, apply schema changes manually. For example, to migrate the event
+charge fields from a single per-person column to adult/child columns:
+
+```sql
+ALTER TABLE events ADD COLUMN charge_per_adult integer;
+ALTER TABLE events ADD COLUMN charge_per_child integer;
+UPDATE events
+SET charge_per_adult = charge_per_person,
+    charge_per_child = charge_per_person
+WHERE charge_per_person IS NOT NULL;
+ALTER TABLE events DROP COLUMN charge_per_person;
+```
+
 ---
 
 ## 🚀 How to Run (Local)
@@ -123,5 +138,6 @@ The API will be available at: `http://localhost:8000`
 
 Swagger UI is available at: `http://localhost:8000/docs`
 This system helps the society managing committee manage festival events, food passes, payments, sponsorships, expenses, and reports.
-- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
