@@ -28,6 +28,8 @@ INTENTS = {
     "BLOCK_REPORT": "block report",
     "PARTICIPATION_REPORT": "participation report",
     "PENDING_PAYMENTS": "pending payments",
+    "PAYMENT_REQUESTS": "payment requests",
+    "REFUND_REQUESTS": "refund requests",
     "SUMMARY": "summary",
 
     # actions
@@ -44,6 +46,9 @@ INTENTS = {
 
     # ========= PERSONAL (read-only, very specific) =========
     "MY_PASS": "my pass",
+    "MY_PAYMENT_REQUESTS": "my payment requests",
+    "MY_REFUND_REQUESTS": "my refund requests",
+    "MY_PAYMENTS": "my payments",
     "MY_PAYMENT": "my payment",
     "MY_BALANCE": "my balance",
     "MY_STATUS": "my status",
@@ -52,5 +57,4 @@ INTENTS = {
     "HELP": "help",
     "COMMANDS": "commands",
 }
-
 

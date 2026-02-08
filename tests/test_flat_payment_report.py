@@ -12,13 +12,15 @@ def test_flat_payment_report_headers_and_rows(db_session):
     db_session.query.side_effect = [
         QueryMock(all_result=[flat_one, flat_two]),
         QueryMock(first_result=payment),
+        QueryMock(scalar_result=0),
         QueryMock(first_result=None),
+        QueryMock(scalar_result=0),
     ]
 
     report = FlatPaymentReport.generate(db_session, event_id="event-1")
 
-    assert report["headers"] == ["Flat", "Block", "Expected", "Paid", "Pending"]
+    assert report["headers"] == ["Flat", "Block", "Expected", "Paid", "Refunded", "Pending"]
     assert report["rows"] == [
-        ["A-101", "A", 500, 300, 200],
-        ["B-202", "B", 0, 0, 0],
+        ["A-101", "A", 500, 300, 0, 200],
+        ["B-202", "B", 0, 0, 0, 0],
     ]

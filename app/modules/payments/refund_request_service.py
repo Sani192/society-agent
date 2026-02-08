@@ -142,3 +142,29 @@ class RefundRequestService:
             .filter(RefundRequest.request_code == request_code)
             .first()
         )
+
+    @staticmethod
+    def list_requests(
+        db: Session,
+        *,
+        event_id,
+        status=None,
+        requested_by=None
+    ):
+        query = (
+            db.query(RefundRequest, Flat)
+            .join(Flat, RefundRequest.flat_id == Flat.id)
+            .filter(RefundRequest.event_id == event_id)
+        )
+
+        if status:
+            query = query.filter(RefundRequest.status == status)
+
+        if requested_by:
+            query = query.filter(RefundRequest.requested_by == requested_by)
+
+        return (
+            query
+            .order_by(RefundRequest.requested_at.desc())
+            .all()
+        )
