@@ -9,7 +9,7 @@ Created on Sun Jan 11 06:07:33 2026
 # app/whatsapp/handler.py
 
 from app.db.session import SessionLocal
-from app.utils.response import error
+from app.whatsapp.response_templates import error_response, info_response
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
 from app.whatsapp.router import detect_intent
@@ -42,7 +42,7 @@ def handle_message(phone_number: str, message: str):
 
         intent = detect_intent(message)
         if not intent:
-            return "❓ Sorry, I didn’t understand this command."
+            return info_response("Sorry, I didn’t understand this command.")
 
         onboarding_response = handle_onboarding_intent(
             db=db,
@@ -76,10 +76,10 @@ def handle_message(phone_number: str, message: str):
         if public_response:
             return public_response
 
-        return error("Command not supported.")
+        return error_response("Command not supported.")
 
     except Exception:
         logger.exception("Unhandled error in WhatsApp handler")
-        return error("Something went wrong. Please try again later.")
+        return error_response("Something went wrong. Please try again later.")
     finally:
         db.close()

@@ -18,7 +18,13 @@ from app.modules.reports.public.public_event_summary_report import PublicEventSu
 from app.db.models import AuditLog, Payment
 from app.modules.users.user_query_service import UserQueryService
 from app.utils.logger import logger
-from app.utils.response import success, error
+from app.whatsapp.response_templates import (
+    error_response,
+    format_currency,
+    format_heading,
+    join_lines,
+    success_response,
+)
 from app.whatsapp.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
 from app.whatsapp.handlers.common import resolve_flat
 
@@ -31,7 +37,7 @@ def _resolve_member_flat(db, *, phone_number, event):
             society_id=event.society_id
         )
     except Exception as exc:
-        return None, error(str(exc))
+        return None, error_response(str(exc))
 
     return flat, None
 
@@ -49,7 +55,7 @@ def handle_public_intent(
 
     if intent == "ADD_PASS":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         flat_number = parse_target_flat(message) if allow_delegate else None
         flat = resolve_flat(
@@ -61,7 +67,7 @@ def handle_public_intent(
 
         counts = parse_pass_counts(message)
         if sum(counts.values()) == 0:
-            return error("Specify counts. Example: add pass veg 2 jain 1 kid 1")
+            return error_response("Specify counts. Example: add pass veg 2 jain 1 kid 1")
 
         FoodPassService.add_or_update_pass(
             db=db,
@@ -75,13 +81,19 @@ def handle_public_intent(
             override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
         )
 
-        return success(
-            f"✅ Pass updated: veg {counts['veg']}, jain {counts['jain']}, kids {counts['kids']}"
+        return success_response(
+            join_lines([
+                f"Veg: {counts['veg']}",
+                f"Jain: {counts['jain']}",
+                f"Kids: {counts['kids']}"
+            ]),
+            heading="Pass updated",
+            emoji="🎫"
         )
 
     if intent == "PAY":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         flat_number = parse_target_flat(message) if allow_delegate else None
         flat = resolve_flat(
@@ -93,7 +105,7 @@ def handle_public_intent(
 
         amount = parse_amount(message)
         if not amount:
-            return error("Please specify amount. Example: pay 500")
+            return error_response("Please specify amount. Example: pay 500")
 
         if not member:
             request = PaymentRequestService.request_payment(
@@ -104,9 +116,13 @@ def handle_public_intent(
                 payment_mode="upi",
                 requested_by=phone_number
             )
-            return success(
-                "⏳ Payment request sent for treasurer approval.\n"
-                f"Request ID: *{request.request_code}*"
+            return success_response(
+                join_lines([
+                    "Payment request sent for treasurer approval.",
+                    f"Request ID: *{request.request_code}*"
+                ]),
+                heading="Payment request submitted",
+                emoji="⏳"
             )
 
         request = PaymentRequestService.find_matching_request(
@@ -121,8 +137,8 @@ def handle_public_intent(
                 request=request,
                 performed_by=member.id
             )
-            return success(
-                f"✅ Payment approved and recorded (Request {request.request_code})"
+            return success_response(
+                f"Payment approved and recorded (Request {request.request_code})"
             )
 
         PaymentService.record_payment(
@@ -134,11 +150,13 @@ def handle_public_intent(
             performed_by=member.id,
             override_reason="Via WhatsApp"
         )
-        return success(f"💰 Payment received: ₹{amount}")
+        return success_response(
+            f"Payment received: {format_currency(amount)}"
+        )
 
     if intent == "REFUND":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         flat_number = parse_target_flat(message) if allow_delegate else None
         flat = resolve_flat(
@@ -152,7 +170,7 @@ def handle_public_intent(
         reason = parse_reason(message)
 
         if not amount or not reason:
-            return error("Example: refund 200 reason guest absent")
+            return error_response("Example: refund 200 reason guest absent")
 
         if not member:
             try:
@@ -165,10 +183,14 @@ def handle_public_intent(
                     requested_by=phone_number
                 )
             except Exception as exc:
-                return error(str(exc))
-            return success(
-                "⏳ Refund request sent for treasurer approval.\n"
-                f"Request ID: *{request.request_code}*"
+                return error_response(str(exc))
+            return success_response(
+                join_lines([
+                    "Refund request sent for treasurer approval.",
+                    f"Request ID: *{request.request_code}*"
+                ]),
+                heading="Refund request submitted",
+                emoji="⏳"
             )
 
         request = RefundRequestService.find_matching_request(
@@ -183,8 +205,8 @@ def handle_public_intent(
                 request=request,
                 performed_by=member.id
             )
-            return success(
-                f"✅ Refund approved and processed (Request {request.request_code})"
+            return success_response(
+                f"Refund approved and processed (Request {request.request_code})"
             )
 
         try:
@@ -198,13 +220,15 @@ def handle_public_intent(
                 override_reason="Via WhatsApp"
             )
         except Exception as exc:
-            return error(str(exc))
+            return error_response(str(exc))
 
-        return success(f"↩️ Refund processed: ₹{amount}")
+        return success_response(
+            f"Refund processed: {format_currency(amount)}"
+        )
 
     if intent == "MY_PASS":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         flat = resolve_flat(
             db,
@@ -219,26 +243,33 @@ def handle_public_intent(
         )
 
         if not food_pass:
-            return success("🎫 You have not taken a food pass for this event.")
+            return success_response(
+                "You have not taken a food pass for this event.",
+                heading="Food pass",
+                emoji="🎫"
+            )
 
-        return success(
-            f"🎫 Your Food Pass\n"
-            f"Veg: {food_pass.veg_count}\n"
-            f"Jain: {food_pass.jain_count}\n"
-            f"Kids: {food_pass.kids_count}"
+        return success_response(
+            join_lines([
+                f"Veg: {food_pass.veg_count}",
+                f"Jain: {food_pass.jain_count}",
+                f"Kids: {food_pass.kids_count}"
+            ]),
+            heading="Your Food Pass",
+            emoji="🎫"
         )
 
     if intent == "MY_PAYMENT_REQUESTS":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
-        flat, error_response = _resolve_member_flat(
+        flat, error_reply = _resolve_member_flat(
             db,
             phone_number=phone_number,
             event=event
         )
-        if error_response:
-            return error_response
+        if error_reply:
+            return error_reply
 
         requests = PaymentRequestService.list_requests(
             db=db,
@@ -247,28 +278,33 @@ def handle_public_intent(
         )
 
         if not requests:
-            return success("✅ No payment requests found.")
+            return success_response(
+                "No payment requests found.",
+                heading="Your Payment Requests",
+                emoji="📥"
+            )
 
-        lines = ["📥 *Your Payment Requests*"]
+        lines = [format_heading("Your Payment Requests", "📥")]
         for request, flat in requests:
             lines.append(
-                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.request_code} | {flat.flat_number} | "
+                f"{format_currency(request.amount)} | "
                 f"{request.status}"
             )
 
-        return success("\n".join(lines))
+        return success_response(join_lines(lines))
 
     if intent == "MY_REFUND_REQUESTS":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
-        flat, error_response = _resolve_member_flat(
+        flat, error_reply = _resolve_member_flat(
             db,
             phone_number=phone_number,
             event=event
         )
-        if error_response:
-            return error_response
+        if error_reply:
+            return error_reply
 
         requests = RefundRequestService.list_requests(
             db=db,
@@ -277,28 +313,33 @@ def handle_public_intent(
         )
 
         if not requests:
-            return success("✅ No refund requests found.")
+            return success_response(
+                "No refund requests found.",
+                heading="Your Refund Requests",
+                emoji="📤"
+            )
 
-        lines = ["📤 *Your Refund Requests*"]
+        lines = [format_heading("Your Refund Requests", "📤")]
         for request, flat in requests:
             lines.append(
-                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.request_code} | {flat.flat_number} | "
+                f"{format_currency(request.amount)} | "
                 f"{request.status}"
             )
 
-        return success("\n".join(lines))
+        return success_response(join_lines(lines))
 
     if intent == "MY_PAYMENTS":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
-        flat, error_response = _resolve_member_flat(
+        flat, error_reply = _resolve_member_flat(
             db,
             phone_number=phone_number,
             event=event
         )
-        if error_response:
-            return error_response
+        if error_reply:
+            return error_reply
 
         summary = UserQueryService.get_my_payment_summary(
             db=db,
@@ -331,32 +372,39 @@ def handle_public_intent(
             requested_by=phone_number
         )
 
-        header = (
-            f"💰 Payment Summary\n"
-            f"Paid: ₹{summary['paid']}\n"
-            f"Refunded: ₹{summary['refunded']}\n"
-            f"Net Paid: ₹{summary['net_paid']}\n"
-            f"Status: {payment_status} (₹{payment_paid} of ₹{payment_expected})"
-        )
+        header = join_lines([
+            format_heading("Payment Summary", "💰"),
+            f"Paid: {format_currency(summary['paid'])}",
+            f"Refunded: {format_currency(summary['refunded'])}",
+            f"Net Paid: {format_currency(summary['net_paid'])}",
+            (
+                f"Status: {payment_status} "
+                f"({format_currency(payment_paid)} of {format_currency(payment_expected)})"
+            )
+        ])
 
         if not requests:
-            return success(
-                f"{header}\n\n"
-                "✅ No payment requests found for this event."
+            return success_response(
+                join_lines([
+                    header,
+                    "",
+                    "No payment requests found for this event."
+                ])
             )
 
-        lines = [header, "", "💰 *Your Payment Requests*"]
+        lines = [header, "", format_heading("Your Payment Requests", "📥")]
         for request, flat in requests:
             lines.append(
-                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.request_code} | {flat.flat_number} | "
+                f"{format_currency(request.amount)} | "
                 f"{request.status}"
             )
 
-        return success("\n".join(lines))
+        return success_response(join_lines(lines))
 
     if intent == "MY_BALANCE":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         flat = resolve_flat(
             db,
@@ -370,16 +418,19 @@ def handle_public_intent(
             flat_id=flat.id
         )
 
-        return success(
-            f"📊 Your Balance\n"
-            f"Expected: ₹{balance['expected']}\n"
-            f"Paid: ₹{balance['paid']}\n"
-            f"Remaining: ₹{balance['balance']}"
+        return success_response(
+            join_lines([
+                f"Expected: {format_currency(balance['expected'])}",
+                f"Paid: {format_currency(balance['paid'])}",
+                f"Remaining: {format_currency(balance['balance'])}"
+            ]),
+            heading="Your Balance",
+            emoji="📊"
         )
 
     if intent == "MY_STATUS":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         flat = resolve_flat(
             db,
@@ -393,11 +444,11 @@ def handle_public_intent(
             flat_id=flat.id
         )
 
-        return success(f"📌 Event Status: {status}")
+        return success_response(f"Event Status: {status}", heading="Status", emoji="📌")
 
     if intent == "SUMMARY":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         logger.info("Generating public event summary for event %s", event.id)
         summary = PublicEventSummaryReport.generate(
@@ -415,21 +466,21 @@ def handle_public_intent(
         db.commit()
 
         lines = [
-            "📊 *Event Summary*",
+            format_heading("Event Summary", "📊"),
             f"Participants: {summary['participants']}",
-            f"Total Income: ₹{summary['income']}",
-            f"Total Expenses: ₹{summary['expenses']}",
-            f"Closing Balance: ₹{summary['closing_balance']}"
+            f"Total Income: {format_currency(summary['income'])}",
+            f"Total Expenses: {format_currency(summary['expenses'])}",
+            f"Closing Balance: {format_currency(summary['closing_balance'])}"
         ]
 
         if summary["sponsors"]:
             lines.append(f"Sponsors: {', '.join(summary['sponsors'])}")
 
-        return success("\n".join(lines))
+        return success_response(join_lines(lines))
 
     if intent == "BLOCK_REPORT":
         if not event:
-            return error("No active event found. Please contact committee.")
+            return error_response("No active event found. Please contact committee.")
 
         logger.info("Generating block contribution report for event %s", event.id)
         report = BlockContributionReport.generate(
@@ -447,60 +498,79 @@ def handle_public_intent(
         db.commit()
 
         if not report:
-            return success("🏢 No block contributions recorded yet.")
+            return success_response(
+                "No block contributions recorded yet.",
+                heading="Block Contribution Report",
+                emoji="🏢"
+            )
 
-        lines = ["🏢 *Block Contribution Report*"]
+        lines = [format_heading("Block Contribution Report", "🏢")]
         for block, amount in report.items():
-            lines.append(f"{block}: ₹{amount}")
+            lines.append(f"{block}: {format_currency(amount)}")
 
-        return success("\n".join(lines))
+        return success_response(join_lines(lines))
 
     if intent == "HELP":
-        return success(
-            "🤖 *Society Assistant Help*\n\n"
-            "You can manage event participation, payments and view details.\n\n"
-            "Type *commands* to see everything you can do."
+        return success_response(
+            join_lines([
+                "You can manage event participation, payments and view details.",
+                "",
+                "Type *commands* to see everything you can do."
+            ]),
+            heading="Society Assistant Help",
+            emoji="🤖"
         )
 
     if intent == "COMMANDS":
-        return success(
-            "📋 *Available Commands*\n\n"
-            "🎫 *Participation*\n"
-            "- add pass veg 2 jain 1\n"
-            "- add pass veg 2 jain 1 for A-101 (committee)\n"
-            "- my pass\n"
-            "- my status\n\n"
-            "🏠 *Join Society*\n"
-            "- join ABC123 A-101\n"
-            "- join ABC123 A-101 phone 9876543210 (committee)\n"
-            "- join status\n"
-            "- join status phone 9876543210 (committee)\n\n"
-            "💰 *Payments*\n"
-            "- pay 500\n"
-            "- pay 500 for A-101 (committee)\n"
-            "- my payments\n"
-            "- my payment requests\n"
-            "- my balance\n\n"
-            "↩️ *Refunds*\n"
-            "- refund 200 reason guest absent\n"
-            "- refund 200 reason guest absent for A-101 (committee)\n"
-            "- my refund requests\n\n"
-            "🧾 *Expenses* (Committee)\n"
-            "- expense water tanker 1200\n\n"
-            "📊 *Reports* (Committee)\n"
-            "- participation report\n"
-            "- pending payments\n\n"
-            "📈 *Group-safe Reports*\n"
-            "- summary\n"
-            "- block report\n\n"
-            "✅ *Approvals* (Treasurer)\n"
-            "- approve payment PAY-001\n"
-            "- approve refund REF-001\n"
-            "- payment requests\n"
-            "- refund requests\n\n"
-            "ℹ️ *Help*\n"
-            "- help\n"
-            "- commands"
+        return success_response(
+            join_lines([
+                "🎫 *Participation*",
+                "- add pass veg 2 jain 1",
+                "- add pass veg 2 jain 1 for A-101 (committee)",
+                "- my pass",
+                "- my status",
+                "",
+                "🏠 *Join Society*",
+                "- join ABC123 A-101",
+                "- join ABC123 A-101 phone 9876543210 (committee)",
+                "- join status",
+                "- join status phone 9876543210 (committee)",
+                "",
+                "💰 *Payments*",
+                "- pay 500",
+                "- pay 500 for A-101 (committee)",
+                "- my payments",
+                "- my payment requests",
+                "- my balance",
+                "",
+                "↩️ *Refunds*",
+                "- refund 200 reason guest absent",
+                "- refund 200 reason guest absent for A-101 (committee)",
+                "- my refund requests",
+                "",
+                "🧾 *Expenses* (Committee)",
+                "- expense water tanker 1200",
+                "",
+                "📊 *Reports* (Committee)",
+                "- participation report",
+                "- pending payments",
+                "",
+                "📈 *Group-safe Reports*",
+                "- summary",
+                "- block report",
+                "",
+                "✅ *Approvals* (Treasurer)",
+                "- approve payment PAY-001",
+                "- approve refund REF-001",
+                "- payment requests",
+                "- refund requests",
+                "",
+                "ℹ️ *Help*",
+                "- help",
+                "- commands"
+            ]),
+            heading="Available Commands",
+            emoji="📋"
         )
 
     return None

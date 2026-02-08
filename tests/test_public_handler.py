@@ -164,7 +164,7 @@ def test_public_pay_committee_records_payment(monkeypatch):
     )
 
     assert called["recorded"] is True
-    assert response == "✅ 💰 Payment received: ₹500"
+    assert response == "✅ Payment received: ₹500"
 
 
 def test_public_refund_requires_reason():
@@ -516,3 +516,58 @@ def test_public_help_and_commands():
         member=None
     )
     assert "Available Commands" in commands
+
+
+def test_public_summary_formats_currency(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.PublicEventSummaryReport.generate",
+        lambda **kwargs: {
+            "participants": 12,
+            "income": 1200,
+            "expenses": 300,
+            "closing_balance": 900,
+            "sponsors": ["Alpha"]
+        }
+    )
+
+    db = MagicMock()
+
+    response = handle_public_intent(
+        db=db,
+        intent="SUMMARY",
+        phone_number=MEMBER_PHONE,
+        message="summary",
+        event=event,
+        member=member
+    )
+
+    assert "📊 *Event Summary*" in response
+    assert "Total Income: ₹1,200" in response
+    assert "Sponsors: Alpha" in response
+
+
+def test_public_block_report_formats_currency(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.BlockContributionReport.generate",
+        lambda **kwargs: {"Block A": 2500}
+    )
+
+    db = MagicMock()
+
+    response = handle_public_intent(
+        db=db,
+        intent="BLOCK_REPORT",
+        phone_number=MEMBER_PHONE,
+        message="block report",
+        event=event,
+        member=member
+    )
+
+    assert "🏢 *Block Contribution Report*" in response
+    assert "Block A: ₹2,500" in response

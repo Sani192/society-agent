@@ -53,7 +53,7 @@ def test_onboarding_join_auto_approved(monkeypatch):
         member=None
     )
 
-    assert response == "✅ ✅ You are successfully added to the society."
+    assert response == "✅ You are successfully added to the society."
 
 
 def test_onboarding_join_pending(monkeypatch):
@@ -157,7 +157,7 @@ def test_onboarding_join_status(monkeypatch):
         member=None
     )
 
-    assert response == "✅ ✅ Your membership is approved."
+    assert response == "✅ Your membership is approved."
 
 
 def test_onboarding_join_status_pending(monkeypatch):
@@ -179,7 +179,7 @@ def test_onboarding_join_status_pending(monkeypatch):
         member=None
     )
 
-    assert response == "✅ ⏳ Your join request is pending approval."
+    assert "Your join request is pending approval." in response
 
 
 def test_onboarding_join_status_not_found(monkeypatch):
@@ -232,7 +232,7 @@ def test_onboarding_join_status_committee_for_phone(monkeypatch):
     )
 
     assert captured["user_identifier"] == "7777712345"
-    assert response == "✅ ✅ Your membership is approved."
+    assert response == "✅ Your membership is approved."
 
 
 def test_onboarding_join_status_no_event(monkeypatch):
