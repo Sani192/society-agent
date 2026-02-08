@@ -15,7 +15,8 @@ from app.db.models import (
     Event,
     Flat,
     RefundRequest,
-    Payment
+    Payment,
+    AuditLog
 )
 from app.modules.payments.refund_service import RefundService
 
@@ -86,6 +87,18 @@ class RefundRequestService:
         )
 
         db.add(request)
+        db.flush()
+        db.add(AuditLog(
+            society_id=event.society_id,
+            entity_type="refund_request",
+            entity_id=request.id,
+            action="REQUEST_REFUND",
+            reason=(
+                f"Request {request.request_code} for ₹{amount} "
+                f"by {requested_by}"
+            ),
+            performed_by=None
+        ))
         db.commit()
 
         return request
@@ -131,9 +144,48 @@ class RefundRequestService:
         request.approved_by = performed_by
         request.approved_at = datetime.utcnow()
 
+        db.add(AuditLog(
+            society_id=request.society_id,
+            entity_type="refund_request",
+            entity_id=request.id,
+            action="APPROVE_REFUND_REQUEST",
+            reason=(
+                "Approved "
+                f"{request.request_code} for ₹{request.amount} "
+                f"requested by {request.requested_by}"
+            ),
+            performed_by=performed_by
+        ))
         db.commit()
 
         return refund
+
+    @staticmethod
+    def reject_request(
+        db: Session,
+        *,
+        request: RefundRequest,
+        performed_by,
+        rejection_reason=None
+    ):
+        request.status = "rejected"
+
+        reason = (
+            f"Rejected {request.request_code} for ₹{request.amount} "
+            f"requested by {request.requested_by}"
+        )
+        if rejection_reason:
+            reason = f"{reason} | {rejection_reason}"
+
+        db.add(AuditLog(
+            society_id=request.society_id,
+            entity_type="refund_request",
+            entity_id=request.id,
+            action="REJECT_REFUND_REQUEST",
+            reason=reason,
+            performed_by=performed_by
+        ))
+        db.commit()
 
     @staticmethod
     def get_request_by_code(db: Session, *, request_code):
