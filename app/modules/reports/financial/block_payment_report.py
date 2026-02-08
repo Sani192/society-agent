@@ -14,13 +14,23 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 class BlockPaymentReport:
 
     @staticmethod
     @log_service_call(logger, "BlockPaymentReport.generate")
     def generate(db: Session, event_id):
         context = build_log_context(event_id=event_id)
-        data = defaultdict(lambda: {"expected": 0, "paid": 0})
+        data = defaultdict(
+            lambda: {
+                "expected": 0,
+                "paid": 0,
+                "latest_paid_at": None,
+                "latest_updated_at": None
+            }
+        )
 
         flats = db.query(Flat).all()
         if not flats:
@@ -37,6 +47,16 @@ class BlockPaymentReport:
             if payment:
                 data[flat.block]["expected"] += payment.expected_amount
                 data[flat.block]["paid"] += payment.paid_amount
+                if payment.paid_at and (
+                    not data[flat.block]["latest_paid_at"]
+                    or payment.paid_at > data[flat.block]["latest_paid_at"]
+                ):
+                    data[flat.block]["latest_paid_at"] = payment.paid_at
+                if payment.updated_at and (
+                    not data[flat.block]["latest_updated_at"]
+                    or payment.updated_at > data[flat.block]["latest_updated_at"]
+                ):
+                    data[flat.block]["latest_updated_at"] = payment.updated_at
 
         rows = []
         for block, values in data.items():
@@ -44,7 +64,11 @@ class BlockPaymentReport:
                 block,
                 values["expected"],
                 values["paid"],
-                values["expected"] - values["paid"]
+                values["expected"] - values["paid"],
+                format_timestamp(values["latest_paid_at"]),
+                "System",
+                format_timestamp(values["latest_updated_at"]),
+                "System"
             ])
 
         if not rows:
@@ -53,6 +77,15 @@ class BlockPaymentReport:
                 context
             )
         return {
-            "headers": ["Block", "Expected", "Paid", "Pending"],
+            "headers": [
+                "Block",
+                "Expected",
+                "Paid",
+                "Pending",
+                "Created At",
+                "Created By",
+                "Updated At",
+                "Updated By"
+            ],
             "rows": rows
         }

@@ -276,7 +276,8 @@ def handle_committee_intent(
         AdminApprovalService.approve_user(
             db=db,
             society_id=event.society_id,
-            request_code=request_code
+            request_code=request_code,
+            performed_by=member.id
         )
 
         return success_response(f"User approved ({request_code})")

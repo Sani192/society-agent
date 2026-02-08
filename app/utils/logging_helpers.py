@@ -10,6 +10,8 @@ import logging
 from functools import wraps
 from typing import Any, Callable, Dict, Iterable, Optional
 
+logger = logging.getLogger(__name__)
+
 CONTEXT_FIELDS: Iterable[str] = (
     "event_id",
     "flat_id",

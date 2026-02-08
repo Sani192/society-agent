@@ -13,6 +13,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 
 class MemberRefundReport:
 
@@ -26,7 +29,7 @@ class MemberRefundReport:
                 Refund.amount,
                 Refund.reason,
                 Refund.created_at,
-                CommitteeMember.name.label("approved_by")
+                CommitteeMember.name.label("created_by")
             )
             .join(Flat, Flat.id == Refund.flat_id)
             .outerjoin(
@@ -52,8 +55,8 @@ class MemberRefundReport:
                 r.flat_number,
                 r.amount,
                 r.reason,
-                r.approved_by or "-",
-                r.created_at.strftime("%d-%m-%Y %H:%M")
+                format_timestamp(r.created_at),
+                r.created_by or "System"
             ])
 
         return {
@@ -61,8 +64,8 @@ class MemberRefundReport:
                 "Flat",
                 "Refund Amount",
                 "Reason",
-                "Approved By",
-            "Date"
+                "Created At",
+                "Created By"
             ],
             "rows": rows
         }

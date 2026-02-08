@@ -238,6 +238,7 @@ def export_flat_payment_report(
         pdf_data = generate_flat_payment_pdf(
             society_name=society.name,
             event_name=event.name,
+            headers=report["headers"],
             rows=report["rows"],
             logo_path=logo_path
         )
@@ -348,6 +349,7 @@ def export_block_payment_report(
         pdf_data = generate_block_payment_pdf(
             society_name=society.name,
             event_name=event.name,
+            headers=report["headers"],
             rows=report["rows"],
             logo_path=logo_path
         )

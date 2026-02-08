@@ -8,16 +8,19 @@ Created on Sun Jan 18 10:46:44 2026
 
 # app/modules/onboarding/admin_approval_service.py
 
+import logging
 from sqlalchemy.orm import Session
 
-from app.db.models import PendingUser, Flat
+from app.db.models import PendingUser, Flat, AuditLog
 from app.modules.users.user_flat_service import UserFlatService
+
+logger = logging.getLogger(__name__)
 
 
 class AdminApprovalService:
 
     @staticmethod
-    def approve_user(db: Session, *, society_id, request_code):
+    def approve_user(db: Session, *, society_id, request_code, performed_by):
         pending = (
             db.query(PendingUser)
             .filter(
@@ -47,9 +50,18 @@ class AdminApprovalService:
             db=db,
             society_id=pending.society_id,
             flat_id=flat.id,
-            user_identifier=pending.user_identifier
+            user_identifier=pending.user_identifier,
+            performed_by=performed_by
         )
 
         pending.status = "approved"
+        db.add(AuditLog(
+            society_id=pending.society_id,
+            entity_type="onboarding",
+            entity_id=pending.id,
+            action="APPROVE_ONBOARDING",
+            reason=f"Approved {pending.request_code}",
+            performed_by=performed_by
+        ))
         db.commit()
         return pending

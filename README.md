@@ -10,7 +10,7 @@ This system helps the society managing committee manage:
 - Carry-forward balances
 - Transparent reports
 
-The system is designed with **full transparency** and **audit safety**.
+The system is designed with **full transparency** and **audit safety**. Reports include created/updated metadata and every transaction is audit-logged for traceability.
 
 ---
 
@@ -122,5 +122,6 @@ The API will be available at: `http://localhost:8000`
   - `GET /reports/public/event-summary/pdf`
 
 Swagger UI is available at: `http://localhost:8000/docs`
-This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+This system helps the society managing committee manage festival events, food passes, payments, sponsorships, expenses, and reports.
+- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate

@@ -7,6 +7,7 @@ Created on Fri Jan 23 16:53:43 2026
 """
 
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.models import Payment, Refund, EventExpense, EventContribution
 from app.utils.logging_helpers import build_log_context, log_service_call
@@ -41,12 +42,13 @@ class EventFinancialSummaryReport:
         sponsor_income = sum(x[0] for x in contributions if x[0])
         closing_balance = total_paid + sponsor_income - total_expense - total_refund
 
+        generated_at = datetime.utcnow().strftime("%d %b %Y %H:%M")
         rows = [
-            ["Income", "Flat Contributions", total_paid],
-            ["Income", "Sponsor Contributions", sponsor_income],
-            ["Expense", "Total Expenses", total_expense],
-            ["Expense", "Refunds", total_refund],
-            ["Balance", "Closing Balance", closing_balance],
+            ["Income", "Flat Contributions", total_paid, generated_at, "System"],
+            ["Income", "Sponsor Contributions", sponsor_income, generated_at, "System"],
+            ["Expense", "Total Expenses", total_expense, generated_at, "System"],
+            ["Expense", "Refunds", total_refund, generated_at, "System"],
+            ["Balance", "Closing Balance", closing_balance, generated_at, "System"],
         ]
         if not rows:
             logger.info(
@@ -55,6 +57,6 @@ class EventFinancialSummaryReport:
             )
     
         return {
-            "headers": ["Category", "Type", "Amount"],
+            "headers": ["Category", "Type", "Amount", "Created At", "Created By"],
             "rows": rows
         }

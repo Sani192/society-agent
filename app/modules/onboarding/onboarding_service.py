@@ -8,11 +8,14 @@ Created on Sun Jan 18 10:45:47 2026
 
 # app/modules/onboarding/onboarding_service.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.db.models import PendingUser, Flat, UserFlatMapping
+from app.db.models import PendingUser, Flat, UserFlatMapping, AuditLog
 from app.modules.users.user_flat_service import UserFlatService
+
+logger = logging.getLogger(__name__)
 
 
 class OnboardingService:
@@ -65,8 +68,18 @@ class OnboardingService:
                 db=db,
                 society_id=society.id,
                 flat_id=flat.id,
-                user_identifier=user_identifier
+                user_identifier=user_identifier,
+                performed_by=None
             )
+            db.add(AuditLog(
+                society_id=society.id,
+                entity_type="onboarding",
+                entity_id=flat.id,
+                action="AUTO_APPROVE_ONBOARDING",
+                reason=f"Auto-approved onboarding for {user_identifier}",
+                performed_by=None
+            ))
+            db.commit()
             return "APPROVED"
 
 
@@ -102,8 +115,16 @@ class OnboardingService:
         )
 
         db.add(pending)
+        db.flush()
+        db.add(AuditLog(
+            society_id=society.id,
+            entity_type="onboarding",
+            entity_id=pending.id,
+            action="REQUEST_ONBOARDING",
+            reason=f"Join request {request_code} for flat {flat_number}",
+            performed_by=None
+        ))
         db.commit()
 
         return request_code
-
 

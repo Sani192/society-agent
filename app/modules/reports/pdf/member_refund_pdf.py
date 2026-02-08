@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
+from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 
 
@@ -55,10 +56,7 @@ def generate_member_refund_pdf(
     elements.append(
         build_table(
             report["headers"],
-            [
-                [r[0], f"₹ {r[1]:,}", r[2], r[3], r[4]]
-                for r in report["rows"]
-            ]
+            format_report_rows(report["headers"], report["rows"])
         )
     )
 

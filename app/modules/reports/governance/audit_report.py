@@ -13,6 +13,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 
 class GovernanceAuditReport:
 
@@ -44,10 +47,10 @@ class GovernanceAuditReport:
 
         rows = [
             [
-                performed_at.strftime("%d %b %Y %H:%M"),
+                format_timestamp(performed_at),
                 action,
                 reason or "-",
-                name,
+                name or "System",
                 role
             ]
             for performed_at, action, reason, name, role in records
@@ -55,10 +58,10 @@ class GovernanceAuditReport:
 
         return {
             "headers": [
-                "Date & Time",
+                "Created At",
                 "Action",
                 "Reason",
-                "Performed By",
+                "Created By",
                 "Role"
             ],
             "rows": rows
