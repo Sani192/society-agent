@@ -9,7 +9,7 @@ Created on Sat Jan 10 14:21:40 2026
 # app/workflows/engine.py
 
 from app.workflows.rules import STATE_RULES
-from app.db.models import WorkflowState, AuditLog
+from app.db.models import WorkflowState, AuditLog, CommitteeMember
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -27,7 +27,9 @@ class WorkflowEngine:
     def check_action(
         db: Session,
         event_id,
-        action: str
+        action: str,
+        performed_by=None,
+        override_reason=None
     ) -> WorkflowDecision:
 
         state_row = (
@@ -53,6 +55,38 @@ class WorkflowEngine:
                 message="Action allowed"
             )
 
+        if current_state == "CLOSED":
+            if not performed_by:
+                return WorkflowDecision(
+                    allowed=False,
+                    requires_override=False,
+                    message="Override denied: performer required for CLOSED state"
+                )
+
+            member = (
+                db.query(CommitteeMember)
+                .filter(CommitteeMember.id == performed_by)
+                .first()
+            )
+
+            if (
+                not member
+                or not member.is_active
+                or member.role not in {"chairman", "secretary", "treasurer"}
+            ):
+                return WorkflowDecision(
+                    allowed=False,
+                    requires_override=False,
+                    message="Override denied: only chairman, secretary, or treasurer may override CLOSED state"
+                )
+
+            if not override_reason or not override_reason.strip():
+                return WorkflowDecision(
+                    allowed=False,
+                    requires_override=False,
+                    message="Override denied: reason required for CLOSED state"
+                )
+
         # Action not normally allowed → override possible
         return WorkflowDecision(
             allowed=False,
@@ -61,12 +95,29 @@ class WorkflowEngine:
         )
     
     @staticmethod
-    def apply_override(*args, **kwargs):
-        """
-        Override is a permission concept, NOT an audit action.
-        Audit must be logged by the domain service exactly once.
-        """
-        return
+    def apply_override(
+        db: Session,
+        *,
+        society_id,
+        event_id,
+        entity_type,
+        entity_id,
+        action,
+        reason,
+        performed_by
+    ):
+        audit = AuditLog(
+            society_id=society_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            action=f"OVERRIDE_{action}",
+            reason=reason,
+            performed_by=performed_by,
+            performed_at=datetime.utcnow()
+        )
+
+        db.add(audit)
+        return audit
 
 
 # =============================================================================

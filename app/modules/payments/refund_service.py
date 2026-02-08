@@ -50,10 +50,14 @@ class RefundService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="REQUEST_REFUND"
+            action="REQUEST_REFUND",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
 
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             WorkflowEngine.apply_override(

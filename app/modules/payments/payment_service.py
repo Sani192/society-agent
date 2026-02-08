@@ -50,10 +50,14 @@ class PaymentService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="MARK_PAID"
+            action="MARK_PAID",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
 
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             # Override permission only – no audit here
