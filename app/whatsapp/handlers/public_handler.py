@@ -15,7 +15,7 @@ from app.modules.payments.payment_request_service import PaymentRequestService
 from app.modules.payments.refund_request_service import RefundRequestService
 from app.modules.reports.block.block_contribution_service import BlockContributionReport
 from app.modules.reports.public.public_event_summary_report import PublicEventSummaryReport
-from app.db.models import AuditLog
+from app.db.models import AuditLog, Payment
 from app.modules.users.user_query_service import UserQueryService
 from app.utils.logger import logger
 from app.utils.response import success, error
@@ -155,14 +155,17 @@ def handle_public_intent(
             return error("Example: refund 200 reason guest absent")
 
         if not member:
-            request = RefundRequestService.request_refund(
-                db=db,
-                event_id=event.id,
-                flat_id=flat.id,
-                amount=amount,
-                reason=reason,
-                requested_by=phone_number
-            )
+            try:
+                request = RefundRequestService.request_refund(
+                    db=db,
+                    event_id=event.id,
+                    flat_id=flat.id,
+                    amount=amount,
+                    reason=reason,
+                    requested_by=phone_number
+                )
+            except Exception as exc:
+                return error(str(exc))
             return success(
                 "⏳ Refund request sent for treasurer approval.\n"
                 f"Request ID: *{request.request_code}*"
@@ -184,15 +187,18 @@ def handle_public_intent(
                 f"✅ Refund approved and processed (Request {request.request_code})"
             )
 
-        RefundService.process_refund(
-            db=db,
-            event_id=event.id,
-            flat_id=flat.id,
-            amount=amount,
-            performed_by=member.id,
-            reason=reason,
-            override_reason="Via WhatsApp"
-        )
+        try:
+            RefundService.process_refund(
+                db=db,
+                event_id=event.id,
+                flat_id=flat.id,
+                amount=amount,
+                performed_by=member.id,
+                reason=reason,
+                override_reason="Via WhatsApp"
+            )
+        except Exception as exc:
+            return error(str(exc))
 
         return success(f"↩️ Refund processed: ₹{amount}")
 
@@ -300,31 +306,50 @@ def handle_public_intent(
             flat_id=flat.id
         )
 
+        balance = UserQueryService.get_my_balance(
+            db=db,
+            event_id=event.id,
+            flat_id=flat.id
+        )
+
+        payment = (
+            db.query(Payment)
+            .filter(
+                Payment.event_id == event.id,
+                Payment.flat_id == flat.id
+            )
+            .first()
+        )
+
+        payment_status = payment.status if payment else "pending"
+        payment_paid = payment.paid_amount if payment else 0
+        payment_expected = payment.expected_amount if payment else balance["expected"]
+
         requests = PaymentRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by=phone_number,
-            status="approved"
+            requested_by=phone_number
         )
 
         header = (
             f"💰 Payment Summary\n"
             f"Paid: ₹{summary['paid']}\n"
             f"Refunded: ₹{summary['refunded']}\n"
-            f"Net Paid: ₹{summary['net_paid']}"
+            f"Net Paid: ₹{summary['net_paid']}\n"
+            f"Status: {payment_status} (₹{payment_paid} of ₹{payment_expected})"
         )
 
         if not requests:
             return success(
                 f"{header}\n\n"
-                "✅ No approved payments found for this event."
+                "✅ No payment requests found for this event."
             )
 
-        lines = [header, "", "💰 *Your Payments*"]
+        lines = [header, "", "💰 *Your Payment Requests*"]
         for request, flat in requests:
             lines.append(
                 f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
-                f"approved"
+                f"{request.status}"
             )
 
         return success("\n".join(lines))

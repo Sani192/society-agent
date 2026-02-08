@@ -42,12 +42,15 @@ def handle_onboarding_intent(
         if not society:
             return error("Invalid join code.")
 
-        result = OnboardingService.start_onboarding(
-            db=db,
-            society=society,
-            user_identifier=target_phone or phone_number,
-            flat_number=flat_number
-        )
+        try:
+            result = OnboardingService.start_onboarding(
+                db=db,
+                society=society,
+                user_identifier=target_phone or phone_number,
+                flat_number=flat_number
+            )
+        except Exception as exc:
+            return error(str(exc))
 
         if result == "APPROVED":
             return success("✅ You are successfully added to the society.")
