@@ -11,6 +11,7 @@ Created on Sat Jan 10 14:20:13 2026
 EVENT_STATES = {
     "DRAFT",
     "ACTIVE",
+    "LOCKED",
     "PAYMENT_LOCKED",
     "EVENT_DAY",
     "CLOSED"
