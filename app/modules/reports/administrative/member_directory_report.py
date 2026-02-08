@@ -13,6 +13,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 
 class MemberDirectoryReport:
 
@@ -25,7 +28,8 @@ class MemberDirectoryReport:
                 UserFlatMapping.user_identifier,
                 UserFlatMapping.role,
                 Flat.flat_number,
-                Flat.block
+                Flat.block,
+                UserFlatMapping.created_at
             )
             .join(Flat, Flat.id == UserFlatMapping.flat_id)
             .filter(
@@ -41,11 +45,18 @@ class MemberDirectoryReport:
             )
 
         rows = [
-            [user, role, flat, block]
-            for user, role, flat, block in records
+            [user, role, flat, block, format_timestamp(created_at), "System"]
+            for user, role, flat, block, created_at in records
         ]
 
         return {
-            "headers": ["User Identifier", "Role", "Flat", "Block"],
+            "headers": [
+                "User Identifier",
+                "Role",
+                "Flat",
+                "Block",
+                "Created At",
+                "Created By"
+            ],
             "rows": rows
         }

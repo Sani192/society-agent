@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
+from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 
 
@@ -54,22 +55,18 @@ def generate_event_financial_summary_pdf(
     # -------------------------------------------------
     # Main summary table (directly from report)
     # -------------------------------------------------
-    table_rows = [
-        [row[0], row[1], f"₹ {row[2]:,}"]
-        for row in summary["rows"]
-    ]
+    table_rows = format_report_rows(summary["headers"], summary["rows"])
 
-    elements.append(
-        build_table(summary["headers"], table_rows)
-    )
+    elements.append(build_table(summary["headers"], table_rows))
 
     elements.append(Spacer(1, 18))
     
     # -------------------------------------------------
     # Closing balance highlight box
     # -------------------------------------------------
+    amount_index = summary["headers"].index("Amount") if "Amount" in summary["headers"] else 2
     closing_balance = next(
-        row[2] for row in summary["rows"]
+        row[amount_index] for row in summary["rows"]
         if row[0] == "Balance"
     )
 

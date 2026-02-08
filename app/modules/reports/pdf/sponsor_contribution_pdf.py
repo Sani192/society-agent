@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
+from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 
 
@@ -52,13 +53,12 @@ def generate_sponsor_contribution_pdf(
     })
     
     # Table
-    elements.append(build_table(
-        report["headers"],
-        [
-            [r[0], r[1], r[2], r[3], f"₹ {r[4]:,}", r[5]]
-            for r in report["rows"]
-        ]
-    ))
+    elements.append(
+        build_table(
+            report["headers"],
+            format_report_rows(report["headers"], report["rows"])
+        )
+    )
     elements.append(Spacer(1, 18))
     elements.append(
         pdf.summary_box(

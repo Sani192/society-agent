@@ -20,6 +20,7 @@ def generate_flat_payment_pdf(
     *,
     society_name: str,
     event_name: str,
+    headers: list,
     rows: list,
     logo_path: str
 ):
@@ -54,13 +55,19 @@ def generate_flat_payment_pdf(
     })
 
     # Table
-    headers = ["Flat", "Block", "Expected", "Paid", "Refunded", "Pending"]
     table = build_table(headers, rows)
     elements.append(table)
-    total_expected = sum(r[2] for r in rows)
-    total_paid = sum(r[3] for r in rows)
-    total_refunded = sum(r[4] for r in rows)
-    total_pending = sum(r[5] for r in rows)
+
+    def sum_column(column_name):
+        if column_name not in headers:
+            return 0
+        idx = headers.index(column_name)
+        return sum((row[idx] or 0) for row in rows)
+
+    total_expected = sum_column("Expected")
+    total_paid = sum_column("Paid")
+    total_refunded = sum_column("Refunded")
+    total_pending = sum_column("Pending")
     
     elements.append(Spacer(1, 18))
     elements.append(

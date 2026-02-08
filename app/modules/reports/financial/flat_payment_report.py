@@ -14,6 +14,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 class FlatPaymentReport:
 
     @staticmethod
@@ -57,7 +60,11 @@ class FlatPaymentReport:
                 expected,
                 paid,
                 refunded,
-                pending
+                pending,
+                format_timestamp(payment.paid_at if payment else None),
+                "System",
+                format_timestamp(payment.updated_at if payment else None),
+                "System"
             ])
 
         if not rows:
@@ -66,6 +73,17 @@ class FlatPaymentReport:
                 context
             )
         return {
-            "headers": ["Flat", "Block", "Expected", "Paid", "Refunded", "Pending"],
+            "headers": [
+                "Flat",
+                "Block",
+                "Expected",
+                "Paid",
+                "Refunded",
+                "Pending",
+                "Created At",
+                "Created By",
+                "Updated At",
+                "Updated By"
+            ],
             "rows": rows
         }

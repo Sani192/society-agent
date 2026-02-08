@@ -8,8 +8,11 @@ Created on Sat Jan 17 10:54:04 2026
 
 # app/modules/users/user_flat_service.py
 
+import logging
 from sqlalchemy.orm import Session
-from app.db.models import UserFlatMapping
+from app.db.models import UserFlatMapping, AuditLog
+
+logger = logging.getLogger(__name__)
 
 
 class UserFlatService:
@@ -20,7 +23,8 @@ class UserFlatService:
         *,
         society_id,
         flat_id,
-        user_identifier
+        user_identifier,
+        performed_by=None
     ):
         existing = (
             db.query(UserFlatMapping)
@@ -43,6 +47,15 @@ class UserFlatService:
         )
 
         db.add(mapping)
+        db.flush()
+        db.add(AuditLog(
+            society_id=society_id,
+            entity_type="user_flat_mapping",
+            entity_id=mapping.id,
+            action="ASSIGN_USER_FLAT",
+            reason=f"Mapped {user_identifier} to flat {flat_id}",
+            performed_by=performed_by
+        ))
         db.commit()
         return mapping
 

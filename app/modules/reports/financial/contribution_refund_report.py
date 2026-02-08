@@ -16,6 +16,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 
 class ContributionRefundReport:
 
@@ -29,7 +32,8 @@ class ContributionRefundReport:
                 EventContribution.source_name,
                 ContributionRefund.amount,
                 ContributionRefund.reason,
-                ContributionRefund.status
+                ContributionRefund.status,
+                ContributionRefund.processed_at
             )
             .join(
                 EventContribution,
@@ -47,7 +51,7 @@ class ContributionRefundReport:
         rows = []
         total_refunded = 0
 
-        for ctype, source, amount, reason, status in records:
+        for ctype, source, amount, reason, status, processed_at in records:
             refunded_amount = amount or 0
             if status == "refunded":
                 total_refunded += refunded_amount
@@ -57,7 +61,9 @@ class ContributionRefundReport:
                 source,
                 refunded_amount,
                 reason,
-                status
+                status,
+                format_timestamp(processed_at),
+                "System"
             ])
 
         if not rows:
@@ -71,7 +77,9 @@ class ContributionRefundReport:
                 "Source",
                 "Refund Amount",
                 "Reason",
-                "Status"
+                "Status",
+                "Created At",
+                "Created By"
             ],
             "rows": rows,
             "total_refunded": total_refunded

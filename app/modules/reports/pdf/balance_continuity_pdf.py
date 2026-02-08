@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
+from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 
 
@@ -50,22 +51,18 @@ def generate_balance_continuity_pdf(
     })
     
     # Table
-    table_rows = [
-        [
-            r[0],
-            f"₹ {r[1]:,}",
-            f"₹ {r[2]:,}",
-            f"₹ {r[3]:,}",
-            f"₹ {r[4]:,}",
-        ]
-        for r in report["rows"]
-    ]
+    table_rows = format_report_rows(report["headers"], report["rows"])
 
-    elements.append(
-        build_table(report["headers"], table_rows)
+    elements.append(build_table(report["headers"], table_rows))
+
+    closing_index = (
+        report["headers"].index("Closing Balance")
+        if "Closing Balance" in report["headers"]
+        else None
     )
-
-    final_balance = report["rows"][-1][4] if report["rows"] else 0
+    final_balance = 0
+    if report["rows"] and closing_index is not None:
+        final_balance = report["rows"][-1][closing_index]
 
     elements.append(Spacer(1, 18))
     elements.append(

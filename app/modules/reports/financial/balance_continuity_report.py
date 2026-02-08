@@ -14,11 +14,15 @@ from app.db.models import (
     Payment,
     EventExpense,
     Refund,
-    EventContribution
+    EventContribution,
+    CommitteeMember
 )
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
+
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
 
 
 class BalanceContinuityReport:
@@ -28,7 +32,11 @@ class BalanceContinuityReport:
     def generate(db: Session, society_id):
         context = build_log_context(society_id=society_id)
         events = (
-            db.query(Event)
+            db.query(Event, CommitteeMember.name)
+            .outerjoin(
+                CommitteeMember,
+                CommitteeMember.id == Event.created_by
+            )
             .filter(Event.society_id == society_id)
             .order_by(Event.event_date.asc())
             .all()
@@ -42,7 +50,7 @@ class BalanceContinuityReport:
         rows = []
         previous_closing = 0
 
-        for event in events:
+        for event, created_by in events:
             # income
             flat_income = sum(
                 p.paid_amount for p in
@@ -79,7 +87,9 @@ class BalanceContinuityReport:
                 opening_balance,
                 flat_income + sponsor_income,
                 expenses + refunds,
-                closing_balance
+                closing_balance,
+                format_timestamp(event.created_at),
+                created_by or "System"
             ])
 
             previous_closing = closing_balance
@@ -95,7 +105,9 @@ class BalanceContinuityReport:
                 "Opening Balance",
                 "Total Income",
                 "Total Expense",
-                "Closing Balance"
+                "Closing Balance",
+                "Created At",
+                "Created By"
             ],
             "rows": rows
         }

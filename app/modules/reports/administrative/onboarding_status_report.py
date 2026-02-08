@@ -13,6 +13,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 
 class OnboardingStatusReport:
 
@@ -43,7 +46,8 @@ class OnboardingStatusReport:
                 user,
                 flat,
                 status,
-                created.strftime("%d %b %Y")
+                format_timestamp(created),
+                user
             ]
             for req, user, flat, status, created in records
         ]
@@ -54,7 +58,8 @@ class OnboardingStatusReport:
                 "User Identifier",
                 "Flat",
                 "Status",
-                "Requested On"
+                "Created At",
+                "Created By"
             ],
             "rows": rows
         }

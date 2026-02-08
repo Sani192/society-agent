@@ -13,6 +13,9 @@ from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
+def format_timestamp(value):
+    return value.strftime("%d %b %Y %H:%M") if value else "-"
+
 
 class SponsorContributionReport:
 
@@ -27,7 +30,8 @@ class SponsorContributionReport:
                 EventContribution.contribution_code,
                 Flat.flat_number,
                 EventContribution.amount,
-                EventContribution.in_kind_details
+                EventContribution.in_kind_details,
+                EventContribution.created_at
             )
             .outerjoin(Flat, Flat.id == EventContribution.flat_id)
             .filter(EventContribution.event_id == event_id)
@@ -42,7 +46,7 @@ class SponsorContributionReport:
         rows = []
         total_cash = 0
 
-        for ctype, source, code, flat, amount, in_kind in records:
+        for ctype, source, code, flat, amount, in_kind, created_at in records:
             cash = amount or 0
             total_cash += cash
 
@@ -52,7 +56,9 @@ class SponsorContributionReport:
                 code,
                 flat or "-",
                 cash,
-                in_kind or "-"
+                in_kind or "-",
+                format_timestamp(created_at),
+                "System"
             ])
 
         if not rows:
@@ -67,7 +73,9 @@ class SponsorContributionReport:
                 "Contribution Code",
                 "Flat",
                 "Cash Amount",
-                "In-kind Contribution"
+                "In-kind Contribution",
+                "Created At",
+                "Created By"
             ],
             "rows": rows,
             "total_cash": total_cash
