@@ -35,6 +35,7 @@ INTENTS = {
     # actions
     "ADD_PASS": "add pass",
     "ADD_EXPENSE": "expense",
+    "ADD_EVENT": "add event",
     "REMIND_FLAT": "remind",
 
     # payments & refunds (generic AFTER sponsor-specific)
