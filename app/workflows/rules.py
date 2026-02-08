@@ -14,6 +14,7 @@ LOCKED_ACTIONS = {
     "ADD_VENDOR",
     "ADD_EXPENSE",
     "ADD_CONTRIBUTION",
+    "REQUEST_PAYMENT",
     "REQUEST_REFUND",
     "ANNOUNCE",
     "START_EVENT"
@@ -31,6 +32,7 @@ STATE_RULES = {
         "ADD_VENDOR",
         "ADD_EXPENSE",
         "ADD_CONTRIBUTION",
+        "REQUEST_PAYMENT",
         "REQUEST_REFUND",
         "ANNOUNCE",
         "LOCK_PASSES"
@@ -41,6 +43,8 @@ STATE_RULES = {
         "MARK_COLLECTED",
         "ADD_EXPENSE",
         "ADD_CONTRIBUTION",
+        "REQUEST_PAYMENT",
+        "REQUEST_REFUND",
         "CLOSE_EVENT"
     },
     "CLOSED": {

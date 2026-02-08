@@ -20,6 +20,7 @@ from app.db.models import (
     AuditLog
 )
 from app.modules.payments.payment_service import PaymentService
+from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,8 @@ class PaymentRequestService:
         flat_id,
         amount,
         payment_mode,
-        requested_by
+        requested_by,
+        override_reason=None
     ):
         context = build_log_context(
             event_id=event_id,
@@ -59,6 +61,23 @@ class PaymentRequestService:
                 context
             )
             raise Exception("Invalid event or flat")
+
+        decision = WorkflowEngine.check_action(
+            db=db,
+            event_id=event_id,
+            action="REQUEST_PAYMENT",
+            performed_by=requested_by,
+            override_reason=override_reason
+        )
+
+        is_override = False
+
+        if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
+            if not override_reason:
+                raise Exception(decision.message)
+            is_override = True
 
         food_pass = (
             db.query(EventFoodPass)
@@ -127,13 +146,28 @@ class PaymentRequestService:
         )
         db.add(request)
         db.flush()
+
+        if is_override:
+            WorkflowEngine.apply_override(
+                db=db,
+                society_id=event.society_id,
+                event_id=event_id,
+                entity_type="payment_request",
+                entity_id=request.id,
+                action="REQUEST_PAYMENT",
+                reason=override_reason,
+                performed_by=requested_by
+            )
+
         db.add(AuditLog(
             society_id=event.society_id,
             entity_type="payment_request",
             entity_id=request.id,
             action="REQUEST_PAYMENT",
             reason=(
-                f"Request {request.request_code} for ₹{amount} by {requested_by}"
+                f"OVERRIDE: {override_reason}"
+                if is_override
+                else f"Request {request.request_code} for ₹{amount} by {requested_by}"
             ),
             performed_by=None
         ))
