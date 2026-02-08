@@ -34,6 +34,8 @@ def _setup_common_mocks(monkeypatch, member=None):
 COMMITTEE_CASES = [
     ("ADD_EXPENSE", "expense water 1200"),
     ("PENDING_PAYMENTS", "pending payments"),
+    ("PAYMENT_REQUESTS", "payment requests"),
+    ("REFUND_REQUESTS", "refund requests"),
     ("PARTICIPATION_REPORT", "participation report"),
     ("REMIND_FLAT", "remind A-101"),
     ("APPROVE", "approve user REQ-001"),
@@ -85,6 +87,9 @@ PUBLIC_CASES = [
     ("REFUND", "refund 200 reason guest absent"),
     ("MY_PASS", "my pass"),
     ("MY_PAYMENT", "my payment"),
+    ("MY_PAYMENT_REQUESTS", "my payment requests"),
+    ("MY_REFUND_REQUESTS", "my refund requests"),
+    ("MY_PAYMENTS", "my payments"),
     ("MY_BALANCE", "my balance"),
     ("MY_STATUS", "my status"),
     ("SUMMARY", "summary"),

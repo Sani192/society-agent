@@ -91,6 +91,62 @@ def test_committee_pending_payments_success(monkeypatch):
     assert "A-101 – Pending ₹200" in response
 
 
+def test_committee_payment_requests(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+    request = SimpleNamespace(
+        request_code="PAY-001",
+        amount=500,
+        requested_by="+919999000000",
+        status="requested"
+    )
+    flat = SimpleNamespace(flat_number="A-101")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.PaymentRequestService.list_requests",
+        lambda **kwargs: [(request, flat)]
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="PAYMENT_REQUESTS",
+        message="payment requests",
+        event=event,
+        member=member
+    )
+
+    assert "PAY-001" in response
+    assert "A-101" in response
+
+
+def test_committee_refund_requests(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+    request = SimpleNamespace(
+        request_code="REF-001",
+        amount=300,
+        requested_by="+919999000000",
+        status="requested"
+    )
+    flat = SimpleNamespace(flat_number="B-201")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.RefundRequestService.list_requests",
+        lambda **kwargs: [(request, flat)]
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REFUND_REQUESTS",
+        message="refund requests",
+        event=event,
+        member=member
+    )
+
+    assert "REF-001" in response
+    assert "B-201" in response
+
+
 def test_committee_participation_report(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1", name="Diwali")
     member = SimpleNamespace(id="member-1", role="chairman")

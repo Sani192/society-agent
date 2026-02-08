@@ -23,6 +23,19 @@ from app.whatsapp.parser import parse_amount, parse_pass_counts, parse_reason, p
 from app.whatsapp.handlers.common import resolve_flat
 
 
+def _resolve_member_flat(db, *, phone_number, event):
+    try:
+        flat = resolve_flat(
+            db,
+            phone_number=phone_number,
+            society_id=event.society_id
+        )
+    except Exception as exc:
+        return None, error(str(exc))
+
+    return flat, None
+
+
 def handle_public_intent(
     *,
     db,
@@ -210,14 +223,79 @@ def handle_public_intent(
         )
 
     if intent == "MY_PAYMENT":
+        intent = "MY_PAYMENTS"
+
+    if intent == "MY_PAYMENT_REQUESTS":
         if not event:
             return error("No active event found. Please contact committee.")
 
-        flat = resolve_flat(
+        flat, error_response = _resolve_member_flat(
             db,
             phone_number=phone_number,
-            society_id=event.society_id
+            event=event
         )
+        if error_response:
+            return error_response
+
+        requests = PaymentRequestService.list_requests(
+            db=db,
+            event_id=event.id,
+            requested_by=phone_number
+        )
+
+        if not requests:
+            return success("✅ No payment requests found.")
+
+        lines = ["📥 *Your Payment Requests*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.status}"
+            )
+
+        return success("\n".join(lines))
+
+    if intent == "MY_REFUND_REQUESTS":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        flat, error_response = _resolve_member_flat(
+            db,
+            phone_number=phone_number,
+            event=event
+        )
+        if error_response:
+            return error_response
+
+        requests = RefundRequestService.list_requests(
+            db=db,
+            event_id=event.id,
+            requested_by=phone_number
+        )
+
+        if not requests:
+            return success("✅ No refund requests found.")
+
+        lines = ["📤 *Your Refund Requests*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.status}"
+            )
+
+        return success("\n".join(lines))
+
+    if intent == "MY_PAYMENTS":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        flat, error_response = _resolve_member_flat(
+            db,
+            phone_number=phone_number,
+            event=event
+        )
+        if error_response:
+            return error_response
 
         summary = UserQueryService.get_my_payment_summary(
             db=db,
@@ -225,12 +303,34 @@ def handle_public_intent(
             flat_id=flat.id
         )
 
-        return success(
+        requests = PaymentRequestService.list_requests(
+            db=db,
+            event_id=event.id,
+            requested_by=phone_number,
+            status="approved"
+        )
+
+        header = (
             f"💰 Payment Summary\n"
             f"Paid: ₹{summary['paid']}\n"
             f"Refunded: ₹{summary['refunded']}\n"
             f"Net Paid: ₹{summary['net_paid']}"
         )
+
+        if not requests:
+            return success(
+                f"{header}\n\n"
+                "✅ No approved payments found for this event."
+            )
+
+        lines = [header, "", "💰 *Your Payments*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"approved"
+            )
+
+        return success("\n".join(lines))
 
     if intent == "MY_BALANCE":
         if not event:
@@ -357,10 +457,13 @@ def handle_public_intent(
             "- pay 500\n"
             "- pay 500 for A-101 (committee)\n"
             "- my payment\n"
+            "- my payments\n"
+            "- my payment requests\n"
             "- my balance\n\n"
             "↩️ *Refunds*\n"
             "- refund 200 reason guest absent\n"
-            "- refund 200 reason guest absent for A-101 (committee)\n\n"
+            "- refund 200 reason guest absent for A-101 (committee)\n"
+            "- my refund requests\n\n"
             "🧾 *Expenses* (Committee)\n"
             "- expense water tanker 1200\n\n"
             "📊 *Reports* (Committee)\n"
@@ -371,7 +474,9 @@ def handle_public_intent(
             "- block report\n\n"
             "✅ *Approvals* (Treasurer)\n"
             "- approve payment PAY-001\n"
-            "- approve refund REF-001\n\n"
+            "- approve refund REF-001\n"
+            "- payment requests\n"
+            "- refund requests\n\n"
             "ℹ️ *Help*\n"
             "- help\n"
             "- commands"
