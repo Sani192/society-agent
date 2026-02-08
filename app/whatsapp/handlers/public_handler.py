@@ -222,9 +222,6 @@ def handle_public_intent(
             f"Kids: {food_pass.kids_count}"
         )
 
-    if intent == "MY_PAYMENT":
-        intent = "MY_PAYMENTS"
-
     if intent == "MY_PAYMENT_REQUESTS":
         if not event:
             return error("No active event found. Please contact committee.")
@@ -456,7 +453,6 @@ def handle_public_intent(
             "💰 *Payments*\n"
             "- pay 500\n"
             "- pay 500 for A-101 (committee)\n"
-            "- my payment\n"
             "- my payments\n"
             "- my payment requests\n"
             "- my balance\n\n"

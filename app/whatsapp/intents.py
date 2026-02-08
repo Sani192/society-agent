@@ -49,7 +49,6 @@ INTENTS = {
     "MY_PAYMENT_REQUESTS": "my payment requests",
     "MY_REFUND_REQUESTS": "my refund requests",
     "MY_PAYMENTS": "my payments",
-    "MY_PAYMENT": "my payment",
     "MY_BALANCE": "my balance",
     "MY_STATUS": "my status",
 
@@ -57,4 +56,3 @@ INTENTS = {
     "HELP": "help",
     "COMMANDS": "commands",
 }
-
