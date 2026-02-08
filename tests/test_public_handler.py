@@ -284,6 +284,75 @@ def test_public_my_pass_requires_event():
     assert response == "❌ No active event found. Please contact committee."
 
 
+def test_public_my_payment_requests(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    request = SimpleNamespace(request_code="PAY-003", amount=250, status="requested")
+    flat = SimpleNamespace(flat_number="A-101")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
+        lambda **kwargs: [(request, flat)]
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="MY_PAYMENT_REQUESTS",
+        phone_number=MEMBER_PHONE,
+        message="my payment requests",
+        event=event,
+        member=None
+    )
+
+    assert "PAY-003" in response
+    assert "A-101" in response
+
+
+def test_public_my_refund_requests(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    request = SimpleNamespace(request_code="REF-003", amount=150, status="requested")
+    flat = SimpleNamespace(flat_number="B-101")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.RefundRequestService.list_requests",
+        lambda **kwargs: [(request, flat)]
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="MY_REFUND_REQUESTS",
+        phone_number=MEMBER_PHONE,
+        message="my refund requests",
+        event=event,
+        member=None
+    )
+
+    assert "REF-003" in response
+    assert "B-101" in response
+
+
+def test_public_my_payments(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    request = SimpleNamespace(request_code="PAY-010", amount=400, status="approved")
+    flat = SimpleNamespace(flat_number="C-301")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
+        lambda **kwargs: [(request, flat)]
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="MY_PAYMENTS",
+        phone_number=MEMBER_PHONE,
+        message="my payments",
+        event=event,
+        member=None
+    )
+
+    assert "PAY-010" in response
+    assert "C-301" in response
+
+
 def test_public_help_and_commands():
     response = handle_public_intent(
         db=MagicMock(),

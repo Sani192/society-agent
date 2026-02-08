@@ -143,3 +143,29 @@ class PaymentRequestService:
             .filter(PaymentRequest.request_code == request_code)
             .first()
         )
+
+    @staticmethod
+    def list_requests(
+        db: Session,
+        *,
+        event_id,
+        status=None,
+        requested_by=None
+    ):
+        query = (
+            db.query(PaymentRequest, Flat)
+            .join(Flat, PaymentRequest.flat_id == Flat.id)
+            .filter(PaymentRequest.event_id == event_id)
+        )
+
+        if status:
+            query = query.filter(PaymentRequest.status == status)
+
+        if requested_by:
+            query = query.filter(PaymentRequest.requested_by == requested_by)
+
+        return (
+            query
+            .order_by(PaymentRequest.requested_at.desc())
+            .all()
+        )

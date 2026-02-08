@@ -232,6 +232,73 @@ def handle_public_intent(
             f"Net Paid: ₹{summary['net_paid']}"
         )
 
+    if intent == "MY_PAYMENT_REQUESTS":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        requests = PaymentRequestService.list_requests(
+            db=db,
+            event_id=event.id,
+            requested_by=phone_number
+        )
+
+        if not requests:
+            return success("✅ No payment requests found.")
+
+        lines = ["📥 *Your Payment Requests*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.status}"
+            )
+
+        return success("\n".join(lines))
+
+    if intent == "MY_REFUND_REQUESTS":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        requests = RefundRequestService.list_requests(
+            db=db,
+            event_id=event.id,
+            requested_by=phone_number
+        )
+
+        if not requests:
+            return success("✅ No refund requests found.")
+
+        lines = ["📤 *Your Refund Requests*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.status}"
+            )
+
+        return success("\n".join(lines))
+
+    if intent == "MY_PAYMENTS":
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        requests = PaymentRequestService.list_requests(
+            db=db,
+            event_id=event.id,
+            requested_by=phone_number,
+            status="approved"
+        )
+
+        if not requests:
+            return success("✅ No approved payments found for this event.")
+
+        lines = ["💰 *Your Payments*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"approved"
+            )
+
+        return success("\n".join(lines))
+
     if intent == "MY_BALANCE":
         if not event:
             return error("No active event found. Please contact committee.")
@@ -357,10 +424,13 @@ def handle_public_intent(
             "- pay 500\n"
             "- pay 500 for A-101 (committee)\n"
             "- my payment\n"
+            "- my payments\n"
+            "- my payment requests\n"
             "- my balance\n\n"
             "↩️ *Refunds*\n"
             "- refund 200 reason guest absent\n"
-            "- refund 200 reason guest absent for A-101 (committee)\n\n"
+            "- refund 200 reason guest absent for A-101 (committee)\n"
+            "- my refund requests\n\n"
             "🧾 *Expenses* (Committee)\n"
             "- expense water tanker 1200\n\n"
             "📊 *Reports* (Committee)\n"
@@ -371,7 +441,9 @@ def handle_public_intent(
             "- block report\n\n"
             "✅ *Approvals* (Treasurer)\n"
             "- approve payment PAY-001\n"
-            "- approve refund REF-001\n\n"
+            "- approve refund REF-001\n"
+            "- payment requests\n"
+            "- refund requests\n\n"
             "ℹ️ *Help*\n"
             "- help\n"
             "- commands"

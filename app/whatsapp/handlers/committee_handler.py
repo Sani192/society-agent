@@ -85,6 +85,54 @@ def handle_committee_intent(
 
         return success("\n".join(lines))
 
+    if intent == "PAYMENT_REQUESTS":
+        if not is_action_allowed(member.role, "PAY"):
+            return warning("Only Treasurer can view payment requests.")
+
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        requests = PaymentRequestService.list_requests(
+            db=db,
+            event_id=event.id
+        )
+
+        if not requests:
+            return success("✅ No payment requests found.")
+
+        lines = ["📥 *Payment Requests*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.requested_by} | {request.status}"
+            )
+
+        return success("\n".join(lines))
+
+    if intent == "REFUND_REQUESTS":
+        if not is_action_allowed(member.role, "REFUND"):
+            return warning("Only Treasurer can view refund requests.")
+
+        if not event:
+            return error("No active event found. Please contact committee.")
+
+        requests = RefundRequestService.list_requests(
+            db=db,
+            event_id=event.id
+        )
+
+        if not requests:
+            return success("✅ No refund requests found.")
+
+        lines = ["📤 *Refund Requests*"]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | ₹{request.amount} | "
+                f"{request.requested_by} | {request.status}"
+            )
+
+        return success("\n".join(lines))
+
     if intent == "PARTICIPATION_REPORT":
         if not event:
             return error("No active event found. Please contact committee.")
