@@ -15,6 +15,7 @@ ROLE_ACTIONS = {
     "secretary": {
         "ADD_PASS",
         "ADD_EXPENSE",
+        "ADD_EVENT",
         "SUMMARY",
         "PENDING_PAYMENTS",
         "ONBOARDING_PENDING",

@@ -20,6 +20,7 @@ from app.modules.contributions.contribution_service import ContributionService
 from app.modules.contributions.contribution_refund_service import ContributionRefundService
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
+from app.modules.events.service import EventService
 from app.permissions.guard import is_action_allowed
 from app.whatsapp.response_templates import (
     error_response,
@@ -30,7 +31,7 @@ from app.whatsapp.response_templates import (
     success_response,
     warning_response,
 )
-from app.whatsapp.parser import parse_amount, parse_reason
+from app.whatsapp.parser import parse_amount, parse_event_creation, parse_reason
 
 
 def handle_committee_intent(
@@ -69,6 +70,41 @@ def handle_committee_intent(
             f"Expense added: {format_currency(amount)}",
             heading="Expense added",
             emoji="🧾"
+        )
+
+    if intent == "ADD_EVENT":
+        if not is_action_allowed(member.role, "ADD_EVENT"):
+            return warning_response("Only Chairman or Secretary can add events.")
+
+        parsed, error = parse_event_creation(message)
+        if error:
+            return error_response(error)
+
+        event_data = parsed
+
+        created_event = EventService.create_event(
+            db=db,
+            society_id=member.society_id,
+            name=event_data["name"],
+            event_date=event_data["event_date"],
+            food_types=event_data["food_types"],
+            charge_per_adult=event_data["charge_per_adult"],
+            charge_per_child=event_data["charge_per_child"],
+            payment_deadline=event_data["payment_deadline"],
+            created_by=member.id
+        )
+
+        return success_response(
+            join_lines([
+                f"Event: {created_event.name}",
+                f"Date: {format_datetime(created_event.event_date)}",
+                f"Food: {', '.join(created_event.food_types)}",
+                f"Adult: {format_currency(created_event.charge_per_adult)}",
+                f"Child: {format_currency(created_event.charge_per_child)}",
+                f"Deadline: {format_datetime(created_event.payment_deadline)}"
+            ]),
+            heading="Event created",
+            emoji="📅"
         )
 
     if intent == "PENDING_PAYMENTS":
