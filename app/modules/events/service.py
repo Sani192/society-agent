@@ -90,10 +90,14 @@ class EventService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="ACTIVATE_EVENT"
+            action="ACTIVATE_EVENT",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
     
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             WorkflowEngine.apply_override(
@@ -136,10 +140,14 @@ class EventService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="LOCK_PASSES"
+            action="LOCK_PASSES",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
 
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             WorkflowEngine.apply_override(
@@ -182,10 +190,14 @@ class EventService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="START_EVENT"
+            action="START_EVENT",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
 
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             WorkflowEngine.apply_override(
@@ -228,10 +240,14 @@ class EventService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="CLOSE_EVENT"
+            action="CLOSE_EVENT",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
 
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             WorkflowEngine.apply_override(

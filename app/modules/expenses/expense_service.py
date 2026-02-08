@@ -37,12 +37,16 @@ class ExpenseService:
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
-            action="ADD_EXPENSE"
+            action="ADD_EXPENSE",
+            performed_by=performed_by,
+            override_reason=override_reason
         )
 
         is_override = False
 
         if not decision.allowed:
+            if not decision.requires_override:
+                raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
             is_override = True
