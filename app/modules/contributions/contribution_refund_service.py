@@ -47,9 +47,10 @@ class ContributionRefundService:
         )
         
         if total_refunded + amount > contribution.amount:
+            remaining = max(0, contribution.amount - total_refunded)
             raise Exception(
                 f"Refund exceeds contribution amount. "
-                f"Remaining refundable amount: ₹{contribution.amount - total_refunded}"
+                f"Remaining refundable amount: ₹{remaining}"
             )
 
 

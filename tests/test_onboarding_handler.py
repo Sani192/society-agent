@@ -79,6 +79,33 @@ def test_onboarding_join_pending(monkeypatch):
     assert "Request ID: *REQ-003*" in response
 
 
+def test_onboarding_join_surfaces_error(monkeypatch):
+    society = SimpleNamespace(id="soc-1")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.onboarding_handler.JoinCodeService.get_society_by_join_code",
+        lambda *args, **kwargs: society
+    )
+
+    def fake_start_onboarding(**kwargs):
+        raise Exception("You are already registered with this society.")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.onboarding_handler.OnboardingService.start_onboarding",
+        fake_start_onboarding
+    )
+
+    response = handle_onboarding_intent(
+        db=MagicMock(),
+        intent="JOIN",
+        phone_number=MEMBER_PHONE,
+        message="join ABC123 A-101",
+        member=None
+    )
+
+    assert response == "❌ You are already registered with this society."
+
+
 def test_onboarding_join_committee_for_phone(monkeypatch):
     society = SimpleNamespace(id="soc-1")
     member = SimpleNamespace(id="member-1", role="chairman")

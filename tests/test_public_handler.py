@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 from app.whatsapp.handlers.public_handler import handle_public_intent
 from tests.constants import COMMITTEE_PHONE, MEMBER_PHONE
+from tests.utils import QueryMock
 
 
 def test_public_add_pass_success(monkeypatch):
@@ -206,6 +207,35 @@ def test_public_refund_request_for_member(monkeypatch):
     assert "Request ID: *REF-001*" in response
 
 
+def test_public_refund_request_surfaces_error(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.resolve_flat",
+        lambda *args, **kwargs: flat
+    )
+
+    def fake_request_refund(**kwargs):
+        raise Exception("Invalid flat number.")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.RefundRequestService.request_refund",
+        fake_request_refund
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="REFUND",
+        phone_number=MEMBER_PHONE,
+        message="refund 200 reason guest absent",
+        event=event,
+        member=None
+    )
+
+    assert response == "❌ Invalid flat number."
+
+
 def test_public_refund_committee_approves_request(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     flat = SimpleNamespace(id="flat-1")
@@ -243,6 +273,40 @@ def test_public_refund_committee_approves_request(monkeypatch):
 
     assert called["approved"] is True
     assert "Refund approved and processed" in response
+
+
+def test_public_refund_committee_surfaces_error(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1")
+    member = SimpleNamespace(id="member-1")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.resolve_flat",
+        lambda *args, **kwargs: flat
+    )
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.RefundRequestService.find_matching_request",
+        lambda **kwargs: None
+    )
+
+    def fake_process_refund(**kwargs):
+        raise Exception("Refund amount exceeds paid amount")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.RefundService.process_refund",
+        fake_process_refund
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="REFUND",
+        phone_number=COMMITTEE_PHONE,
+        message="refund 200 reason guest absent",
+        event=event,
+        member=member
+    )
+
+    assert response == "❌ Refund amount exceeds paid amount"
 
 
 def test_public_my_pass_success(monkeypatch):
@@ -345,8 +409,14 @@ def test_public_my_refund_requests(monkeypatch):
 def test_public_my_payments(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     request = SimpleNamespace(request_code="PAY-010", amount=400, status="approved")
+    pending_request = SimpleNamespace(request_code="PAY-011", amount=300, status="requested")
     member_flat = SimpleNamespace(id="flat-1")
     request_flat = SimpleNamespace(flat_number="C-301")
+    pending_flat = SimpleNamespace(flat_number="C-302")
+    payment = SimpleNamespace(status="partial", paid_amount=200, expected_amount=500)
+
+    db = MagicMock()
+    db.query.return_value = QueryMock(first_result=payment)
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.public_handler.resolve_flat",
@@ -359,12 +429,17 @@ def test_public_my_payments(monkeypatch):
     )
 
     monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_balance",
+        lambda **kwargs: {"expected": 500, "paid": 400, "balance": 100}
+    )
+
+    monkeypatch.setattr(
         "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
-        lambda **kwargs: [(request, request_flat)]
+        lambda **kwargs: [(request, request_flat), (pending_request, pending_flat)]
     )
 
     response = handle_public_intent(
-        db=MagicMock(),
+        db=db,
         intent="MY_PAYMENTS",
         phone_number=MEMBER_PHONE,
         message="my payments",
@@ -373,8 +448,52 @@ def test_public_my_payments(monkeypatch):
     )
 
     assert "PAY-010" in response
+    assert "PAY-011" in response
     assert "C-301" in response
+    assert "C-302" in response
     assert "Payment Summary" in response
+    assert "Status: partial (₹200 of ₹500)" in response
+
+
+def test_public_my_payments_no_requests(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member_flat = SimpleNamespace(id="flat-1")
+    payment = SimpleNamespace(status="pending", paid_amount=0, expected_amount=800)
+
+    db = MagicMock()
+    db.query.return_value = QueryMock(first_result=payment)
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.resolve_flat",
+        lambda *args, **kwargs: member_flat
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_payment_summary",
+        lambda **kwargs: {"paid": 0, "refunded": 0, "net_paid": 0}
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_balance",
+        lambda **kwargs: {"expected": 800, "paid": 0, "balance": 800}
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
+        lambda **kwargs: []
+    )
+
+    response = handle_public_intent(
+        db=db,
+        intent="MY_PAYMENTS",
+        phone_number=MEMBER_PHONE,
+        message="my payments",
+        event=event,
+        member=None
+    )
+
+    assert "No payment requests found" in response
+    assert "Status: pending (₹0 of ₹800)" in response
 
 
 def test_public_help_and_commands():

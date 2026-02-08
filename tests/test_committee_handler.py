@@ -422,6 +422,29 @@ def test_committee_approve_refund(monkeypatch):
     assert response == "✅ ✅ Refund approved (REF-001)"
 
 
+def test_committee_refund_sponsor_surfaces_error(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="chairman")
+
+    def fake_process_refund(**kwargs):
+        raise Exception("Refund exceeds contribution amount. Remaining refundable amount: ₹0")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        fake_process_refund
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REFUND_SPONSOR",
+        message="refund sponsor SP-001 500 reason extra",
+        event=event,
+        member=member
+    )
+
+    assert response == "❌ Refund exceeds contribution amount. Remaining refundable amount: ₹0"
+
+
 def test_committee_approve_refund_already_processed(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(id="member-1", role="treasurer")

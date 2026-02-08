@@ -454,14 +454,17 @@ def handle_committee_intent(
         if not reason:
             return error("Refund reason is required.")
     
-        ContributionRefundService.process_refund(
-            db=db,
-            event_id=event.id,
-            contribution_code=contribution_code,
-            amount=amount,
-            reason=reason,
-            performed_by=member.id
-        )
+        try:
+            ContributionRefundService.process_refund(
+                db=db,
+                event_id=event.id,
+                contribution_code=contribution_code,
+                amount=amount,
+                reason=reason,
+                performed_by=member.id
+            )
+        except Exception as exc:
+            return error(str(exc))
     
         return success(f"↩️ Sponsor refund processed ({contribution_code}).")
 
