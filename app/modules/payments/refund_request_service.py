@@ -159,6 +159,8 @@ class RefundRequestService:
 
         if status:
             query = query.filter(RefundRequest.status == status)
+        else:
+            query = query.filter(RefundRequest.status != "approved")
 
         if requested_by:
             query = query.filter(RefundRequest.requested_by == requested_by)
