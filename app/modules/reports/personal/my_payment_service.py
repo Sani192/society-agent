@@ -8,6 +8,7 @@ Created on Mon Jan 19 22:02:42 2026
 
 # app/modules/reports/personal/my_payment_service.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -16,11 +17,15 @@ from app.db.models import (
     Payment,
     Refund
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class MyPaymentReport:
 
     @staticmethod
+    @log_service_call(logger, "MyPaymentReport.generate")
     def generate(
         db: Session,
         *,
@@ -28,6 +33,10 @@ class MyPaymentReport:
         event_id: str,
         user_identifier: str
     ):
+        context = build_log_context(
+            event_id=event_id,
+            society_id=society_id
+        )
         # 1️ Resolve user's flat
         mapping = (
             db.query(UserFlatMapping)
@@ -40,6 +49,10 @@ class MyPaymentReport:
         )
 
         if not mapping:
+            logger.warning(
+                "Validation failed: user not mapped to flat | context=%s",
+                context
+            )
             raise Exception("You are not registered with this society.")
 
         # 2️ Load payment record
@@ -53,6 +66,10 @@ class MyPaymentReport:
         )
 
         if not payment:
+            logger.info(
+                "Workflow decision: no payment record found | context=%s",
+                context
+            )
             return {
                 "expected": 0,
                 "paid": 0,
@@ -83,6 +100,11 @@ class MyPaymentReport:
             status = "partial"
         else:
             status = "pending"
+        logger.info(
+            "Workflow decision: resolved payment status %s | context=%s",
+            status,
+            context
+        )
 
         return {
             "expected": expected,

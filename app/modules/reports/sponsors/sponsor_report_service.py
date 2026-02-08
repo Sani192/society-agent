@@ -8,15 +8,21 @@ Created on Mon Jan 19 22:58:27 2026
 
 # app/modules/reports/sponsors/sponsor_report_service.py
 
+import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import EventContribution
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class SponsorReport:
 
     @staticmethod
+    @log_service_call(logger, "SponsorReport.generate")
     def generate(db: Session, *, event_id: str):
+        context = build_log_context(event_id=event_id)
         rows = (
             db.query(EventContribution)
             .filter(
@@ -25,6 +31,11 @@ class SponsorReport:
             .order_by(EventContribution.created_at)
             .all()
         )
+        if not rows:
+            logger.info(
+                "Workflow decision: no sponsor contributions found | context=%s",
+                context
+            )
 
         result = []
 
@@ -42,4 +53,9 @@ class SponsorReport:
                     "details": c.in_kind_details or {}
                 })
 
+        if not result:
+            logger.info(
+                "Workflow decision: no sponsor report entries built | context=%s",
+                context
+            )
         return result

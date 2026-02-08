@@ -8,16 +8,22 @@ Created on Mon Jan 19 21:45:37 2026
 
 # app/modules/reports/pending_payments/service.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.db.models import Payment, Flat
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class PendingPaymentsReport:
 
     @staticmethod
+    @log_service_call(logger, "PendingPaymentsReport.generate")
     def generate(db: Session, *, event_id: str):
+        context = build_log_context(event_id=event_id)
         rows = (
             db.query(
                 Flat.flat_number,
@@ -34,6 +40,11 @@ class PendingPaymentsReport:
             .order_by(Flat.block, Flat.flat_number)
             .all()
         )
+        if not rows:
+            logger.info(
+                "Workflow decision: no pending payments found | context=%s",
+                context
+            )
 
         result = []
         for r in rows:
@@ -47,4 +58,9 @@ class PendingPaymentsReport:
                     "pending_amount": int(pending)
                 })
 
+        if not result:
+            logger.info(
+                "Workflow decision: no pending payment rows qualified | context=%s",
+                context
+            )
         return result

@@ -6,6 +6,7 @@ Created on Mon Jan 26 11:10:48 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.db.models import (
     Payment,
@@ -14,12 +15,17 @@ from app.db.models import (
     EventContribution,
     EventFoodPass
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class PublicEventSummaryReport:
 
     @staticmethod
+    @log_service_call(logger, "PublicEventSummaryReport.generate")
     def generate(db: Session, event_id):
+        context = build_log_context(event_id=event_id)
         total_income = sum(
             p.paid_amount for p in
             db.query(Payment).filter(Payment.event_id == event_id).all()
@@ -51,6 +57,11 @@ class PublicEventSummaryReport:
             .distinct()
             .all()
         )
+        if not sponsors:
+            logger.info(
+                "Workflow decision: no sponsors found in public summary | context=%s",
+                context
+            )
 
         return {
             "participants": participants,

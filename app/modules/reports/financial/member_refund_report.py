@@ -6,14 +6,20 @@ Created on Sun Feb  8 14:58:17 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.db.models import Refund, Flat, CommitteeMember
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class MemberRefundReport:
 
     @staticmethod
+    @log_service_call(logger, "MemberRefundReport.generate")
     def generate(db: Session, *, event_id):
+        context = build_log_context(event_id=event_id)
         records = (
             db.query(
                 Flat.flat_number,
@@ -34,6 +40,11 @@ class MemberRefundReport:
             .order_by(Refund.created_at)
             .all()
         )
+        if not records:
+            logger.info(
+                "Workflow decision: no member refunds found | context=%s",
+                context
+            )
 
         rows = []
         for r in records:
@@ -51,7 +62,7 @@ class MemberRefundReport:
                 "Refund Amount",
                 "Reason",
                 "Approved By",
-                "Date"
+            "Date"
             ],
             "rows": rows
         }

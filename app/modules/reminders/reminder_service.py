@@ -9,9 +9,13 @@ Created on Sat Jan 17 12:01:15 2026
 # app/modules/reminders/reminder_service.py
 
 from datetime import date
+import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import Payment, Flat, PaymentReminder
+from app.utils.logging_helpers import build_log_context, log_entry, log_exit
+
+logger = logging.getLogger(__name__)
 
 
 class ReminderService:
@@ -23,6 +27,11 @@ class ReminderService:
         society_id,
         event_id
     ):
+        context = build_log_context(
+            society_id=society_id,
+            event_id=event_id
+        )
+        log_entry(logger, "ReminderService.generate_pending_payment_reminders", context)
         today = date.today()
 
         pending_payments = (
@@ -37,6 +46,11 @@ class ReminderService:
         )
 
         generated = []
+        if not pending_payments:
+            logger.info(
+                "Workflow decision: no pending payments to remind | context=%s",
+                context
+            )
 
         for payment in pending_payments:
             exists = (
@@ -50,6 +64,13 @@ class ReminderService:
             )
 
             if exists:
+                logger.info(
+                    "Workflow decision: reminder already exists | context=%s",
+                    {
+                        **context,
+                        "flat_id": payment.flat_id
+                    }
+                )
                 continue
 
             reminder = PaymentReminder(
@@ -63,5 +84,24 @@ class ReminderService:
             db.add(reminder)
             generated.append(reminder)
 
-        db.commit()
+        if generated:
+            logger.info(
+                "DB write: creating %d payment reminders | context=%s",
+                len(generated),
+                context
+            )
+        try:
+            db.commit()
+            logger.info(
+                "Commit success: reminders generated | context=%s",
+                context
+            )
+        except Exception:
+            logger.exception(
+                "Commit failure: reminder generation | context=%s",
+                context
+            )
+            db.rollback()
+            raise
+        log_exit(logger, "ReminderService.generate_pending_payment_reminders", context)
         return generated
