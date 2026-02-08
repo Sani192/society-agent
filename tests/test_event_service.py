@@ -37,8 +37,8 @@ def test_create_event_creates_workflow_and_audit():
 @pytest.mark.parametrize(
     "method_name, expected_status, expected_state, expected_next",
     [
-        ("activate_event", "ACTIVE", "ACTIVE", ["PAYMENT_LOCKED"]),
-        ("lock_passes", "PAYMENT_LOCKED", "PAYMENT_LOCKED", ["EVENT_DAY"]),
+        ("activate_event", "ACTIVE", "ACTIVE", ["LOCKED"]),
+        ("lock_passes", "LOCKED", "LOCKED", ["EVENT_DAY"]),
         ("start_event_day", "EVENT_DAY", "EVENT_DAY", ["CLOSE_EVENT"]),
         ("close_event", "CLOSED", "CLOSED", [])
     ]

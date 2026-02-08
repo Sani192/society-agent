@@ -109,7 +109,7 @@ class EventService:
     
         event.status = "ACTIVE"
         workflow.current_state = "ACTIVE"
-        workflow.allowed_next_states = ["PAYMENT_LOCKED"]
+        workflow.allowed_next_states = ["LOCKED"]
     
         db.add(AuditLog(
             society_id=event.society_id,
@@ -153,8 +153,8 @@ class EventService:
                 performed_by=performed_by
             )
 
-        event.status = "PAYMENT_LOCKED"
-        workflow.current_state = "PAYMENT_LOCKED"
+        event.status = "LOCKED"
+        workflow.current_state = "LOCKED"
         workflow.allowed_next_states = ["EVENT_DAY"]
 
         db.add(AuditLog(
@@ -259,4 +259,3 @@ class EventService:
         ))
 
         db.commit()
-
