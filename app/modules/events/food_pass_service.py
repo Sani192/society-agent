@@ -139,7 +139,6 @@ class FoodPassService:
             payment.expected_amount = total_amount
             if payment.paid_amount >= total_amount:
                 payment.status = "paid"
-                payment.paid_amount = total_amount
             else:
                 payment.status = "partial" if payment.paid_amount > 0 else "pending"
 

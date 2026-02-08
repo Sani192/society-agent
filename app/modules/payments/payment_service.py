@@ -108,7 +108,6 @@ class PaymentService:
 
         if payment.paid_amount >= expected_amount:
             payment.status = "paid"
-            payment.paid_amount = expected_amount
         else:
             payment.status = "partial"
 

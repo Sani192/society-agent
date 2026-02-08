@@ -160,6 +160,8 @@ class PaymentRequestService:
 
         if status:
             query = query.filter(PaymentRequest.status == status)
+        else:
+            query = query.filter(PaymentRequest.status != "approved")
 
         if requested_by:
             query = query.filter(PaymentRequest.requested_by == requested_by)
