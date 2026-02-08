@@ -16,7 +16,8 @@ from app.db.models import (
     Event,
     Flat,
     PaymentRequest,
-    EventFoodPass
+    EventFoodPass,
+    AuditLog
 )
 from app.modules.payments.payment_service import PaymentService
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
@@ -125,6 +126,17 @@ class PaymentRequestService:
             }
         )
         db.add(request)
+        db.flush()
+        db.add(AuditLog(
+            society_id=event.society_id,
+            entity_type="payment_request",
+            entity_id=request.id,
+            action="REQUEST_PAYMENT",
+            reason=(
+                f"Request {request.request_code} for ₹{amount} by {requested_by}"
+            ),
+            performed_by=None
+        ))
         try:
             db.commit()
             logger.info(
@@ -204,6 +216,18 @@ class PaymentRequestService:
         request.approved_by = performed_by
         request.approved_at = datetime.utcnow()
 
+        db.add(AuditLog(
+            society_id=request.society_id,
+            entity_type="payment_request",
+            entity_id=request.id,
+            action="APPROVE_PAYMENT_REQUEST",
+            reason=(
+                "Approved "
+                f"{request.request_code} for ₹{request.amount} "
+                f"requested by {request.requested_by}"
+            ),
+            performed_by=performed_by
+        ))
         logger.info("DB write: updating payment request status | context=%s", context)
         try:
             db.commit()
@@ -221,6 +245,33 @@ class PaymentRequestService:
 
         log_exit(logger, "PaymentRequestService.approve_request", context)
         return payment
+
+    @staticmethod
+    def reject_request(
+        db: Session,
+        *,
+        request: PaymentRequest,
+        performed_by,
+        rejection_reason=None
+    ):
+        request.status = "rejected"
+
+        reason = (
+            f"Rejected {request.request_code} for ₹{request.amount} "
+            f"requested by {request.requested_by}"
+        )
+        if rejection_reason:
+            reason = f"{reason} | {rejection_reason}"
+
+        db.add(AuditLog(
+            society_id=request.society_id,
+            entity_type="payment_request",
+            entity_id=request.id,
+            action="REJECT_PAYMENT_REQUEST",
+            reason=reason,
+            performed_by=performed_by
+        ))
+        db.commit()
 
     @staticmethod
     @log_service_call(logger, "PaymentRequestService.get_request_by_code")

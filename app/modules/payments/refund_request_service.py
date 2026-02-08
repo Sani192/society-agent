@@ -16,7 +16,8 @@ from app.db.models import (
     Event,
     Flat,
     RefundRequest,
-    Payment
+    Payment,
+    AuditLog
 )
 from app.modules.payments.refund_service import RefundService
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
@@ -124,6 +125,18 @@ class RefundRequestService:
             }
         )
         db.add(request)
+        db.flush()
+        db.add(AuditLog(
+            society_id=event.society_id,
+            entity_type="refund_request",
+            entity_id=request.id,
+            action="REQUEST_REFUND",
+            reason=(
+                f"Request {request.request_code} for ₹{amount} "
+                f"by {requested_by}"
+            ),
+            performed_by=None
+        ))
         try:
             db.commit()
             logger.info(
@@ -203,6 +216,18 @@ class RefundRequestService:
         request.approved_by = performed_by
         request.approved_at = datetime.utcnow()
 
+        db.add(AuditLog(
+            society_id=request.society_id,
+            entity_type="refund_request",
+            entity_id=request.id,
+            action="APPROVE_REFUND_REQUEST",
+            reason=(
+                "Approved "
+                f"{request.request_code} for ₹{request.amount} "
+                f"requested by {request.requested_by}"
+            ),
+            performed_by=performed_by
+        ))
         logger.info("DB write: updating refund request status | context=%s", context)
         try:
             db.commit()
@@ -220,6 +245,33 @@ class RefundRequestService:
 
         log_exit(logger, "RefundRequestService.approve_request", context)
         return refund
+
+    @staticmethod
+    def reject_request(
+        db: Session,
+        *,
+        request: RefundRequest,
+        performed_by,
+        rejection_reason=None
+    ):
+        request.status = "rejected"
+
+        reason = (
+            f"Rejected {request.request_code} for ₹{request.amount} "
+            f"requested by {request.requested_by}"
+        )
+        if rejection_reason:
+            reason = f"{reason} | {rejection_reason}"
+
+        db.add(AuditLog(
+            society_id=request.society_id,
+            entity_type="refund_request",
+            entity_id=request.id,
+            action="REJECT_REFUND_REQUEST",
+            reason=reason,
+            performed_by=performed_by
+        ))
+        db.commit()
 
     @staticmethod
     @log_service_call(logger, "RefundRequestService.get_request_by_code")
