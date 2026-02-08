@@ -6,14 +6,20 @@ Created on Mon Jan 26 10:27:51 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.db.models import AuditLog, CommitteeMember
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class GovernanceAuditReport:
 
     @staticmethod
+    @log_service_call(logger, "GovernanceAuditReport.generate")
     def generate(db: Session, society_id):
+        context = build_log_context(society_id=society_id)
         records = (
             db.query(
                 AuditLog.performed_at,
@@ -30,6 +36,11 @@ class GovernanceAuditReport:
             .order_by(AuditLog.performed_at.desc())
             .all()
         )
+        if not records:
+            logger.info(
+                "Workflow decision: no governance audit records found | context=%s",
+                context
+            )
 
         rows = [
             [

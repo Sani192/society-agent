@@ -8,16 +8,22 @@ Created on Tue Feb 04 10:25:10 2026
 
 # app/modules/reports/event_participation_report.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.db.models import EventFoodPass, Flat
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class EventParticipationReport:
 
     @staticmethod
+    @log_service_call(logger, "EventParticipationReport.generate")
     def generate(db: Session, *, event_id, society_id):
+        context = build_log_context(event_id=event_id, society_id=society_id)
         flats = (
             db.query(Flat.flat_number)
             .filter(
@@ -27,6 +33,11 @@ class EventParticipationReport:
             .order_by(Flat.flat_number)
             .all()
         )
+        if not flats:
+            logger.info(
+                "Workflow decision: no flats found for participation report | context=%s",
+                context
+            )
 
         participating = (
             db.query(Flat.flat_number)
@@ -42,6 +53,11 @@ class EventParticipationReport:
             .order_by(Flat.flat_number)
             .all()
         )
+        if not participating:
+            logger.info(
+                "Workflow decision: no participating flats found | context=%s",
+                context
+            )
 
         all_flats = {f[0] for f in flats}
         participating_flats = {f[0] for f in participating}

@@ -6,13 +6,19 @@ Created on Fri Jan 23 16:53:43 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from app.db.models import Payment, Refund, EventExpense, EventContribution
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 class EventFinancialSummaryReport:
 
     @staticmethod
+    @log_service_call(logger, "EventFinancialSummaryReport.generate")
     def generate(db: Session, event_id):
+        context = build_log_context(event_id=event_id)
         paid = db.query(Payment).filter(
             Payment.event_id == event_id
         ).with_entities(Payment.paid_amount).all()
@@ -42,6 +48,11 @@ class EventFinancialSummaryReport:
             ["Expense", "Refunds", total_refund],
             ["Balance", "Closing Balance", closing_balance],
         ]
+        if not rows:
+            logger.info(
+                "Workflow decision: event financial summary empty | context=%s",
+                context
+            )
     
         return {
             "headers": ["Category", "Type", "Amount"],

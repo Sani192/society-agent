@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:23:02 2026
 # app/modules/payments/refund_request_service.py
 
 from datetime import datetime
+import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -19,6 +20,9 @@ from app.db.models import (
     AuditLog
 )
 from app.modules.payments.refund_service import RefundService
+from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class RefundRequestService:
@@ -33,13 +37,27 @@ class RefundRequestService:
         reason,
         requested_by
     ):
+        context = build_log_context(
+            event_id=event_id,
+            flat_id=flat_id,
+            performed_by=requested_by
+        )
+        log_entry(logger, "RefundRequestService.request_refund", context)
         if amount <= 0:
+            logger.warning(
+                "Validation failed for refund request: amount <= 0 | context=%s",
+                context
+            )
             raise Exception("Refund amount must be greater than zero")
 
         event = db.query(Event).filter(Event.id == event_id).first()
         flat = db.query(Flat).filter(Flat.id == flat_id).first()
 
         if not event or not flat:
+            logger.warning(
+                "Validation failed for refund request: invalid event/flat | context=%s",
+                context
+            )
             raise Exception("Invalid event or flat")
 
         payment = (
@@ -52,6 +70,10 @@ class RefundRequestService:
         )
 
         if not payment or payment.paid_amount <= 0:
+            logger.warning(
+                "Validation failed for refund request: no payment available | context=%s",
+                context
+            )
             raise Exception("No payment available for refund")
 
         existing = (
@@ -66,6 +88,14 @@ class RefundRequestService:
         )
 
         if existing:
+            logger.info(
+                "Workflow decision: returning existing refund request | context=%s",
+                {
+                    **context,
+                    "request_code": existing.request_code
+                }
+            )
+            log_exit(logger, "RefundRequestService.request_refund", context)
             return existing
 
         count = (
@@ -86,6 +116,14 @@ class RefundRequestService:
             requested_by=requested_by
         )
 
+        logger.info(
+            "DB write: creating refund request | context=%s",
+            {
+                **context,
+                "society_id": event.society_id,
+                "request_code": request_code
+            }
+        )
         db.add(request)
         db.flush()
         db.add(AuditLog(
@@ -99,11 +137,33 @@ class RefundRequestService:
             ),
             performed_by=None
         ))
-        db.commit()
+        try:
+            db.commit()
+            logger.info(
+                "Commit success: refund request created | context=%s",
+                {
+                    **context,
+                    "society_id": event.society_id,
+                    "request_code": request_code
+                }
+            )
+        except Exception:
+            logger.exception(
+                "Commit failure: refund request create | context=%s",
+                {
+                    **context,
+                    "society_id": event.society_id,
+                    "request_code": request_code
+                }
+            )
+            db.rollback()
+            raise
 
+        log_exit(logger, "RefundRequestService.request_refund", context)
         return request
 
     @staticmethod
+    @log_service_call(logger, "RefundRequestService.find_matching_request")
     def find_matching_request(
         db: Session,
         *,
@@ -130,6 +190,18 @@ class RefundRequestService:
         request: RefundRequest,
         performed_by
     ):
+        context = build_log_context(
+            event_id=request.event_id,
+            flat_id=request.flat_id,
+            society_id=request.society_id,
+            performed_by=performed_by,
+            request_code=request.request_code
+        )
+        log_entry(logger, "RefundRequestService.approve_request", context)
+        logger.info(
+            "Workflow decision: approving refund request | context=%s",
+            context
+        )
         refund = RefundService.process_refund(
             db=db,
             event_id=request.event_id,
@@ -156,8 +228,22 @@ class RefundRequestService:
             ),
             performed_by=performed_by
         ))
-        db.commit()
+        logger.info("DB write: updating refund request status | context=%s", context)
+        try:
+            db.commit()
+            logger.info(
+                "Commit success: refund request approved | context=%s",
+                context
+            )
+        except Exception:
+            logger.exception(
+                "Commit failure: refund request approve | context=%s",
+                context
+            )
+            db.rollback()
+            raise
 
+        log_exit(logger, "RefundRequestService.approve_request", context)
         return refund
 
     @staticmethod
@@ -188,6 +274,7 @@ class RefundRequestService:
         db.commit()
 
     @staticmethod
+    @log_service_call(logger, "RefundRequestService.get_request_by_code")
     def get_request_by_code(db: Session, *, request_code):
         return (
             db.query(RefundRequest)
@@ -196,6 +283,7 @@ class RefundRequestService:
         )
 
     @staticmethod
+    @log_service_call(logger, "RefundRequestService.list_requests")
     def list_requests(
         db: Session,
         *,
