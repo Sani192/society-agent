@@ -69,6 +69,13 @@ def handle_public_intent(
         if sum(counts.values()) == 0:
             return error_response("Specify counts. Example: add pass veg 2 jain 1 kid 1")
 
+        charge_per_adult = event.charge_per_adult
+        charge_per_child = event.charge_per_child
+        if charge_per_adult is None or charge_per_child is None:
+            return error_response(
+                "Event pricing is missing. Please ask the committee to set adult and child pricing."
+            )
+
         FoodPassService.add_or_update_pass(
             db=db,
             event_id=event.id,
@@ -76,8 +83,8 @@ def handle_public_intent(
             veg_count=counts["veg"],
             jain_count=counts["jain"],
             kids_count=counts["kids"],
-            charge_per_adult=event.charge_per_adult,
-            charge_per_child=event.charge_per_child,
+            charge_per_adult=charge_per_adult,
+            charge_per_child=charge_per_child,
             performed_by=member.id if member else None,
             override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
         )
