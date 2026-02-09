@@ -8,10 +8,14 @@ Created on Sat Jan 10 14:21:40 2026
 
 # app/workflows/engine.py
 
+import logging
 from app.workflows.rules import STATE_RULES
 from app.db.models import WorkflowState, AuditLog, CommitteeMember
 from sqlalchemy.orm import Session
 from datetime import datetime
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowDecision:
@@ -24,6 +28,7 @@ class WorkflowDecision:
 class WorkflowEngine:
 
     @staticmethod
+    @log_service_call(logger, "WorkflowEngine.check_action")
     def check_action(
         db: Session,
         event_id,
@@ -31,7 +36,8 @@ class WorkflowEngine:
         performed_by=None,
         override_reason=None
     ) -> WorkflowDecision:
-
+        context = build_log_context(event_id=event_id, performed_by=performed_by)
+        logger.info("Checking workflow action | action=%s context=%s", action, context)
         state_row = (
             db.query(WorkflowState)
             .filter(WorkflowState.event_id == event_id)
@@ -39,6 +45,7 @@ class WorkflowEngine:
         )
 
         if not state_row:
+            logger.warning("Workflow state missing | action=%s context=%s", action, context)
             return WorkflowDecision(
                 allowed=False,
                 requires_override=False,
@@ -47,8 +54,15 @@ class WorkflowEngine:
 
         current_state = state_row.current_state
         allowed_actions = STATE_RULES.get(current_state, set())
+        logger.info(
+            "Resolved workflow state | state=%s action=%s context=%s",
+            current_state,
+            action,
+            context
+        )
 
         if action in allowed_actions:
+            logger.info("Workflow action allowed | action=%s context=%s", action, context)
             return WorkflowDecision(
                 allowed=True,
                 requires_override=False,
@@ -57,6 +71,7 @@ class WorkflowEngine:
 
         if current_state == "CLOSED":
             if not performed_by:
+                logger.warning("Override denied: missing performer | action=%s context=%s", action, context)
                 return WorkflowDecision(
                     allowed=False,
                     requires_override=False,
@@ -74,6 +89,11 @@ class WorkflowEngine:
                 or not member.is_active
                 or member.role not in {"chairman", "secretary", "treasurer"}
             ):
+                logger.warning(
+                    "Override denied: invalid member for CLOSED | action=%s context=%s",
+                    action,
+                    context
+                )
                 return WorkflowDecision(
                     allowed=False,
                     requires_override=False,
@@ -81,6 +101,7 @@ class WorkflowEngine:
                 )
 
             if not override_reason or not override_reason.strip():
+                logger.warning("Override denied: reason required | action=%s context=%s", action, context)
                 return WorkflowDecision(
                     allowed=False,
                     requires_override=False,
@@ -88,6 +109,7 @@ class WorkflowEngine:
                 )
 
         # Action not normally allowed → override possible
+        logger.info("Workflow requires override | action=%s context=%s", action, context)
         return WorkflowDecision(
             allowed=False,
             requires_override=True,
@@ -95,6 +117,7 @@ class WorkflowEngine:
         )
     
     @staticmethod
+    @log_service_call(logger, "WorkflowEngine.apply_override")
     def apply_override(
         db: Session,
         *,
@@ -106,6 +129,14 @@ class WorkflowEngine:
         reason,
         performed_by
     ):
+        context = build_log_context(event_id=event_id, society_id=society_id, performed_by=performed_by)
+        logger.info(
+            "Applying workflow override | entity_type=%s entity_id=%s action=%s context=%s",
+            entity_type,
+            entity_id,
+            action,
+            context
+        )
         audit = AuditLog(
             society_id=society_id,
             entity_type=entity_type,
@@ -117,6 +148,7 @@ class WorkflowEngine:
         )
 
         db.add(audit)
+        logger.info("Captured override audit log | action=%s context=%s", action, context)
         return audit
 
 

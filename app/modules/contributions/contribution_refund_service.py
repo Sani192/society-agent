@@ -6,13 +6,18 @@ Created on Fri Feb  6 18:29:55 2026
 @author: anonymous
 """
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.models import ContributionRefund, EventContribution, AuditLog
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 class ContributionRefundService:
 
     @staticmethod
+    @log_service_call(logger, "ContributionRefundService.process_refund")
     def process_refund(
         db: Session,
         *,
@@ -22,6 +27,13 @@ class ContributionRefundService:
         reason,
         performed_by
     ):
+        context = build_log_context(event_id=event_id, performed_by=performed_by)
+        logger.info(
+            "Processing contribution refund | amount=%s code=%s context=%s",
+            amount,
+            contribution_code,
+            context
+        )
         contribution = (
             db.query(EventContribution)
             .filter(
@@ -36,6 +48,11 @@ class ContributionRefundService:
 
         if not contribution.amount:
             raise Exception("In-kind contribution cannot be refunded.")
+        logger.info(
+            "Validated contribution for refund | contribution_id=%s context=%s",
+            contribution.id,
+            context
+        )
             
         total_refunded = (
             db.query(func.coalesce(func.sum(ContributionRefund.amount), 0))
@@ -52,6 +69,11 @@ class ContributionRefundService:
                 f"Refund exceeds contribution amount. "
                 f"Remaining refundable amount: ₹{remaining}"
             )
+        logger.info(
+            "Refund amount validated | total_refunded=%s context=%s",
+            total_refunded,
+            context
+        )
 
 
         refund = ContributionRefund(
@@ -63,6 +85,7 @@ class ContributionRefundService:
 
         db.add(refund)
         db.flush()
+        logger.info("Created contribution refund record | id=%s context=%s", refund.id, context)
 
         db.add(AuditLog(
             society_id=contribution.society_id,
@@ -72,6 +95,8 @@ class ContributionRefundService:
             reason=reason,
             performed_by=performed_by
         ))
+        logger.info("Captured contribution refund audit log | context=%s", context)
 
         db.commit()
+        logger.info("Committed contribution refund transaction | context=%s", context)
         

@@ -86,7 +86,11 @@ def test_event_lifecycle_requires_override(monkeypatch):
 
     monkeypatch.setattr(
         "app.modules.events.service.WorkflowEngine.check_action",
-        lambda **kwargs: SimpleNamespace(allowed=False, message="Blocked")
+        lambda **kwargs: SimpleNamespace(
+            allowed=False,
+            requires_override=False,
+            message="Blocked"
+        )
     )
 
     with pytest.raises(Exception, match="Blocked"):
