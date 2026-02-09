@@ -8,6 +8,7 @@ Created on Sun Jan 11 05:50:19 2026
 
 # app/modules/ledger/ledger_service.py
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -20,11 +21,15 @@ from app.db.models import (
     SocietyBalance,
     AuditLog
 )
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class LedgerService:
 
     @staticmethod
+    @log_service_call(logger, "LedgerService.calculate_event_balance")
     def calculate_event_balance(
         db: Session,
         *,
@@ -33,6 +38,12 @@ class LedgerService:
         performed_by,
         override_reason=None
     ):
+        context = build_log_context(event_id=event_id, performed_by=performed_by)
+        logger.info(
+            "Calculating event balance | opening_balance=%s context=%s",
+            opening_balance,
+            context
+        )
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
@@ -74,6 +85,15 @@ class LedgerService:
             - expenses
             - refunds
         )
+        logger.info(
+            "Computed balances | payments=%s contributions=%s expenses=%s refunds=%s closing_balance=%s context=%s",
+            flat_payments,
+            contributions,
+            expenses,
+            refunds,
+            closing_balance,
+            context
+        )
 
         # ---- UPSERT SOCIETY BALANCE ----
 
@@ -86,6 +106,7 @@ class LedgerService:
         if balance:
             balance.opening_balance = opening_balance
             balance.closing_balance = closing_balance
+            logger.info("Updated existing balance record | context=%s", context)
         else:
             balance = SocietyBalance(
                 society_id=event.society_id,
@@ -94,6 +115,7 @@ class LedgerService:
                 closing_balance=closing_balance
             )
             db.add(balance)
+            logger.info("Created new balance record | context=%s", context)
 
         db.add(AuditLog(
             society_id=event.society_id,
@@ -107,7 +129,9 @@ class LedgerService:
             ),
             performed_by=performed_by
         ))
+        logger.info("Captured ledger audit log | context=%s", context)
 
         db.commit()
+        logger.info("Committed ledger transaction | context=%s", context)
 
         return balance

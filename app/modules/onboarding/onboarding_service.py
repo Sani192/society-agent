@@ -14,6 +14,7 @@ from sqlalchemy import func
 
 from app.db.models import PendingUser, Flat, UserFlatMapping, AuditLog
 from app.modules.users.user_flat_service import UserFlatService
+from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 class OnboardingService:
 
     @staticmethod
+    @log_service_call(logger, "OnboardingService.start_onboarding")
     def start_onboarding(
         db: Session,
         *,
@@ -28,6 +30,13 @@ class OnboardingService:
         user_identifier,
         flat_number
     ):
+        context = build_log_context(society_id=society.id)
+        logger.info(
+            "Starting onboarding | user=%s flat_number=%s context=%s",
+            user_identifier,
+            flat_number,
+            context
+        )
         onboarding = (society.config_json or {}).get("onboarding")
         if not onboarding:
             raise Exception("Onboarding is not enabled for this society.")
@@ -45,6 +54,7 @@ class OnboardingService:
 
         if existing_mapping:
             raise Exception("You are already registered with this society.")
+        logger.info("No existing active mapping found | context=%s", context)
         
         # 2 Validate flat
         flat = (
@@ -59,6 +69,7 @@ class OnboardingService:
 
         if not flat:
             raise Exception("Invalid flat number.")
+        logger.info("Validated flat for onboarding | flat_id=%s context=%s", flat.id, context)
 
         approval_required = onboarding.get("approval_required", True)
         
@@ -80,6 +91,7 @@ class OnboardingService:
                 performed_by=None
             ))
             db.commit()
+            logger.info("Auto-approved onboarding | context=%s", context)
             return "APPROVED"
 
 
@@ -95,6 +107,11 @@ class OnboardingService:
         )
 
         if existing:
+            logger.info(
+                "Existing pending onboarding request found | request_code=%s context=%s",
+                existing.request_code,
+                context
+            )
             return existing.request_code
 
         # 5 Generate next human-friendly request code
@@ -105,6 +122,7 @@ class OnboardingService:
         )
 
         request_code = f"REQ-{count + 1:03d}"
+        logger.info("Generated onboarding request code | request_code=%s context=%s", request_code, context)
 
         # 6 Create pending request
         pending = PendingUser(
@@ -116,6 +134,7 @@ class OnboardingService:
 
         db.add(pending)
         db.flush()
+        logger.info("Created pending onboarding request | id=%s context=%s", pending.id, context)
         db.add(AuditLog(
             society_id=society.id,
             entity_type="onboarding",
@@ -125,6 +144,6 @@ class OnboardingService:
             performed_by=None
         ))
         db.commit()
+        logger.info("Committed onboarding request | request_code=%s context=%s", request_code, context)
 
         return request_code
-

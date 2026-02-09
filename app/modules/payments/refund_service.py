@@ -8,6 +8,7 @@ Created on Sun Jan 11 05:44:25 2026
 
 # app/modules/payments/refund_service.py
 
+import logging
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -19,11 +20,15 @@ from app.db.models import (
     AuditLog
 )
 from app.workflows.engine import WorkflowEngine
+from app.utils.logging_helpers import build_log_context, log_service_call
+
+logger = logging.getLogger(__name__)
 
 
 class RefundService:
 
     @staticmethod
+    @log_service_call(logger, "RefundService.process_refund")
     def process_refund(
         db: Session,
         *,
@@ -37,6 +42,12 @@ class RefundService:
         """
         Process a partial or full refund for a flat.
         """
+        context = build_log_context(
+            event_id=event_id,
+            flat_id=flat_id,
+            performed_by=performed_by
+        )
+        logger.info("Processing refund | amount=%s context=%s", amount, context)
 
         if amount <= 0:
             raise Exception("Refund amount must be greater than zero")
@@ -46,6 +57,7 @@ class RefundService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
+        logger.info("Validated event and flat | context=%s", context)
 
         decision = WorkflowEngine.check_action(
             db=db,
@@ -56,6 +68,11 @@ class RefundService:
         )
 
         if not decision.allowed:
+            logger.warning(
+                "Workflow denied refund action | requires_override=%s context=%s",
+                decision.requires_override,
+                context
+            )
             if not decision.requires_override:
                 raise Exception(decision.message)
             if not override_reason:
@@ -70,6 +87,7 @@ class RefundService:
                 reason=override_reason,
                 performed_by=performed_by
             )
+            logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
 
         payment = (
             db.query(Payment)
@@ -82,6 +100,7 @@ class RefundService:
 
         if not payment or payment.paid_amount <= 0:
             raise Exception("No payment available for refund")
+        logger.info("Validated payment for refund | paid_amount=%s context=%s", payment.paid_amount, context)
 
         refunded_total = (
             db.query(Refund)
@@ -96,6 +115,11 @@ class RefundService:
 
         if amount + total_refunded > payment.paid_amount:
             raise Exception("Refund amount exceeds paid amount")
+        logger.info(
+            "Refund amounts validated | total_refunded=%s context=%s",
+            total_refunded,
+            context
+        )
 
         # Create refund record
         refund = Refund(
@@ -108,8 +132,10 @@ class RefundService:
         )
 
         db.add(refund)
+        logger.info("Created refund record | amount=%s context=%s", amount, context)
 
         payment.status = "refunded"
+        logger.info("Updated payment status to refunded | context=%s", context)
 
         # Audit log (ONE entry only)
         db.add(AuditLog(
@@ -124,7 +150,9 @@ class RefundService:
             ),
             performed_by=performed_by
         ))
+        logger.info("Captured refund audit log | context=%s", context)
 
         db.commit()
+        logger.info("Committed refund transaction | context=%s", context)
 
         return refund
