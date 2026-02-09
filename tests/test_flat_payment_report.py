@@ -7,7 +7,12 @@ from tests.utils import QueryMock
 def test_flat_payment_report_headers_and_rows(db_session):
     flat_one = SimpleNamespace(id="flat-1", flat_number="A-101", block="A")
     flat_two = SimpleNamespace(id="flat-2", flat_number="B-202", block="B")
-    payment = SimpleNamespace(paid_amount=300, expected_amount=500)
+    payment = SimpleNamespace(
+        paid_amount=300,
+        expected_amount=500,
+        paid_at=None,
+        updated_at=None
+    )
 
     db_session.query.side_effect = [
         QueryMock(all_result=[flat_one, flat_two]),
@@ -19,8 +24,19 @@ def test_flat_payment_report_headers_and_rows(db_session):
 
     report = FlatPaymentReport.generate(db_session, event_id="event-1")
 
-    assert report["headers"] == ["Flat", "Block", "Expected", "Paid", "Refunded", "Pending"]
+    assert report["headers"] == [
+        "Flat",
+        "Block",
+        "Expected",
+        "Paid",
+        "Refunded",
+        "Pending",
+        "Created At",
+        "Created By",
+        "Updated At",
+        "Updated By"
+    ]
     assert report["rows"] == [
-        ["A-101", "A", 500, 300, 0, 200],
-        ["B-202", "B", 0, 0, 0, 0],
+        ["A-101", "A", 500, 300, 0, 200, "-", "System", "-", "System"],
+        ["B-202", "B", 0, 0, 0, 0, "-", "System", "-", "System"],
     ]

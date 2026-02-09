@@ -7,7 +7,12 @@ from tests.utils import QueryMock
 
 
 def test_public_add_pass_success(monkeypatch):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    event = SimpleNamespace(
+        id="event-1",
+        society_id="soc-1",
+        charge_per_adult=200,
+        charge_per_child=100
+    )
     flat = SimpleNamespace(id="flat-1")
     member = SimpleNamespace(id="member-1")
 
