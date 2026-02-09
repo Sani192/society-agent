@@ -68,6 +68,7 @@ async def whatsapp_webhook(request: Request):
     signature = request.headers.get("X-Hub-Signature-256")
     _verify_signature(raw_body, signature)
 
+    
     payload = await request.json()
     inbound_messages = parse_webhook_payload(payload)
     if not inbound_messages:

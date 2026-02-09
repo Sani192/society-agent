@@ -18,7 +18,7 @@ from app.utils.logger import logger
 class WhatsAppClient:
     access_token: str
     phone_number_id: str
-    api_version: str = "v20.0"
+    api_version: str = "v22.0"
     graph_base_url: str = "https://graph.facebook.com"
 
     def send_text_message(self, to_phone: str, body: str) -> dict:
@@ -41,6 +41,8 @@ class WhatsAppClient:
             },
             method="POST",
         )
+        logger.info(f"send message :: url = {url}")
+        logger.info(f"send message :: data = {data}")
         try:
             with urllib.request.urlopen(request, timeout=10) as response:
                 return json.loads(response.read().decode("utf-8"))
