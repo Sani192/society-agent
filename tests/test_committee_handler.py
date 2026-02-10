@@ -464,3 +464,86 @@ def test_committee_approve_refund_already_processed(monkeypatch):
     )
 
     assert response == "⚠️ Refund request already processed."
+
+
+def test_committee_export_report_success(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
+        lambda **kwargs: {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "pdf",
+            "event_id": "event-1",
+            "row_count": 5,
+            "filename": "event_financial_summary.pdf",
+            "payload": b"pdf-bytes",
+        }
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="export financial event-summary pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Report exported" in response
+    assert "event_financial_summary.pdf" in response
+
+
+def test_committee_export_report_validation_error(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="export financial",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("❌")
+    assert "Specify report and format" in response
+
+
+def test_committee_scoped_export_intent_success(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+
+    called = {}
+
+    def fake_export(**kwargs):
+        called.update(kwargs)
+        return {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "pdf",
+            "event_id": "event-1",
+            "row_count": 5,
+            "filename": "event_financial_summary.pdf",
+            "payload": b"pdf-bytes",
+        }
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
+        fake_export,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_FINANCIAL_REPORT",
+        message="export financial event-summary pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert called["category"] == "financial"
+    assert called["report"] == "event-summary"
+    assert called["format"] == "pdf"
