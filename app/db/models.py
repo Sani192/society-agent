@@ -9,7 +9,7 @@ Created on Sat Jan 10 13:22:14 2026
 # app/db/models.py
 
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Date
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Date, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy import ForeignKey
@@ -64,6 +64,50 @@ class CommitteeMember(Base):
 
     # Relationships
     society = relationship("Society", backref="committee_members")
+
+
+class CommitteeMemberChannelIdentity(Base):
+    __tablename__ = "committee_member_channel_identities"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    committee_member_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("committee_members.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    channel_type = Column(String(50), nullable=False, index=True)
+    external_user_id = Column(String(255), nullable=True, index=True)
+    phone_number = Column(String(20), nullable=True, index=True)
+    username = Column(String(255), nullable=True, index=True)
+
+    is_verified = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("channel_type", "external_user_id", name="uq_channel_external_user"),
+    )
+
+    committee_member = relationship("CommitteeMember", backref="channel_identities")
+
+
+class CommitteeMemberLinkCode(Base):
+    __tablename__ = "committee_member_link_codes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    committee_member_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("committee_members.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    code = Column(String(20), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    committee_member = relationship("CommitteeMember", backref="link_codes")
     
     
 class Flat(Base):

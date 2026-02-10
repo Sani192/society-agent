@@ -9,16 +9,65 @@ from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
+from app.modules.users.channel_identity_service import (
+    link_member_by_code,
+    link_member_by_phone,
+)
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
-from app.whatsapp.response_templates import error_response, info_response
+from app.whatsapp.response_templates import error_response, info_response, success_response
+
+
+def _get_canonical_sender(message: InboundMessage) -> str:
+    return message.metadata.get("canonical_sender_id") or message.sender_id
+
+
+def _attempt_telegram_member_link(*, db, message: InboundMessage, intent: str | None) -> str | None:
+    if message.channel != "telegram" or not intent:
+        return None
+
+    if intent == "LINK_MEMBER":
+        parts = message.text.split()
+        if len(parts) < 3:
+            return info_response("Use: link member CODE")
+
+        code = parts[2]
+        linked_member = link_member_by_code(
+            db=db,
+            channel_type="telegram",
+            sender_id=message.sender_id,
+            code=code,
+            username=message.metadata.get("username"),
+        )
+        if not linked_member:
+            return error_response("Invalid or expired link code.")
+        return success_response("Telegram account linked successfully.")
+
+    if intent == "VERIFY_PHONE":
+        parts = message.text.split()
+        if len(parts) < 3:
+            return info_response("Use: verify phone <number>")
+
+        phone = parts[2]
+        linked_member = link_member_by_phone(
+            db=db,
+            channel_type="telegram",
+            sender_id=message.sender_id,
+            phone_number=phone,
+            username=message.metadata.get("username"),
+        )
+        if not linked_member:
+            return error_response("Phone verification failed. Contact committee.")
+        return success_response("Phone verified. Telegram account linked.")
+
+    return None
 
 
 def handle_inbound_message(
     message: InboundMessage,
     *,
     session_factory: Callable[[], object] = SessionLocal,
-    committee_member_resolver: Callable[[str, object], object] = ensure_committee_member,
+    committee_member_resolver: Callable[..., object] = ensure_committee_member,
     latest_event_getter: Callable[[object], object] = get_latest_event,
     intent_detector: Callable[[str], str | None] = detect_intent,
     onboarding_intent_handler: Callable[..., str | None] = handle_onboarding_intent,
@@ -37,9 +86,19 @@ def handle_inbound_message(
     db = session_factory()
 
     try:
+        canonical_sender_id = _get_canonical_sender(message)
         member = None
         try:
-            member = committee_member_resolver(message.sender_id, db)
+            try:
+                member = committee_member_resolver(
+                    canonical_sender_id,
+                    db,
+                    channel_type=message.channel,
+                    external_user_id=message.sender_id,
+                    username=message.metadata.get("username"),
+                )
+            except TypeError:
+                member = committee_member_resolver(canonical_sender_id, db)
             logger.info(
                 "Sender is committee member",
                 extra={"sender_id": message.sender_id, "channel": message.channel},
@@ -54,14 +113,22 @@ def handle_inbound_message(
         logger.info("Loaded latest event context", extra={"event_id": getattr(event, 'id', None)})
 
         intent = intent_detector(message.text)
+        link_response = _attempt_telegram_member_link(db=db, message=message, intent=intent)
+        if link_response:
+            return link_response
+
         if not intent:
             logger.info("No intent detected", extra={"sender_id": message.sender_id})
+            if message.channel == "telegram" and not member:
+                return info_response(
+                    "I couldn't detect a command. If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram."
+                )
             return info_response("Sorry, I didn’t understand this command.")
 
         onboarding_response = onboarding_intent_handler(
             db=db,
             intent=intent,
-            phone_number=message.sender_id,
+            phone_number=canonical_sender_id,
             message=message.text,
             member=member,
         )
@@ -82,7 +149,7 @@ def handle_inbound_message(
         public_response = public_intent_handler(
             db=db,
             intent=intent,
-            phone_number=message.sender_id,
+            phone_number=canonical_sender_id,
             message=message.text,
             event=event,
             member=member,

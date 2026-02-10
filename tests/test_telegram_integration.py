@@ -43,6 +43,7 @@ def test_parse_telegram_webhook_payload_extracts_text_chat_and_user_info():
     assert inbound.metadata["message_id"] == 55
     assert inbound.metadata["update_id"] == 1001
     assert inbound.metadata["username"] == "janed"
+    assert inbound.metadata["canonical_sender_id"] == "999"
 
 
 def test_parse_telegram_webhook_payload_ignores_non_text_update():

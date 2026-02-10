@@ -51,6 +51,8 @@ def parse_webhook_payload(payload: dict[str, Any]) -> list[InboundMessage]:
             "chat_id": str(chat_id),
             "message_id": message.get("message_id"),
             "username": sender.get("username"),
+            "canonical_sender_id": str(sender_id),
+            "external_user_id": str(sender_id),
         },
     )
 

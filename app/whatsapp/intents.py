@@ -24,6 +24,10 @@ INTENTS = {
     "JOIN_STATUS": "join status",
     "JOIN": "join",
 
+    # channel identity onboarding
+    "LINK_MEMBER": "link member",
+    "VERIFY_PHONE": "verify phone",
+
     # reports (specific phrases first)
     "BLOCK_REPORT": "block report",
     "PARTICIPATION_REPORT": "participation report",
