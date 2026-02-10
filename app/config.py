@@ -11,6 +11,7 @@ Created on Sun Jan 11 07:26:10 2026
 import os
 from dotenv import load_dotenv
 
+from app.channels.telegram.constants import TELEGRAM_ENV_CONFIGS
 from app.channels.whatsapp.constants import WHATSAPP_ENV_CONFIGS
 
 load_dotenv()
@@ -35,6 +36,14 @@ class Settings:
     }
     locals().update(_WHATSAPP_SETTINGS)
     del _WHATSAPP_SETTINGS
+
+    _TELEGRAM_SETTINGS = {
+        config.attr_name: os.getenv(config.env_key, config.default)
+        for config in TELEGRAM_ENV_CONFIGS
+    }
+    locals().update(_TELEGRAM_SETTINGS)
+    del _TELEGRAM_SETTINGS
+
 
 
 settings = Settings()
