@@ -11,16 +11,7 @@ Created on Sun Jan 11 07:26:10 2026
 import os
 from dotenv import load_dotenv
 
-from app.channels.whatsapp.constants import (
-    DEFAULT_WHATSAPP_API_VERSION,
-    DEFAULT_WHATSAPP_GRAPH_BASE_URL,
-    WHATSAPP_ACCESS_TOKEN_ENV_KEY,
-    WHATSAPP_API_VERSION_ENV_KEY,
-    WHATSAPP_APP_SECRET_ENV_KEY,
-    WHATSAPP_GRAPH_BASE_URL_ENV_KEY,
-    WHATSAPP_PHONE_NUMBER_ID_ENV_KEY,
-    WHATSAPP_VERIFY_TOKEN_ENV_KEY,
-)
+from app.channels.whatsapp.constants import WHATSAPP_ENV_CONFIGS
 
 load_dotenv()
 
@@ -38,16 +29,12 @@ class Settings:
         if phone.strip()
     ]
 
-    WHATSAPP_VERIFY_TOKEN = os.getenv(WHATSAPP_VERIFY_TOKEN_ENV_KEY)
-    WHATSAPP_APP_SECRET = os.getenv(WHATSAPP_APP_SECRET_ENV_KEY)
-    WHATSAPP_ACCESS_TOKEN = os.getenv(WHATSAPP_ACCESS_TOKEN_ENV_KEY)
-    WHATSAPP_PHONE_NUMBER_ID = os.getenv(WHATSAPP_PHONE_NUMBER_ID_ENV_KEY)
-    WHATSAPP_API_VERSION = os.getenv(
-        WHATSAPP_API_VERSION_ENV_KEY, DEFAULT_WHATSAPP_API_VERSION
-    )
-    WHATSAPP_GRAPH_BASE_URL = os.getenv(
-        WHATSAPP_GRAPH_BASE_URL_ENV_KEY, DEFAULT_WHATSAPP_GRAPH_BASE_URL
-    )
+    _WHATSAPP_SETTINGS = {
+        config.attr_name: os.getenv(config.env_key, config.default)
+        for config in WHATSAPP_ENV_CONFIGS
+    }
+    locals().update(_WHATSAPP_SETTINGS)
+    del _WHATSAPP_SETTINGS
 
 
 settings = Settings()
