@@ -509,7 +509,7 @@ def test_committee_export_report_validation_error(monkeypatch):
     )
 
     assert response.startswith("❌")
-    assert "Specify report and format" in response
+    assert "Use: export financial event-summary pdf" in response
 
 
 def test_committee_scoped_export_intent_success(monkeypatch):

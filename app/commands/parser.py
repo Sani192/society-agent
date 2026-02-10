@@ -151,3 +151,74 @@ def parse_event_creation(message: str):
     }
     logger.info("Event creation command parsed successfully")
     return event_payload, None
+
+
+def parse_report_export(message: str):
+    """Parse export command into a normalized payload or a validation message."""
+    logger.info("Parsing report export command")
+    usage = "Use: export financial event-summary pdf"
+    tokens = (message or "").strip().lower().split()
+
+    if not tokens or tokens[0] != "export":
+        return usage
+
+    if len(tokens) < 4:
+        return usage
+
+    category = tokens[1]
+    if category not in {"financial", "admin", "governance"}:
+        return "Category must be one of: financial, admin, governance. " + usage
+
+    report = tokens[2]
+    report_format = tokens[3]
+    if report_format not in {"csv", "excel", "pdf"}:
+        return "Format must be one of: csv, excel, pdf. " + usage
+
+    filters = {}
+    remaining_tokens = tokens[4:]
+    index = 0
+    while index < len(remaining_tokens):
+        token = remaining_tokens[index]
+
+        if token.startswith("event_id=") or token.startswith("event-id="):
+            event_id = token.split("=", 1)[1].strip()
+            if not event_id:
+                return "event_id cannot be empty. " + usage
+            filters["event_id"] = event_id
+            index += 1
+            continue
+
+        if token.startswith("event_id:") or token.startswith("event-id:"):
+            event_id = token.split(":", 1)[1].strip()
+            if not event_id:
+                return "event_id cannot be empty. " + usage
+            filters["event_id"] = event_id
+            index += 1
+            continue
+
+        if token in {"event_id", "event-id", "eventid"}:
+            if index + 1 >= len(remaining_tokens):
+                return "event_id value is missing. " + usage
+            filters["event_id"] = remaining_tokens[index + 1]
+            index += 2
+            continue
+
+        if (
+            index == 0
+            and len(remaining_tokens) == 1
+            and "=" not in token
+            and ":" not in token
+        ):
+            filters["event_id"] = token
+            index += 1
+            continue
+
+        return f"Unsupported filter token: {token}. " + usage
+
+    return {
+        "category": category,
+        "report": report,
+        "format": report_format,
+        "filters": filters,
+        "event_id": filters.get("event_id"),
+    }

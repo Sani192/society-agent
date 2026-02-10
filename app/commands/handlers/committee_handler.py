@@ -32,47 +32,7 @@ from app.whatsapp.response_templates import (
     success_response,
     warning_response,
 )
-from app.commands.parser import parse_amount, parse_event_creation, parse_reason
-
-
-def _parse_export_report_request(message: str, intent: str):
-    tokens = message.lower().split()
-
-    if not tokens or tokens[0] != "export":
-        raise ValueError("Example: export financial event-summary pdf")
-
-    base_index = 1
-    scoped_category = None
-    if intent == "EXPORT_FINANCIAL_REPORT":
-        scoped_category = "financial"
-    elif intent == "EXPORT_ADMIN_REPORT":
-        scoped_category = "admin"
-    elif intent == "EXPORT_GOVERNANCE_REPORT":
-        scoped_category = "governance"
-
-    if scoped_category:
-        category = scoped_category
-        if len(tokens) > base_index and tokens[base_index] == scoped_category:
-            base_index += 1
-    else:
-        if len(tokens) <= base_index:
-            raise ValueError("Specify category/report/format. Example: export financial event-summary pdf")
-        category = tokens[base_index]
-        base_index += 1
-
-    if len(tokens) <= base_index + 1:
-        raise ValueError("Specify report and format. Example: export financial event-summary pdf")
-
-    report = tokens[base_index]
-    report_format = tokens[base_index + 1]
-    event_id = tokens[base_index + 2] if len(tokens) > base_index + 2 else None
-
-    return {
-        "category": category,
-        "report": report,
-        "format": report_format,
-        "event_id": event_id,
-    }
+from app.commands.parser import parse_amount, parse_event_creation, parse_reason, parse_report_export
 
 
 
@@ -244,10 +204,22 @@ def handle_committee_intent(
         "EXPORT_ADMIN_REPORT",
         "EXPORT_GOVERNANCE_REPORT",
     }:
-        try:
-            export_request = _parse_export_report_request(message, intent)
-        except ValueError as exc:
-            return error_response(str(exc))
+        export_request = parse_report_export(message)
+        if isinstance(export_request, str):
+            return error_response(export_request)
+
+        scoped_category = None
+        if intent == "EXPORT_FINANCIAL_REPORT":
+            scoped_category = "financial"
+        elif intent == "EXPORT_ADMIN_REPORT":
+            scoped_category = "admin"
+        elif intent == "EXPORT_GOVERNANCE_REPORT":
+            scoped_category = "governance"
+
+        if scoped_category and export_request["category"] != scoped_category:
+            return error_response(
+                f"This command supports only {scoped_category} exports. Use: export {scoped_category} <report> <format>"
+            )
 
         try:
             result = WhatsAppReportExportService.export(
