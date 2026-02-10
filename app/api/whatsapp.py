@@ -15,6 +15,10 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
 from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.channels.whatsapp.client import get_whatsapp_client
+from app.channels.whatsapp.constants import (
+    WHATSAPP_SIGNATURE_HEADER,
+    WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE,
+)
 from app.config import settings
 from app.utils.logger import logger
 from app.whatsapp.handler import handle_message
@@ -23,12 +27,15 @@ router = APIRouter()
 
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
+    logger.info("Verifying WhatsApp webhook signature")
     if not settings.WHATSAPP_APP_SECRET:
+        logger.error("WhatsApp app secret not configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="WhatsApp app secret not configured",
         )
     if not signature_header:
+        logger.warning("WhatsApp webhook signature header missing")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing signature header",
@@ -40,10 +47,12 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     ).hexdigest()
     expected_signature = f"sha256={expected_hash}"
     if not hmac.compare_digest(expected_signature, signature_header):
+        logger.warning("Invalid WhatsApp webhook signature")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature",
         )
+    logger.info("WhatsApp webhook signature verification passed")
 
 
 @router.get("/whatsapp")
@@ -52,23 +61,31 @@ def whatsapp_webhook_verify(
     hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
     hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
 ):
+    logger.info("Received WhatsApp webhook verification request")
     if not settings.WHATSAPP_VERIFY_TOKEN:
+        logger.error("WhatsApp verify token not configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="WhatsApp verify token not configured",
         )
-    if hub_mode == "subscribe" and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN:
+    if (
+        hub_mode == WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE
+        and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN
+    ):
+        logger.info("WhatsApp webhook verification successful")
         return Response(content=hub_challenge or "", media_type="text/plain")
+
+    logger.warning("WhatsApp webhook verification failed")
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
 @router.post("/whatsapp")
 async def whatsapp_webhook(request: Request):
+    logger.info("Received WhatsApp webhook event")
     raw_body = await request.body()
-    signature = request.headers.get("X-Hub-Signature-256")
+    signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
     _verify_signature(raw_body, signature)
 
-    
     payload = await request.json()
     inbound_messages = parse_webhook_payload(payload)
     if not inbound_messages:
@@ -77,9 +94,18 @@ async def whatsapp_webhook(request: Request):
 
     client = get_whatsapp_client()
     for message in inbound_messages:
+        logger.info(
+            "Processing inbound WhatsApp message",
+            extra={
+                "sender_phone": message.sender_phone,
+                "message_id": message.message_id,
+            },
+        )
         reply_text = handle_message(
             phone_number=message.sender_phone,
             message=message.text,
         )
         client.send_text_message(message.sender_phone, reply_text)
+
+    logger.info("WhatsApp webhook processing completed")
     return {"status": "ok"}
