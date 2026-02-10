@@ -12,7 +12,10 @@ import hashlib
 import hmac
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel
 
+from app.channels.core.handler import handle_inbound_message
+from app.channels.core.types import InboundMessage
 from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.channels.whatsapp.constants import (
@@ -24,6 +27,18 @@ from app.utils.logger import logger
 from app.whatsapp.handler import handle_message
 
 router = APIRouter()
+
+
+class WhatsAppRequest(BaseModel):
+    phone_number: str
+    message: str
+
+
+def whatsapp_webhook(payload: WhatsAppRequest) -> dict[str, str]:
+    """Compatibility command-style webhook used by tests and local callers."""
+    logger.info("Received compatibility WhatsApp command webhook")
+    reply_text = handle_message(phone_number=payload.phone_number, message=payload.message)
+    return {"reply": reply_text}
 
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
@@ -80,7 +95,7 @@ def whatsapp_webhook_verify(
 
 
 @router.post("/whatsapp")
-async def whatsapp_webhook(request: Request):
+async def whatsapp_webhook_event(request: Request):
     logger.info("Received WhatsApp webhook event")
     raw_body = await request.body()
     signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
@@ -97,15 +112,13 @@ async def whatsapp_webhook(request: Request):
         logger.info(
             "Processing inbound WhatsApp message",
             extra={
-                "sender_phone": message.sender_phone,
-                "message_id": message.message_id,
+                "sender_id": message.sender_id,
+                "channel": message.channel,
+                "message_id": message.metadata.get("message_id"),
             },
         )
-        reply_text = handle_message(
-            phone_number=message.sender_phone,
-            message=message.text,
-        )
-        client.send_text_message(message.sender_phone, reply_text)
+        reply_text = handle_inbound_message(message)
+        client.send_text_message(message.sender_id, reply_text)
 
     logger.info("WhatsApp webhook processing completed")
     return {"status": "ok"}

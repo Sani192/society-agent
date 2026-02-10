@@ -6,17 +6,10 @@ WhatsApp Cloud API payload adapter.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Iterable
 
+from app.channels.core.types import InboundMessage
 from app.utils.logger import logger
-
-
-@dataclass(frozen=True)
-class InboundMessage:
-    sender_phone: str
-    text: str
-    message_id: str | None = None
 
 
 def _iter_messages(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
@@ -25,7 +18,12 @@ def _iter_messages(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
         logger.info("Processing webhook entry", extra={"entry_id": entry.get("id")})
         for change in entry.get("changes", []) or []:
             value = change.get("value", {}) or {}
+            contacts_by_wa_id = {
+                contact.get("wa_id"): contact for contact in (value.get("contacts") or [])
+            }
             for message in value.get("messages", []) or []:
+                contact = contacts_by_wa_id.get(message.get("from")) or {}
+                message["_profile_name"] = (contact.get("profile") or {}).get("name")
                 logger.info(
                     "Yielding inbound WhatsApp message",
                     extra={"message_id": message.get("id")},
@@ -45,11 +43,15 @@ def parse_webhook_payload(payload: dict[str, Any]) -> list[InboundMessage]:
                 extra={"message_id": message.get("id")},
             )
             continue
+
+        profile_name = message.get("_profile_name")
         messages.append(
             InboundMessage(
-                sender_phone=sender,
+                channel="whatsapp",
+                sender_id=sender,
+                display_name=profile_name or sender,
                 text=text,
-                message_id=message.get("id"),
+                metadata={"message_id": message.get("id")},
             )
         )
     logger.info("Parsed inbound WhatsApp messages", extra={"count": len(messages)})

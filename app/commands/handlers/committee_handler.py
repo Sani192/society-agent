@@ -1,0 +1,563 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Feb 04 10:33:10 2026
+
+@author: anonymous
+"""
+
+# app/whatsapp/handlers/committee_handler.py
+
+from sqlalchemy import func
+
+from app.db.models import Flat, Payment, Refund, EventFoodPass
+from app.modules.expenses.expense_service import ExpenseService
+from app.modules.onboarding.admin_approval_service import AdminApprovalService
+from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
+from app.modules.payments.payment_request_service import PaymentRequestService
+from app.modules.payments.refund_request_service import RefundRequestService
+from app.modules.contributions.contribution_service import ContributionService
+from app.modules.contributions.contribution_refund_service import ContributionRefundService
+from app.modules.reports.pending_payment_report import PendingPaymentReport
+from app.modules.reports.event_participation_report import EventParticipationReport
+from app.modules.events.service import EventService
+from app.permissions.guard import is_action_allowed
+from app.whatsapp.response_templates import (
+    error_response,
+    format_currency,
+    format_datetime,
+    format_heading,
+    join_lines,
+    success_response,
+    warning_response,
+)
+from app.commands.parser import parse_amount, parse_event_creation, parse_reason
+
+
+def handle_committee_intent(
+    *,
+    db,
+    intent,
+    message,
+    event,
+    member
+):
+    if intent == "ADD_EXPENSE":
+        if not is_action_allowed(member.role, "ADD_EXPENSE"):
+            return warning_response(
+                "This action normally requires Secretary approval. "
+                "Please ask Chairman to override."
+            )
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        amount = parse_amount(message)
+        if not amount:
+            return error_response("Please specify amount. Example: expense water 1200")
+
+        reason = message.replace(str(amount), "").strip()
+
+        ExpenseService.add_expense(
+            db=db,
+            event_id=event.id,
+            description=reason or "WhatsApp expense",
+            amount=amount,
+            performed_by=member.id,
+            override_reason="Via WhatsApp"
+        )
+        return success_response(
+            f"Expense added: {format_currency(amount)}",
+            heading="Expense added",
+            emoji="🧾"
+        )
+
+    if intent == "ADD_EVENT":
+        if not is_action_allowed(member.role, "ADD_EVENT"):
+            return warning_response("Only Chairman or Secretary can add events.")
+
+        parsed, error = parse_event_creation(message)
+        if error:
+            return error_response(error)
+
+        event_data = parsed
+
+        created_event = EventService.create_event(
+            db=db,
+            society_id=member.society_id,
+            name=event_data["name"],
+            event_date=event_data["event_date"],
+            food_types=event_data["food_types"],
+            charge_per_adult=event_data["charge_per_adult"],
+            charge_per_child=event_data["charge_per_child"],
+            payment_deadline=event_data["payment_deadline"],
+            created_by=member.id
+        )
+
+        return success_response(
+            join_lines([
+                f"Event: {created_event.name}",
+                f"Date: {format_datetime(created_event.event_date)}",
+                f"Food: {', '.join(created_event.food_types)}",
+                f"Adult: {format_currency(created_event.charge_per_adult)}",
+                f"Child: {format_currency(created_event.charge_per_child)}",
+                f"Deadline: {format_datetime(created_event.payment_deadline)}"
+            ]),
+            heading="Event created",
+            emoji="📅"
+        )
+
+    if intent == "PENDING_PAYMENTS":
+        if not is_action_allowed(member.role, "PAY"):
+            return warning_response(
+                "This action normally requires Treasurer approval."
+            )
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        pending = PendingPaymentReport.get_pending_flats(
+            db=db,
+            event_id=event.id,
+            society_id=event.society_id
+        )
+
+        if not pending:
+            return success_response(
+                "All flats have completed payments.",
+                heading="Pending Payments",
+                emoji="🎉"
+            )
+
+        lines = [format_heading("Pending Payments", "⏳")]
+        for p in pending:
+            lines.append(
+                f"{p['flat']} – Pending {format_currency(p['pending'])}"
+            )
+
+        return success_response(join_lines(lines))
+
+    if intent == "PAYMENT_REQUESTS":
+        if not is_action_allowed(member.role, "PAY"):
+            return warning_response("Only Treasurer can view payment requests.")
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        requests = PaymentRequestService.list_requests(
+            db=db,
+            event_id=event.id
+        )
+
+        if not requests:
+            return success_response(
+                "No payment requests found.",
+                heading="Payment Requests",
+                emoji="📥"
+            )
+
+        lines = [format_heading("Payment Requests", "📥")]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | "
+                f"{format_currency(request.amount)} | "
+                f"{request.requested_by} | {request.status}"
+            )
+
+        return success_response(join_lines(lines))
+
+    if intent == "REFUND_REQUESTS":
+        if not is_action_allowed(member.role, "REFUND"):
+            return warning_response("Only Treasurer can view refund requests.")
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        requests = RefundRequestService.list_requests(
+            db=db,
+            event_id=event.id
+        )
+
+        if not requests:
+            return success_response(
+                "No refund requests found.",
+                heading="Refund Requests",
+                emoji="📤"
+            )
+
+        lines = [format_heading("Refund Requests", "📤")]
+        for request, flat in requests:
+            lines.append(
+                f"{request.request_code} | {flat.flat_number} | "
+                f"{format_currency(request.amount)} | "
+                f"{request.requested_by} | {request.status}"
+            )
+
+        return success_response(join_lines(lines))
+
+    if intent == "PARTICIPATION_REPORT":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        report = EventParticipationReport.generate(
+            db=db,
+            event_id=event.id,
+            society_id=event.society_id
+        )
+
+        participating = report["participating"]
+        not_participating = report["not_participating"]
+
+        lines = [
+            format_heading(f"Participation Report ({event.name})", "🎫"),
+            "",
+            "*Joined*:",
+            ", ".join(participating) if participating else "None",
+            "",
+            "*Not Joined*:",
+            ", ".join(not_participating) if not_participating else "None"
+        ]
+        return success_response(join_lines(lines))
+
+    if intent == "REMIND_FLAT":
+        if not is_action_allowed(member.role, "PAY"):
+            return warning_response(
+                "This action normally requires Treasurer approval."
+            )
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        parts = message.split()
+        if len(parts) < 2:
+            return error_response("Example: remind A-101")
+
+        flat_number = parts[1]
+
+        flat = (
+            db.query(Flat)
+            .filter(
+                Flat.flat_number == flat_number,
+                Flat.society_id == event.society_id
+            )
+            .first()
+        )
+
+        if not flat:
+            return error_response("Flat not found.")
+
+        food_pass = (
+            db.query(EventFoodPass)
+            .filter(
+                EventFoodPass.event_id == event.id,
+                EventFoodPass.flat_id == flat.id,
+                EventFoodPass.is_participating.is_(True)
+            )
+            .first()
+        )
+
+        if not food_pass:
+            return error_response("Flat has not joined the event.")
+
+        paid_amount = (
+            db.query(func.coalesce(func.sum(Payment.paid_amount), 0))
+            .filter(
+                Payment.event_id == event.id,
+                Payment.flat_id == flat.id
+            )
+            .scalar()
+        )
+
+        refunded_amount = (
+            db.query(func.coalesce(func.sum(Refund.amount), 0))
+            .filter(
+                Refund.event_id == event.id,
+                Refund.flat_id == flat.id,
+                Refund.status == "refunded"
+            )
+            .scalar()
+        )
+
+        pending_amount = food_pass.total_amount - paid_amount - refunded_amount
+        if pending_amount <= 0:
+            return success_response(
+                f"{flat_number} has no pending payment.",
+                heading="Payment Reminder",
+                emoji="📢"
+            )
+
+        return success_response(
+            join_lines([
+                f"Dear {flat_number},",
+                f"Your pending amount for *{event.name}* is "
+                f"{format_currency(pending_amount)}.",
+                "Please pay at your convenience.",
+                "",
+                "Thank you."
+            ]),
+            heading="Payment Reminder",
+            emoji="📢"
+        )
+
+    if intent == "APPROVE":
+        if not is_action_allowed(member.role, "ALL"):
+            return warning_response("Only Chairman can approve users.")
+
+        parts = message.split()
+        if len(parts) < 3:
+            return error_response("Example: approve user REQ-003")
+
+        request_code = parts[2].upper()
+
+        AdminApprovalService.approve_user(
+            db=db,
+            society_id=event.society_id,
+            request_code=request_code,
+            performed_by=member.id
+        )
+
+        return success_response(f"User approved ({request_code})")
+
+    if intent == "APPROVE_PAYMENT":
+        if not is_action_allowed(member.role, "PAY"):
+            return warning_response("Only Treasurer can approve payments.")
+
+        parts = message.split()
+        if len(parts) < 3:
+            return error_response("Example: approve payment PAY-001")
+
+        request_code = parts[2].upper()
+        request = PaymentRequestService.get_request_by_code(
+            db=db,
+            request_code=request_code
+        )
+        if not request:
+            return error_response("Payment request not found.")
+        if request.status != "requested":
+            return warning_response("Payment request already processed.")
+
+        PaymentRequestService.approve_request(
+            db=db,
+            request=request,
+            performed_by=member.id
+        )
+        return success_response(f"Payment approved ({request_code})")
+
+    if intent == "APPROVE_REFUND":
+        if not is_action_allowed(member.role, "REFUND"):
+            return warning_response("Only Treasurer can approve refunds.")
+
+        parts = message.split()
+        if len(parts) < 3:
+            return error_response("Example: approve refund REF-001")
+
+        request_code = parts[2].upper()
+        request = RefundRequestService.get_request_by_code(
+            db=db,
+            request_code=request_code
+        )
+        if not request:
+            return error_response("Refund request not found.")
+        if request.status != "requested":
+            return warning_response("Refund request already processed.")
+
+        RefundRequestService.approve_request(
+            db=db,
+            request=request,
+            performed_by=member.id
+        )
+        return success_response(f"Refund approved ({request_code})")
+
+    if intent == "PENDING_USERS":
+        if not is_action_allowed(member.role, "ALL"):
+            return warning_response("Only Chairman can view pending users.")
+
+        latest_event = event
+        if not latest_event:
+            return error_response("No society context found.")
+
+        society_id = latest_event.society_id
+
+        pending = AdminOnboardingQueryService.list_pending_users(
+            db=db,
+            society_id=society_id
+        )
+
+        if not pending:
+            return success_response(
+                "No pending user requests.",
+                heading="Pending Join Requests",
+                emoji="🎉"
+            )
+
+        lines = [format_heading("Pending Join Requests", "⏳")]
+        for p in pending:
+            lines.append(
+                f"Request: *{p.request_code}*\n"
+                f"Flat: {p.flat_number}\n"
+                f"Requested At: {format_datetime(p.created_at)}\n"
+                f"---"
+            )
+
+        return success_response(join_lines(lines))
+    
+    if intent == "ADD_SPONSOR":
+        if not is_action_allowed(member.role, "ADD_SPONSOR"):
+            return warning_response("Only committee members can add sponsors.")
+    
+        raw = message.replace("add sponsor", "", 1).strip()
+
+        if not raw:
+            return error_response("Example: add sponsor Shree Caterers 10000")
+    
+        flat_id = None
+    
+        # ------------------------------------------------
+        # IN-KIND SPONSOR (name + in-kind + details)
+        # ------------------------------------------------
+        if "in-kind" in raw:
+            before, after = raw.split("in-kind", 1)
+    
+            sponsor_name = before.strip()
+            details = after.strip()
+    
+            if not sponsor_name or not details:
+                return error_response(
+                    "Example: add sponsor Shree Caterers in-kind water cans"
+                )
+    
+            # detect flat-based sponsor
+            flat = (
+                db.query(Flat)
+                .filter(
+                    Flat.flat_number == sponsor_name,
+                    Flat.society_id == event.society_id
+                )
+                .first()
+            )
+    
+            if flat:
+                flat_id = flat.id
+                sponsor_name = f"Flat {flat.flat_number}"
+    
+            ContributionService.add_contribution(
+                db=db,
+                event_id=event.id,
+                society_id=event.society_id,
+                contribution_type="in_kind",
+                source_name=sponsor_name,
+                flat_id=flat_id,
+                in_kind_details=details,
+                performed_by=member.id,
+                notes="Via WhatsApp"
+            )
+
+            return success_response(
+                "In-kind sponsor added successfully.",
+                heading="Sponsor added",
+                emoji="🤝"
+            )
+    
+        # ------------------------------------------------
+        # MONETARY SPONSOR
+        # ------------------------------------------------
+        parts = raw.split()
+    
+        if len(parts) < 2:
+            return error_response("Example: add sponsor Shree Caterers 5000")
+    
+        try:
+            amount = int(parts[-1])
+        except ValueError:
+            return error_response("Amount must be numeric. Example: add sponsor ABC 5000")
+    
+        sponsor_name = " ".join(parts[:-1]).strip()
+
+        if not sponsor_name:
+            return error_response("Sponsor name is required.")
+    
+        # detect flat-based sponsor
+        flat = (
+            db.query(Flat)
+            .filter(
+                Flat.flat_number == sponsor_name,
+                Flat.society_id == event.society_id
+            )
+            .first()
+        )
+    
+        if flat:
+            flat_id = flat.id
+            sponsor_name = f"Flat {flat.flat_number}"
+    
+        ContributionService.add_contribution(
+            db=db,
+            event_id=event.id,
+            society_id=event.society_id,
+            contribution_type="sponsor",
+            source_name=sponsor_name,
+            flat_id=flat_id,
+            amount=amount,
+            performed_by=member.id,
+            notes="Via WhatsApp"
+        )
+
+        return success_response(
+            "Sponsor added successfully.",
+            heading="Sponsor added",
+            emoji="🤝"
+        )
+
+    
+    if intent == "REFUND_SPONSOR":
+        if not is_action_allowed(member.role, "REFUND"):
+            return warning_response("Only Treasurer or Chairman can refund sponsors.")
+    
+        parts = message.split()
+    
+        if len(parts) < 6:
+            return error_response(
+                "Example: refund sponsor SP-001 500 reason banner cancelled"
+            )
+    
+        contribution_code = parts[2]
+        
+        # ✅ amount is ALWAYS the token after contribution code
+        try:
+            amount = int(parts[3])
+        except ValueError:
+            return error_response(
+                "Invalid refund amount. Example: refund sponsor SP-007 500 reason xyz"
+            )
+    
+        # reason = everything after 'reason'
+        if "reason" not in parts:
+            return error_response(
+                "Please specify reason. Example: refund sponsor SP-007 500 reason xyz"
+            )
+    
+        reason_index = parts.index("reason")
+        reason = " ".join(parts[reason_index + 1:]).strip()
+
+        if not reason:
+            return error_response("Refund reason is required.")
+    
+        try:
+            ContributionRefundService.process_refund(
+                db=db,
+                event_id=event.id,
+                contribution_code=contribution_code,
+                amount=amount,
+                reason=reason,
+                performed_by=member.id
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Sponsor refund processed ({contribution_code}).",
+            heading="Refund processed",
+            emoji="↩️"
+        )
+
+    return None
