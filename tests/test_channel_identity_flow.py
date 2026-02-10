@@ -23,7 +23,9 @@ def test_telegram_link_member_flow_short_circuits(monkeypatch):
     response = handle_inbound_message(
         message,
         session_factory=lambda: db,
-        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+            Exception("unauthorized")
+        ),
         latest_event_getter=lambda db: None,
         intent_detector=lambda text: "LINK_MEMBER",
         onboarding_intent_handler=lambda **kwargs: None,
@@ -53,7 +55,9 @@ def test_telegram_verify_phone_flow_short_circuits(monkeypatch):
     response = handle_inbound_message(
         message,
         session_factory=lambda: db,
-        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+            Exception("unauthorized")
+        ),
         latest_event_getter=lambda db: None,
         intent_detector=lambda text: "VERIFY_PHONE",
         onboarding_intent_handler=lambda **kwargs: None,
@@ -87,7 +91,9 @@ def test_handler_uses_canonical_sender_for_public_and_onboarding():
     response = handle_inbound_message(
         message,
         session_factory=lambda: db,
-        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+            Exception("unauthorized")
+        ),
         latest_event_getter=lambda db: None,
         intent_detector=lambda text: "JOIN_STATUS",
         onboarding_intent_handler=onboarding_handler,
@@ -98,3 +104,34 @@ def test_handler_uses_canonical_sender_for_public_and_onboarding():
     assert response == "ok"
     assert captured["onboarding_phone"] == "919898989898"
     assert captured["public_phone"] == "919898989898"
+
+
+def test_handler_passes_inbound_message_to_committee_handler_for_exports():
+    db = MagicMock()
+    captured = {}
+
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="999",
+        display_name="Jane",
+        text="export financial event-summary pdf",
+        metadata={"canonical_sender_id": "919898989898"},
+    )
+
+    def committee_handler(**kwargs):
+        captured["inbound_message"] = kwargs["inbound_message"]
+        return "ok"
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: object(),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: "EXPORT_REPORT",
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=committee_handler,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert response == "ok"
+    assert captured["inbound_message"].metadata["canonical_sender_id"] == "919898989898"
