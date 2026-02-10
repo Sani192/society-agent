@@ -516,6 +516,25 @@ def test_committee_export_report_validation_error(monkeypatch):
     assert "Use: export financial event-summary pdf" in response
 
 
+
+
+def test_committee_export_report_unknown_key_rejected():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="export financial unknown-report pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("❌")
+    assert "Unknown report key" in response
+
 def test_committee_export_report_document_delivery_failure(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
