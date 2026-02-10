@@ -6,9 +6,10 @@ WhatsApp Cloud API client.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-
-import requests
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from app.channels.whatsapp.constants import (
     DEFAULT_WHATSAPP_API_VERSION,
@@ -52,19 +53,20 @@ class WhatsAppClient:
             },
         )
         try:
-            response = requests.post(
+            req = Request(
                 url=url,
-                json=payload,
+                data=json.dumps(payload).encode("utf-8"),
                 headers=headers,
-                timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
+                method="POST",
             )
-            logger.info(
-                "Received WhatsApp API response",
-                extra={"status_code": response.status_code, "to_phone": to_phone},
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException:
+            with urlopen(req, timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS) as response:
+                response_body = response.read().decode("utf-8")
+                logger.info(
+                    "Received WhatsApp API response",
+                    extra={"status_code": response.status, "to_phone": to_phone},
+                )
+                return json.loads(response_body) if response_body else {}
+        except (HTTPError, URLError, TimeoutError):
             logger.exception(
                 "Failed sending WhatsApp message",
                 extra={"to_phone": to_phone, "url": url},
