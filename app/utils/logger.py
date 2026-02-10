@@ -26,7 +26,7 @@ if not any(isinstance(existing, TimedRotatingFileHandler) for existing in logger
         when="midnight",
         backupCount=5
     )
-    handler.suffix = "%Y-%m-%d"
+    handler.suffix = "%Y-%m-%d.log"
 
     formatter = logging.Formatter(
         "%(asctime)s | %(levelname)s | %(message)s"
