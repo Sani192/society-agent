@@ -34,6 +34,10 @@ INTENTS = {
     "PENDING_PAYMENTS": "pending payments",
     "PAYMENT_REQUESTS": "payment requests",
     "REFUND_REQUESTS": "refund requests",
+    "EXPORT_FINANCIAL_REPORT": "export financial",
+    "EXPORT_ADMIN_REPORT": "export admin",
+    "EXPORT_GOVERNANCE_REPORT": "export governance",
+    "EXPORT_REPORT": "export",
     "SUMMARY": "summary",
 
     # actions

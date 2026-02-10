@@ -76,3 +76,10 @@ def error_response(body: str, heading: Optional[str] = None, emoji: Optional[str
 
 def info_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None) -> str:
     return info(_compose_message(body, heading, emoji))
+
+
+EXPORT_COMMAND_EXAMPLES = (
+    "export financial event-summary pdf",
+    "export admin onboarding-status csv",
+    "export governance audit excel",
+)
