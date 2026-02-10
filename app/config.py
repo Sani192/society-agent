@@ -17,12 +17,18 @@ from app.channels.whatsapp.constants import WHATSAPP_ENV_CONFIGS
 load_dotenv()
 
 
+def _env_flag(name: str, default: str = "true") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Settings:
     APP_ENV = os.getenv("APP_ENV", "local")
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
     CURRENCY = os.getenv("CURRENCY_SYMBOL", "₹")
 
     DEFAULT_SOCIETY_NAME = os.getenv("DEFAULT_SOCIETY_NAME")
+    WHATSAPP_ENABLED = _env_flag("WHATSAPP_ENABLED", "true")
+    TELEGRAM_ENABLED = _env_flag("TELEGRAM_ENABLED", "true")
 
     ADMIN_PHONE_WHITELIST = [
         phone.strip()

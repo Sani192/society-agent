@@ -16,6 +16,7 @@ from app.db.session import engine
 from app.db.session import SessionLocal
 from app.db.models import Society
 from app.utils.logger import logger
+from app.config import settings
 from app.modules.reminders.reminder_scheduler import start_scheduler
 
 
@@ -59,8 +60,11 @@ app = FastAPI(
 
 # Routes
 app.include_router(health_router)
-app.include_router(whatsapp_router)
-app.include_router(telegram_router)
+if settings.WHATSAPP_ENABLED:
+    app.include_router(whatsapp_router)
+
+if settings.TELEGRAM_ENABLED:
+    app.include_router(telegram_router)
 app.include_router(financial_reports_router)
 app.include_router(administrative_reports_router)
 app.include_router(governance_reports_router)
