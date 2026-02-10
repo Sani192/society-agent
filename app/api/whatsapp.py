@@ -15,7 +15,6 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
 from app.channels.core.handler import handle_inbound_message
-from app.channels.core.types import InboundMessage
 from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.channels.whatsapp.constants import (
@@ -36,9 +35,19 @@ class WhatsAppRequest(BaseModel):
 
 def whatsapp_webhook(payload: WhatsAppRequest) -> dict[str, str]:
     """Compatibility command-style webhook used by tests and local callers."""
+    _ensure_channel_enabled()
     logger.info("Received compatibility WhatsApp command webhook")
     reply_text = handle_message(phone_number=payload.phone_number, message=payload.message)
     return {"reply": reply_text}
+
+
+def _ensure_channel_enabled() -> None:
+    if not settings.WHATSAPP_ENABLED:
+        logger.info("WhatsApp channel is disabled")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WhatsApp channel is disabled",
+        )
 
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
@@ -76,6 +85,7 @@ def whatsapp_webhook_verify(
     hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
     hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
 ):
+    _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook verification request")
     if not settings.WHATSAPP_VERIFY_TOKEN:
         logger.error("WhatsApp verify token not configured")
@@ -96,6 +106,7 @@ def whatsapp_webhook_verify(
 
 @router.post("/whatsapp")
 async def whatsapp_webhook_event(request: Request):
+    _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook event")
     raw_body = await request.body()
     signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
