@@ -10,6 +10,7 @@ Created on Sun Jan 11 07:28:42 2026
 
 from app.config import settings
 from app.db.models import CommitteeMember
+from app.modules.users.channel_identity_service import resolve_committee_member_by_identity
 from app.db.session import SessionLocal
 from app.utils.logger import logger
 from app.modules.users.user_flat_service import UserFlatService
@@ -68,18 +69,20 @@ def ensure_member_of_society(
 
 def ensure_committee_member(
     phone_number: str,
-    db: SessionLocal
+    db: SessionLocal,
+    *,
+    channel_type: str = "whatsapp",
+    external_user_id: str | None = None,
+    username: str | None = None,
 ) -> CommitteeMember:
-    normalized = normalize_phone(phone_number)
-    if not normalized:
-        raise Exception("You are not authorized.")
-
-    member = (
-        db.query(CommitteeMember)
-        .filter(CommitteeMember.phone_number == normalized)
-        .first()
+    sender_id = external_user_id or phone_number
+    member = resolve_committee_member_by_identity(
+        db=db,
+        channel_type=channel_type,
+        sender_id=sender_id,
+        phone_number=phone_number,
+        username=username,
     )
-    
 
     if not member or not member.is_active:
         raise Exception("You are not authorized.")

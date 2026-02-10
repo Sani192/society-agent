@@ -51,7 +51,7 @@ def parse_webhook_payload(payload: dict[str, Any]) -> list[InboundMessage]:
                 sender_id=sender,
                 display_name=profile_name or sender,
                 text=text,
-                metadata={"message_id": message.get("id")},
+                metadata={"message_id": message.get("id"), "canonical_sender_id": sender, "phone_number": sender},
             )
         )
     logger.info("Parsed inbound WhatsApp messages", extra={"count": len(messages)})
