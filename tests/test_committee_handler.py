@@ -14,7 +14,7 @@ def test_committee_add_expense_forbidden():
         intent="ADD_EXPENSE",
         message="expense water 1200",
         event=event,
-        member=member
+        member=member,
     )
     assert response.startswith("⚠️")
 
@@ -30,7 +30,7 @@ def test_committee_add_expense_success(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.ExpenseService.add_expense",
-        fake_add_expense
+        fake_add_expense,
     )
 
     response = handle_committee_intent(
@@ -38,7 +38,7 @@ def test_committee_add_expense_success(monkeypatch):
         intent="ADD_EXPENSE",
         message="expense water 1200",
         event=event,
-        member=member
+        member=member,
     )
 
     assert called["added"] is True
@@ -53,7 +53,7 @@ def test_committee_pending_payments_forbidden():
         intent="PENDING_PAYMENTS",
         message="pending payments",
         event=event,
-        member=member
+        member=member,
     )
     assert response.startswith("⚠️")
 
@@ -66,7 +66,7 @@ def test_committee_pending_users_forbidden():
         intent="PENDING_USERS",
         message="pending users",
         event=event,
-        member=member
+        member=member,
     )
     assert response.startswith("⚠️")
 
@@ -77,7 +77,7 @@ def test_committee_pending_payments_success(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.PendingPaymentReport.get_pending_flats",
-        lambda **kwargs: [{"flat": "A-101", "pending": 200}]
+        lambda **kwargs: [{"flat": "A-101", "pending": 200}],
     )
 
     response = handle_committee_intent(
@@ -85,7 +85,7 @@ def test_committee_pending_payments_success(monkeypatch):
         intent="PENDING_PAYMENTS",
         message="pending payments",
         event=event,
-        member=member
+        member=member,
     )
 
     assert "A-101 – Pending ₹200" in response
@@ -98,13 +98,13 @@ def test_committee_payment_requests(monkeypatch):
         request_code="PAY-001",
         amount=500,
         requested_by="+919999000000",
-        status="requested"
+        status="requested",
     )
     flat = SimpleNamespace(flat_number="A-101")
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.PaymentRequestService.list_requests",
-        lambda **kwargs: [(request, flat)]
+        lambda **kwargs: [(request, flat)],
     )
 
     response = handle_committee_intent(
@@ -112,7 +112,7 @@ def test_committee_payment_requests(monkeypatch):
         intent="PAYMENT_REQUESTS",
         message="payment requests",
         event=event,
-        member=member
+        member=member,
     )
 
     assert "PAY-001" in response
@@ -126,13 +126,13 @@ def test_committee_refund_requests(monkeypatch):
         request_code="REF-001",
         amount=300,
         requested_by="+919999000000",
-        status="requested"
+        status="requested",
     )
     flat = SimpleNamespace(flat_number="B-201")
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.RefundRequestService.list_requests",
-        lambda **kwargs: [(request, flat)]
+        lambda **kwargs: [(request, flat)],
     )
 
     response = handle_committee_intent(
@@ -140,7 +140,7 @@ def test_committee_refund_requests(monkeypatch):
         intent="REFUND_REQUESTS",
         message="refund requests",
         event=event,
-        member=member
+        member=member,
     )
 
     assert "REF-001" in response
@@ -153,7 +153,7 @@ def test_committee_participation_report(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.EventParticipationReport.generate",
-        lambda **kwargs: {"participating": ["A-101"], "not_participating": ["A-102"]}
+        lambda **kwargs: {"participating": ["A-101"], "not_participating": ["A-102"]},
     )
 
     response = handle_committee_intent(
@@ -161,7 +161,7 @@ def test_committee_participation_report(monkeypatch):
         intent="PARTICIPATION_REPORT",
         message="participation report",
         event=event,
-        member=member
+        member=member,
     )
 
     assert "A-101" in response
@@ -176,7 +176,7 @@ def test_committee_remind_flat_requires_number():
         intent="REMIND_FLAT",
         message="remind",
         event=event,
-        member=member
+        member=member,
     )
     assert response == "❌ Example: remind A-101"
 
@@ -192,15 +192,11 @@ def test_committee_remind_flat_success():
         QueryMock(first_result=flat),
         QueryMock(first_result=food_pass),
         QueryMock(scalar_result=200),
-        QueryMock(scalar_result=50)
+        QueryMock(scalar_result=50),
     ]
 
     response = handle_committee_intent(
-        db=db,
-        intent="REMIND_FLAT",
-        message="remind A-101",
-        event=event,
-        member=member
+        db=db, intent="REMIND_FLAT", message="remind A-101", event=event, member=member
     )
 
     assert "pending amount" in response
@@ -212,16 +208,10 @@ def test_committee_remind_flat_not_found():
     member = SimpleNamespace(id="member-1", role="treasurer")
 
     db = MagicMock()
-    db.query.side_effect = [
-        QueryMock(first_result=None)
-    ]
+    db.query.side_effect = [QueryMock(first_result=None)]
 
     response = handle_committee_intent(
-        db=db,
-        intent="REMIND_FLAT",
-        message="remind A-999",
-        event=event,
-        member=member
+        db=db, intent="REMIND_FLAT", message="remind A-999", event=event, member=member
     )
 
     assert response == "❌ Flat not found."
@@ -233,17 +223,10 @@ def test_committee_remind_flat_not_joined():
     flat = SimpleNamespace(id="flat-1", flat_number="A-101")
 
     db = MagicMock()
-    db.query.side_effect = [
-        QueryMock(first_result=flat),
-        QueryMock(first_result=None)
-    ]
+    db.query.side_effect = [QueryMock(first_result=flat), QueryMock(first_result=None)]
 
     response = handle_committee_intent(
-        db=db,
-        intent="REMIND_FLAT",
-        message="remind A-101",
-        event=event,
-        member=member
+        db=db, intent="REMIND_FLAT", message="remind A-101", event=event, member=member
     )
 
     assert response == "❌ Flat has not joined the event."
@@ -260,7 +243,7 @@ def test_committee_approve_user(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.AdminApprovalService.approve_user",
-        fake_approve_user
+        fake_approve_user,
     )
 
     response = handle_committee_intent(
@@ -268,7 +251,7 @@ def test_committee_approve_user(monkeypatch):
         intent="APPROVE",
         message="Approve User req-001",
         event=event,
-        member=member
+        member=member,
     )
 
     assert called["approved"] is True
@@ -284,7 +267,7 @@ def test_committee_approve_user_forbidden():
         intent="APPROVE",
         message="Approve User req-001",
         event=event,
-        member=member
+        member=member,
     )
 
     assert response.startswith("⚠️")
@@ -297,13 +280,13 @@ def test_committee_pending_users(monkeypatch):
         SimpleNamespace(
             request_code="REQ-001",
             flat_number="A-101",
-            created_at=SimpleNamespace(strftime=lambda fmt: "01 Jan 2026 10:00")
+            created_at=SimpleNamespace(strftime=lambda fmt: "01 Jan 2026 10:00"),
         )
     ]
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.AdminOnboardingQueryService.list_pending_users",
-        lambda **kwargs: pending
+        lambda **kwargs: pending,
     )
 
     response = handle_committee_intent(
@@ -311,7 +294,7 @@ def test_committee_pending_users(monkeypatch):
         intent="PENDING_USERS",
         message="pending users",
         event=event,
-        member=member
+        member=member,
     )
 
     assert "REQ-001" in response
@@ -324,7 +307,7 @@ def test_committee_approve_payment(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
-        lambda **kwargs: request
+        lambda **kwargs: request,
     )
 
     called = {}
@@ -334,7 +317,7 @@ def test_committee_approve_payment(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.PaymentRequestService.approve_request",
-        fake_approve_request
+        fake_approve_request,
     )
 
     response = handle_committee_intent(
@@ -342,7 +325,7 @@ def test_committee_approve_payment(monkeypatch):
         intent="APPROVE_PAYMENT",
         message="Approve Payment pay-001",
         event=event,
-        member=member
+        member=member,
     )
 
     assert called["approved"] == "PAY-001"
@@ -355,7 +338,7 @@ def test_committee_approve_payment_not_found(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
-        lambda **kwargs: None
+        lambda **kwargs: None,
     )
 
     response = handle_committee_intent(
@@ -363,7 +346,7 @@ def test_committee_approve_payment_not_found(monkeypatch):
         intent="APPROVE_PAYMENT",
         message="Approve Payment pay-999",
         event=event,
-        member=member
+        member=member,
     )
 
     assert response == "❌ Payment request not found."
@@ -376,7 +359,7 @@ def test_committee_approve_payment_already_processed(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
-        lambda **kwargs: request
+        lambda **kwargs: request,
     )
 
     response = handle_committee_intent(
@@ -384,7 +367,7 @@ def test_committee_approve_payment_already_processed(monkeypatch):
         intent="APPROVE_PAYMENT",
         message="Approve Payment pay-002",
         event=event,
-        member=member
+        member=member,
     )
 
     assert response == "⚠️ Payment request already processed."
@@ -397,7 +380,7 @@ def test_committee_approve_refund(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.RefundRequestService.get_request_by_code",
-        lambda **kwargs: request
+        lambda **kwargs: request,
     )
 
     called = {}
@@ -407,7 +390,7 @@ def test_committee_approve_refund(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.RefundRequestService.approve_request",
-        fake_approve_refund
+        fake_approve_refund,
     )
 
     response = handle_committee_intent(
@@ -415,7 +398,7 @@ def test_committee_approve_refund(monkeypatch):
         intent="APPROVE_REFUND",
         message="Approve Refund ref-001",
         event=event,
-        member=member
+        member=member,
     )
 
     assert called["approved"] == "REF-001"
@@ -427,11 +410,13 @@ def test_committee_refund_sponsor_surfaces_error(monkeypatch):
     member = SimpleNamespace(id="member-1", role="chairman")
 
     def fake_process_refund(**kwargs):
-        raise Exception("Refund exceeds contribution amount. Remaining refundable amount: ₹0")
+        raise Exception(
+            "Refund exceeds contribution amount. Remaining refundable amount: ₹0"
+        )
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
-        fake_process_refund
+        fake_process_refund,
     )
 
     response = handle_committee_intent(
@@ -439,10 +424,13 @@ def test_committee_refund_sponsor_surfaces_error(monkeypatch):
         intent="REFUND_SPONSOR",
         message="refund sponsor SP-001 500 reason extra",
         event=event,
-        member=member
+        member=member,
     )
 
-    assert response == "❌ Refund exceeds contribution amount. Remaining refundable amount: ₹0"
+    assert (
+        response
+        == "❌ Refund exceeds contribution amount. Remaining refundable amount: ₹0"
+    )
 
 
 def test_committee_approve_refund_already_processed(monkeypatch):
@@ -452,7 +440,7 @@ def test_committee_approve_refund_already_processed(monkeypatch):
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.RefundRequestService.get_request_by_code",
-        lambda **kwargs: request
+        lambda **kwargs: request,
     )
 
     response = handle_committee_intent(
@@ -460,7 +448,7 @@ def test_committee_approve_refund_already_processed(monkeypatch):
         intent="APPROVE_REFUND",
         message="Approve Refund ref-002",
         event=event,
-        member=member
+        member=member,
     )
 
     assert response == "⚠️ Refund request already processed."
@@ -468,7 +456,9 @@ def test_committee_approve_refund_already_processed(monkeypatch):
 
 def test_committee_export_report_success(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
 
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
@@ -480,7 +470,19 @@ def test_committee_export_report_success(monkeypatch):
             "row_count": 5,
             "filename": "event_financial_summary.pdf",
             "payload": b"pdf-bytes",
-        }
+        },
+    )
+
+    class DummyClient:
+        def upload_media(self, **kwargs):
+            return "media-123"
+
+        def send_document_message(self, **kwargs):
+            return {"messages": [{"id": "wamid.1"}]}
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: DummyClient(),
     )
 
     response = handle_committee_intent(
@@ -498,7 +500,9 @@ def test_committee_export_report_success(monkeypatch):
 
 def test_committee_export_report_validation_error(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
 
     response = handle_committee_intent(
         db=MagicMock(),
@@ -512,9 +516,100 @@ def test_committee_export_report_validation_error(monkeypatch):
     assert "Use: export financial event-summary pdf" in response
 
 
+def test_committee_export_report_document_delivery_failure(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
+        lambda **kwargs: {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "pdf",
+            "event_id": "event-1",
+            "row_count": 5,
+            "filename": "event_financial_summary.pdf",
+            "payload": b"pdf-bytes",
+        },
+    )
+
+    class FailingClient:
+        def upload_media(self, **kwargs):
+            raise RuntimeError("upload failed")
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: FailingClient(),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="export financial event-summary pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response == "❌ Couldn’t send report right now, try again"
+
+
+def test_committee_export_report_document_delivery_success(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
+        lambda **kwargs: {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "pdf",
+            "event_id": "event-1",
+            "row_count": 5,
+            "filename": "event_financial_summary.pdf",
+            "payload": b"pdf-bytes",
+        },
+    )
+
+    sent = {}
+
+    class DummyClient:
+        def upload_media(self, **kwargs):
+            sent["upload"] = kwargs
+            return "media-123"
+
+        def send_document_message(self, **kwargs):
+            sent["send"] = kwargs
+            return {"messages": [{"id": "wamid.1"}]}
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: DummyClient(),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="export financial event-summary pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert sent["upload"]["file_bytes"] == b"pdf-bytes"
+    assert sent["upload"]["filename"] == "event_financial_summary.pdf"
+    assert sent["send"]["to_phone"] == "919999000000"
+    assert sent["send"]["media_id"] == "media-123"
+
+
 def test_committee_scoped_export_intent_success(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
 
     called = {}
 
@@ -533,6 +628,18 @@ def test_committee_scoped_export_intent_success(monkeypatch):
     monkeypatch.setattr(
         "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
         fake_export,
+    )
+
+    class DummyClient:
+        def upload_media(self, **kwargs):
+            return "media-123"
+
+        def send_document_message(self, **kwargs):
+            return {"messages": [{"id": "wamid.1"}]}
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: DummyClient(),
     )
 
     response = handle_committee_intent(

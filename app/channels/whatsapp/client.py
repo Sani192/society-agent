@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 from app.channels.whatsapp.constants import (
     DEFAULT_WHATSAPP_API_VERSION,
     DEFAULT_WHATSAPP_GRAPH_BASE_URL,
+    WHATSAPP_MEDIA_PATH,
     WHATSAPP_MESSAGES_PATH,
     WHATSAPP_MESSAGING_PRODUCT,
     WHATSAPP_REQUEST_TIMEOUT_SECONDS,
@@ -29,10 +30,101 @@ class WhatsAppClient:
     api_version: str = DEFAULT_WHATSAPP_API_VERSION
     graph_base_url: str = DEFAULT_WHATSAPP_GRAPH_BASE_URL
 
-    def send_text_message(self, to_phone: str, body: str) -> dict:
-        url = (
-            f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
+    def upload_media(self, *, file_bytes: bytes, filename: str, mime_type: str) -> str:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MEDIA_PATH}"
+
+        boundary = "----WhatsAppBoundary7MA4YWxkTrZu0gW"
+        multipart_body = b"".join(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                b'Content-Disposition: form-data; name="messaging_product"\r\n\r\n',
+                f"{WHATSAPP_MESSAGING_PRODUCT}\r\n".encode("utf-8"),
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode(
+                    "utf-8"
+                ),
+                f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"),
+                file_bytes,
+                b"\r\n",
+                f"--{boundary}--\r\n".encode("utf-8"),
+            ]
         )
+
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        }
+
+        logger.info(
+            "Uploading WhatsApp media",
+            extra={"document_name": filename, "mime_type": mime_type, "url": url},
+        )
+        try:
+            req = Request(url=url, data=multipart_body, headers=headers, method="POST")
+            with urlopen(req, timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS) as response:
+                response_body = response.read().decode("utf-8")
+                payload = json.loads(response_body) if response_body else {}
+                media_id = payload.get("id")
+                if not media_id:
+                    raise ValueError("Media upload succeeded but media id missing")
+                return media_id
+        except (HTTPError, URLError, TimeoutError, ValueError):
+            logger.exception(
+                "Failed uploading WhatsApp media",
+                extra={"document_name": filename, "url": url},
+            )
+            raise
+
+    def send_document_message(
+        self,
+        to_phone: str,
+        media_id: str,
+        filename: str,
+        caption: str | None = None,
+    ) -> dict:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
+        document_payload = {"id": media_id, "filename": filename}
+        if caption:
+            document_payload["caption"] = caption
+
+        payload = {
+            "messaging_product": WHATSAPP_MESSAGING_PRODUCT,
+            "to": to_phone,
+            "type": "document",
+            "document": document_payload,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(
+            "Sending WhatsApp document message",
+            extra={
+                "to_phone": to_phone,
+                "document_name": filename,
+                "message_type": "document",
+            },
+        )
+        try:
+            req = Request(
+                url=url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urlopen(req, timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS) as response:
+                response_body = response.read().decode("utf-8")
+                return json.loads(response_body) if response_body else {}
+        except (HTTPError, URLError, TimeoutError):
+            logger.exception(
+                "Failed sending WhatsApp document message",
+                extra={"to_phone": to_phone, "url": url, "document_name": filename},
+            )
+            raise
+
+    def send_text_message(self, to_phone: str, body: str) -> dict:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
         payload = {
             "messaging_product": WHATSAPP_MESSAGING_PRODUCT,
             "to": to_phone,

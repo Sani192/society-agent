@@ -15,14 +15,20 @@ from app.modules.users.channel_identity_service import (
 )
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
-from app.whatsapp.response_templates import error_response, info_response, success_response
+from app.whatsapp.response_templates import (
+    error_response,
+    info_response,
+    success_response,
+)
 
 
 def _get_canonical_sender(message: InboundMessage) -> str:
     return message.metadata.get("canonical_sender_id") or message.sender_id
 
 
-def _attempt_telegram_member_link(*, db, message: InboundMessage, intent: str | None) -> str | None:
+def _attempt_telegram_member_link(
+    *, db, message: InboundMessage, intent: str | None
+) -> str | None:
     if message.channel != "telegram" or not intent:
         return None
 
@@ -110,10 +116,15 @@ def handle_inbound_message(
             )
 
         event = latest_event_getter(db)
-        logger.info("Loaded latest event context", extra={"event_id": getattr(event, 'id', None)})
+        logger.info(
+            "Loaded latest event context",
+            extra={"event_id": getattr(event, "id", None)},
+        )
 
         intent = intent_detector(message.text)
-        link_response = _attempt_telegram_member_link(db=db, message=message, intent=intent)
+        link_response = _attempt_telegram_member_link(
+            db=db, message=message, intent=intent
+        )
         if link_response:
             return link_response
 
@@ -142,6 +153,7 @@ def handle_inbound_message(
                 message=message.text,
                 event=event,
                 member=member,
+                inbound_message=message,
             )
             if committee_response:
                 return committee_response
