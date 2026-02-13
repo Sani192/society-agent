@@ -673,3 +673,44 @@ def test_committee_export_intent_success_with_modern_command(monkeypatch):
     assert called["category"] == "financial"
     assert called["report"] == "event-summary"
     assert called["format"] == "pdf"
+
+
+def test_committee_report_options_success():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REPORT_OPTIONS",
+        message="report options",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Exportable Report Options" in response
+    assert "*Category*: financial" in response
+    assert "*Report key*: event-summary" in response
+    assert "*Label*: Event Financial Summary" in response
+    assert "*Formats*: csv, excel, pdf" in response
+    assert "*Example*: report export --category financial --report event-summary --format csv" in response
+
+
+def test_committee_reports_alias_success():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REPORTS",
+        message="reports",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Exportable Report Options" in response

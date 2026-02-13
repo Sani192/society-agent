@@ -12,3 +12,11 @@ def test_detect_intent_report_export_modern():
 
 def test_detect_intent_legacy_export_not_supported():
     assert detect_intent("export financial event-summary pdf") is None
+
+
+def test_detect_intent_report_options():
+    assert detect_intent("report options") == "REPORT_OPTIONS"
+
+
+def test_detect_intent_reports_alias():
+    assert detect_intent("reports") == "REPORTS"

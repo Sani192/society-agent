@@ -565,6 +565,7 @@ def handle_public_intent(
                 "📊 *Reports* (Committee)",
                 "- participation report",
                 "- pending payments",
+                "- report options (or reports)",
                 "- report export --category financial --report event-summary --format pdf",
                 "- report export --category admin --report onboarding-status --format csv",
                 "- report export --category governance --report audit --format excel",

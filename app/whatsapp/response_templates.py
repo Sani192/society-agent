@@ -78,8 +78,31 @@ def info_response(body: str, heading: Optional[str] = None, emoji: Optional[str]
     return info(_compose_message(body, heading, emoji))
 
 
+def format_report_options_response(options: list[dict]) -> str:
+    lines = [format_heading("Exportable Report Options", "📚")]
+
+    if not options:
+        lines.append("No exportable reports are configured.")
+        return join_lines(lines)
+
+    for option in options:
+        lines.extend(
+            [
+                "",
+                f"*Category*: {option['category']}",
+                f"*Report key*: {option['report_key']}",
+                f"*Label*: {option['label']}",
+                f"*Formats*: {', '.join(option['supported_formats'])}",
+                f"*Example*: {option['example_command']}",
+            ]
+        )
+
+    return join_lines(lines)
+
+
 EXPORT_COMMAND_EXAMPLES = (
     "report export --category financial --report event-summary --format pdf",
     "report export --category admin --report onboarding-status --format csv",
     "report export --category governance --report audit --format excel",
+    "report options",
 )
