@@ -38,6 +38,8 @@ COMMITTEE_CASES = [
     ("REFUND_REQUESTS", "refund requests"),
     ("PARTICIPATION_REPORT", "participation report"),
     ("EXPORT_REPORT", "report export --category financial --report event-summary --format pdf"),
+    ("REPORT_OPTIONS", "report options"),
+    ("REPORTS", "reports"),
     ("REMIND_FLAT", "remind A-101"),
     ("APPROVE", "approve user REQ-001"),
     ("APPROVE_PAYMENT", "approve payment PAY-001"),

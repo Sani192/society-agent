@@ -35,6 +35,8 @@ INTENTS = {
     "PAYMENT_REQUESTS": "payment requests",
     "REFUND_REQUESTS": "refund requests",
     "EXPORT_REPORT": "report export",
+    "REPORT_OPTIONS": "report options",
+    "REPORTS": "reports",
     "SUMMARY": "summary",
 
     # actions

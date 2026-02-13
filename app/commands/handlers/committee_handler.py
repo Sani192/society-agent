@@ -24,6 +24,10 @@ from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.events.service import EventService
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
+from app.modules.reports.common.whatsapp_report_registry import (
+    build_whatsapp_report_registry,
+    list_exportable_report_options,
+)
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.utils.logger import logger
 from app.permissions.guard import is_action_allowed
@@ -35,6 +39,7 @@ from app.whatsapp.response_templates import (
     join_lines,
     success_response,
     warning_response,
+    format_report_options_response,
 )
 from app.commands.parser import (
     parse_amount,
@@ -191,6 +196,17 @@ def handle_committee_intent(
             )
 
         return success_response(join_lines(lines))
+
+
+    if intent in {"REPORT_OPTIONS", "REPORTS"}:
+        report_options = list_exportable_report_options(
+            registry=build_whatsapp_report_registry(
+                financial_handler=WhatsAppReportExportService._export_financial,
+                admin_handler=WhatsAppReportExportService._export_admin,
+                governance_handler=WhatsAppReportExportService._export_governance,
+            )
+        )
+        return success_response(format_report_options_response(report_options))
 
     if intent == "EXPORT_REPORT":
         export_request = parse_report_export(message)
