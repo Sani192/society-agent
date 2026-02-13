@@ -94,3 +94,111 @@ def test_handle_message_routes_export_command_to_committee(monkeypatch):
     assert called_kwargs["event"] == event
     public_handler.assert_not_called()
     db.close.assert_called_once()
+
+
+def test_export_session_list_options_end_to_end(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-e2e-1", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    response = handle_message("919001", "report options")
+
+    assert response.startswith("✅")
+    assert "Choose a report to export" in response
+    assert "1." in response
+
+
+def test_export_session_select_option_end_to_end(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-e2e-2", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    options_response = handle_message("919002", "report options")
+    select_response = handle_message("919002", "export 1")
+
+    assert options_response.startswith("✅")
+    assert select_response.startswith("✅")
+    assert "Now send `format <pdf|csv|excel>`" in select_response
+
+
+def test_export_session_invalid_selection_recovery_end_to_end(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-e2e-3", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    handle_message("919003", "report options")
+    response = handle_message("919003", "export 99")
+
+    assert response.startswith("❌")
+    assert "Invalid report selection" in response
+
+
+def test_export_session_successful_export_dispatch_end_to_end(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-e2e-4", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.WhatsAppReportExportService.export",
+        lambda **kwargs: {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "pdf",
+            "event_id": "event-1",
+            "row_count": 5,
+            "filename": "event_financial_summary.pdf",
+            "payload": b"pdf-bytes",
+        },
+    )
+
+    sent = {}
+
+    class DummyClient:
+        def upload_media(self, **kwargs):
+            sent["upload"] = kwargs
+            return "media-123"
+
+        def send_document_message(self, **kwargs):
+            sent["send"] = kwargs
+            return {"messages": [{"id": "wamid.1"}]}
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: DummyClient(),
+    )
+
+    handle_message("919004", "report options")
+    handle_message("919004", "export 1")
+    response = handle_message("919004", "format pdf")
+
+    assert response.startswith("✅")
+    assert "Report exported" in response
+    assert sent["send"]["to_phone"] == "919004"

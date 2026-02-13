@@ -20,3 +20,15 @@ def test_detect_intent_report_options():
 
 def test_detect_intent_reports_alias():
     assert detect_intent("reports") == "REPORTS"
+
+
+def test_detect_intent_conversational_export_selection():
+    assert detect_intent("export 2") == "EXPORT_SELECTION"
+
+
+def test_detect_intent_conversational_choose_report():
+    assert detect_intent("choose report event-summary") == "CHOOSE_REPORT"
+
+
+def test_detect_intent_export_prefix_without_number_still_not_supported():
+    assert detect_intent("export financial event-summary pdf") is None

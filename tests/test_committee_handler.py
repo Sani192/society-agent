@@ -692,12 +692,10 @@ def test_committee_report_options_success():
     )
 
     assert response.startswith("✅")
-    assert "Exportable Report Options" in response
-    assert "*Category*: financial" in response
-    assert "*Report key*: event-summary" in response
-    assert "*Label*: Event Financial Summary" in response
-    assert "*Formats*: csv, excel, pdf" in response
-    assert "*Example*: report export --category financial --report event-summary --format csv" in response
+    assert "Choose a report to export" in response
+    assert "export <number>" in response
+    assert "choose report <key>" in response
+    assert "format <pdf|csv|excel>" in response
 
 
 def test_committee_reports_alias_success():
@@ -715,4 +713,4 @@ def test_committee_reports_alias_success():
     )
 
     assert response.startswith("✅")
-    assert "Exportable Report Options" in response
+    assert "Choose a report to export" in response
