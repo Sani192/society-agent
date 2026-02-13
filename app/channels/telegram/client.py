@@ -4,10 +4,9 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+import requests
 
 from app.channels.telegram.constants import (
     DEFAULT_TELEGRAM_API_BASE_URL,
@@ -30,20 +29,19 @@ class TelegramClient:
 
         logger.info("Sending Telegram message", extra={"chat_id": chat_id, "url": url})
         try:
-            req = Request(
-                url=url,
-                data=json.dumps(payload).encode("utf-8"),
+            response = requests.post(
+                url,
                 headers=headers,
-                method="POST",
+                json=payload,
+                timeout=TELEGRAM_REQUEST_TIMEOUT_SECONDS,
             )
-            with urlopen(req, timeout=TELEGRAM_REQUEST_TIMEOUT_SECONDS) as response:
-                response_body = response.read().decode("utf-8")
-                logger.info(
-                    "Received Telegram API response",
-                    extra={"status_code": response.status, "chat_id": chat_id},
-                )
-                return json.loads(response_body) if response_body else {}
-        except (HTTPError, URLError, TimeoutError):
+            response.raise_for_status()
+            logger.info(
+                "Received Telegram API response",
+                extra={"status_code": response.status_code, "chat_id": chat_id},
+            )
+            return response.json() if response.content else {}
+        except requests.RequestException:
             logger.exception("Failed sending Telegram message", extra={"chat_id": chat_id})
             raise
 
