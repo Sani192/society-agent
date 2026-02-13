@@ -12,6 +12,11 @@ import re
 from datetime import datetime
 
 from app.utils.logger import logger
+from app.modules.reports.common.whatsapp_report_registry import (
+    build_whatsapp_report_registry,
+    list_valid_categories,
+    list_valid_report_keys_for_category,
+)
 
 
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
@@ -160,8 +165,13 @@ def parse_report_export(message: str):
         "Use: report export --category financial --report event-summary --format pdf"
     )
     tokens = (message or "").strip().lower().split()
-    categories = {"financial", "admin", "governance"}
     formats = {"csv", "excel", "pdf"}
+    export_registry = build_whatsapp_report_registry(
+        financial_handler=lambda **_kwargs: None,
+        admin_handler=lambda **_kwargs: None,
+        governance_handler=lambda **_kwargs: None,
+    )
+    categories = set(list_valid_categories(registry=export_registry))
 
     if len(tokens) < 2 or tokens[0] != "report" or tokens[1] != "export":
         return usage
@@ -210,10 +220,33 @@ def parse_report_export(message: str):
         return usage
 
     if category not in categories:
-        return "Category must be one of: financial, admin, governance. " + usage
+        accepted_categories = ", ".join(sorted(categories))
+        return (
+            f"Invalid category: {category}. "
+            f"Accepted values: {accepted_categories}. "
+            f"Example: {usage.removeprefix('Use: ')}"
+        )
 
     if report_format not in formats:
-        return "Format must be one of: csv, excel, pdf. " + usage
+        accepted_formats = ", ".join(sorted(formats))
+        return (
+            f"Invalid format: {report_format}. "
+            f"Accepted values: {accepted_formats}. "
+            f"Example: {usage.removeprefix('Use: ')}"
+        )
+
+    valid_reports = list_valid_report_keys_for_category(
+        registry=export_registry,
+        category=category,
+    )
+    if report not in valid_reports:
+        accepted_reports = ", ".join(valid_reports) if valid_reports else "none"
+        return (
+            f"Invalid report: {report} for category {category}. "
+            f"Accepted values: {accepted_reports}. "
+            "Try: report options. "
+            f"Example: {usage.removeprefix('Use: ')}"
+        )
 
     return {
         "category": category,

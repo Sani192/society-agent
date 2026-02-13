@@ -533,7 +533,9 @@ def test_committee_export_report_unknown_key_rejected():
     )
 
     assert response.startswith("❌")
-    assert "Unknown report key" in response
+    assert "Invalid report: unknown-report for category financial" in response
+    assert "Accepted values: event-summary" in response
+    assert "Try: report options" in response
 
 def test_committee_export_report_document_delivery_failure(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")

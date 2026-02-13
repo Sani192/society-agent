@@ -46,7 +46,9 @@ def test_parse_report_export_invalid_category():
         "report export --category personal --report event-summary --format pdf"
     )
     assert isinstance(error, str)
-    assert "Category must be one of" in error
+    assert "Invalid category: personal" in error
+    assert "Accepted values: admin, financial, governance" in error
+    assert "Example: report export --category financial --report event-summary --format pdf" in error
 
 
 def test_parse_report_export_invalid_format():
@@ -54,7 +56,9 @@ def test_parse_report_export_invalid_format():
         "report export --category financial --report event-summary --format json"
     )
     assert isinstance(error, str)
-    assert "Format must be one of" in error
+    assert "Invalid format: json" in error
+    assert "Accepted values: csv, excel, pdf" in error
+    assert "Example: report export --category financial --report event-summary --format pdf" in error
 
 
 def test_parse_report_export_invalid_filter_token():
@@ -63,3 +67,14 @@ def test_parse_report_export_invalid_filter_token():
     )
     assert isinstance(error, str)
     assert "Unsupported token" in error
+
+
+def test_parse_report_export_invalid_report_for_category():
+    error = parse_report_export(
+        "report export --category admin --report event-summary --format pdf"
+    )
+    assert isinstance(error, str)
+    assert "Invalid report: event-summary for category admin" in error
+    assert "Accepted values: onboarding-status" in error
+    assert "Try: report options" in error
+    assert "Example: report export --category financial --report event-summary --format pdf" in error
