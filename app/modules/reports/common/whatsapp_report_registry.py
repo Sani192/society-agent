@@ -26,8 +26,38 @@ def resolve_report_entry(*, registry: dict[str, WhatsAppReportRegistryEntry], ca
     command_key = normalize_command_key(category=category, report=report)
     entry = registry.get(command_key)
     if not entry:
-        raise ValueError(f"Unknown report key: {command_key}")
+        normalized_category = (category or "").strip().lower()
+        valid_report_keys = list_valid_report_keys_for_category(
+            registry=registry,
+            category=normalized_category,
+        )
+        valid_report_key_list = ", ".join(valid_report_keys) if valid_report_keys else "none"
+        raise ValueError(
+            "Invalid report for category "
+            f"'{normalized_category or 'unknown'}'. "
+            f"Valid report keys: {valid_report_key_list}. "
+            "Try: report options"
+        )
     return command_key, entry
+
+
+def list_valid_categories(*, registry: dict[str, WhatsAppReportRegistryEntry]) -> list[str]:
+    return sorted({entry.category for entry in registry.values()})
+
+
+def list_valid_report_keys_for_category(
+    *,
+    registry: dict[str, WhatsAppReportRegistryEntry],
+    category: str,
+) -> list[str]:
+    normalized_category = (category or "").strip().lower()
+    return sorted(
+        {
+            entry.report_key
+            for entry in registry.values()
+            if entry.category == normalized_category
+        }
+    )
 
 
 def build_whatsapp_report_registry(*, financial_handler, admin_handler, governance_handler):
