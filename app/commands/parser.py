@@ -154,66 +154,66 @@ def parse_event_creation(message: str):
 
 
 def parse_report_export(message: str):
-    """Parse export command into a normalized payload or a validation message."""
+    """Parse modern report export command into a normalized payload or validation error."""
     logger.info("Parsing report export command")
-    usage = "Use: export financial event-summary pdf"
+    usage = (
+        "Use: report export --category financial --report event-summary --format pdf"
+    )
     tokens = (message or "").strip().lower().split()
+    categories = {"financial", "admin", "governance"}
+    formats = {"csv", "excel", "pdf"}
 
-    if not tokens or tokens[0] != "export":
+    if len(tokens) < 2 or tokens[0] != "report" or tokens[1] != "export":
         return usage
 
-    if len(tokens) < 4:
+    option_tokens = tokens[2:]
+    if not option_tokens:
         return usage
 
-    category = tokens[1]
-    if category not in {"financial", "admin", "governance"}:
+    category = None
+    report = None
+    report_format = None
+    filters = {}
+
+    index = 0
+    while index < len(option_tokens):
+        token = option_tokens[index]
+        if not token.startswith("--"):
+            return f"Unsupported token: {token}. {usage}"
+
+        key, value = token, None
+        if "=" in token:
+            key, value = token.split("=", 1)
+
+        if value is None:
+            if index + 1 >= len(option_tokens):
+                return f"Value missing for {key}. {usage}"
+            value = option_tokens[index + 1]
+            index += 1
+
+        if key == "--category":
+            category = value
+        elif key == "--report":
+            report = value
+        elif key == "--format":
+            report_format = value
+        elif key in {"--event-id", "--event_id"}:
+            if not value:
+                return f"event_id cannot be empty. {usage}"
+            filters["event_id"] = value
+        else:
+            return f"Unsupported option: {key}. {usage}"
+
+        index += 1
+
+    if not category or not report or not report_format:
+        return usage
+
+    if category not in categories:
         return "Category must be one of: financial, admin, governance. " + usage
 
-    report = tokens[2]
-    report_format = tokens[3]
-    if report_format not in {"csv", "excel", "pdf"}:
+    if report_format not in formats:
         return "Format must be one of: csv, excel, pdf. " + usage
-
-    filters = {}
-    remaining_tokens = tokens[4:]
-    index = 0
-    while index < len(remaining_tokens):
-        token = remaining_tokens[index]
-
-        if token.startswith("event_id=") or token.startswith("event-id="):
-            event_id = token.split("=", 1)[1].strip()
-            if not event_id:
-                return "event_id cannot be empty. " + usage
-            filters["event_id"] = event_id
-            index += 1
-            continue
-
-        if token.startswith("event_id:") or token.startswith("event-id:"):
-            event_id = token.split(":", 1)[1].strip()
-            if not event_id:
-                return "event_id cannot be empty. " + usage
-            filters["event_id"] = event_id
-            index += 1
-            continue
-
-        if token in {"event_id", "event-id", "eventid"}:
-            if index + 1 >= len(remaining_tokens):
-                return "event_id value is missing. " + usage
-            filters["event_id"] = remaining_tokens[index + 1]
-            index += 2
-            continue
-
-        if (
-            index == 0
-            and len(remaining_tokens) == 1
-            and "=" not in token
-            and ":" not in token
-        ):
-            filters["event_id"] = token
-            index += 1
-            continue
-
-        return f"Unsupported filter token: {token}. " + usage
 
     return {
         "category": category,

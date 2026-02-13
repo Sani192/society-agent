@@ -114,7 +114,7 @@ def test_handler_passes_inbound_message_to_committee_handler_for_exports():
         channel="whatsapp",
         sender_id="999",
         display_name="Jane",
-        text="export financial event-summary pdf",
+        text="report export --category financial --report event-summary --format pdf",
         metadata={"canonical_sender_id": "919898989898"},
     )
 
