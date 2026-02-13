@@ -65,7 +65,7 @@ def test_handle_message_routes_export_command_to_committee(monkeypatch):
         lambda phone, db, **kwargs: member
     )
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
-    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: "EXPORT_FINANCIAL_REPORT")
+    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: "EXPORT_REPORT")
 
     onboarding_handler = MagicMock(return_value=None)
     committee_handler = MagicMock(return_value="✅ Export queued")
@@ -84,12 +84,12 @@ def test_handle_message_routes_export_command_to_committee(monkeypatch):
         public_handler
     )
 
-    response = handle_message("999", "export financial event-summary pdf")
+    response = handle_message("999", "report export --category financial --report event-summary --format pdf")
 
     assert response == "✅ Export queued"
     committee_handler.assert_called_once()
     called_kwargs = committee_handler.call_args.kwargs
-    assert called_kwargs["intent"] == "EXPORT_FINANCIAL_REPORT"
+    assert called_kwargs["intent"] == "EXPORT_REPORT"
     assert called_kwargs["member"] == member
     assert called_kwargs["event"] == event
     public_handler.assert_not_called()

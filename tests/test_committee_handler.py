@@ -488,7 +488,7 @@ def test_committee_export_report_success(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="EXPORT_REPORT",
-        message="export financial event-summary pdf",
+        message="report export --category financial --report event-summary --format pdf",
         event=event,
         member=member,
     )
@@ -513,7 +513,7 @@ def test_committee_export_report_validation_error(monkeypatch):
     )
 
     assert response.startswith("❌")
-    assert "Use: export financial event-summary pdf" in response
+    assert "Use: report export --category financial --report event-summary --format pdf" in response
 
 
 
@@ -527,7 +527,7 @@ def test_committee_export_report_unknown_key_rejected():
     response = handle_committee_intent(
         db=MagicMock(),
         intent="EXPORT_REPORT",
-        message="export financial unknown-report pdf",
+        message="report export --category financial --report unknown-report --format pdf",
         event=event,
         member=member,
     )
@@ -566,7 +566,7 @@ def test_committee_export_report_document_delivery_failure(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="EXPORT_REPORT",
-        message="export financial event-summary pdf",
+        message="report export --category financial --report event-summary --format pdf",
         event=event,
         member=member,
     )
@@ -612,7 +612,7 @@ def test_committee_export_report_document_delivery_success(monkeypatch):
     response = handle_committee_intent(
         db=MagicMock(),
         intent="EXPORT_REPORT",
-        message="export financial event-summary pdf",
+        message="report export --category financial --report event-summary --format pdf",
         event=event,
         member=member,
     )
@@ -624,7 +624,7 @@ def test_committee_export_report_document_delivery_success(monkeypatch):
     assert sent["send"]["media_id"] == "media-123"
 
 
-def test_committee_scoped_export_intent_success(monkeypatch):
+def test_committee_export_intent_success_with_modern_command(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
         id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
@@ -663,8 +663,8 @@ def test_committee_scoped_export_intent_success(monkeypatch):
 
     response = handle_committee_intent(
         db=MagicMock(),
-        intent="EXPORT_FINANCIAL_REPORT",
-        message="export financial event-summary pdf",
+        intent="EXPORT_REPORT",
+        message="report export --category financial --report event-summary --format pdf",
         event=event,
         member=member,
     )

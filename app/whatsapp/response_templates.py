@@ -79,7 +79,7 @@ def info_response(body: str, heading: Optional[str] = None, emoji: Optional[str]
 
 
 EXPORT_COMMAND_EXAMPLES = (
-    "export financial event-summary pdf",
-    "export admin onboarding-status csv",
-    "export governance audit excel",
+    "report export --category financial --report event-summary --format pdf",
+    "report export --category admin --report onboarding-status --format csv",
+    "report export --category governance --report audit --format excel",
 )
