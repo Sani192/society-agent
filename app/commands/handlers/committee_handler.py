@@ -57,13 +57,12 @@ from app.whatsapp.export_session import (
 )
 
 
-def _report_options():
+def _report_options(*, role: str):
     return list_exportable_report_options(
         registry=build_whatsapp_report_registry(
-            financial_handler=WhatsAppReportExportService._export_financial,
-            admin_handler=WhatsAppReportExportService._export_admin,
-            governance_handler=WhatsAppReportExportService._export_governance,
-        )
+            handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+        ),
+        role=role,
     )
 
 
@@ -303,7 +302,7 @@ def handle_committee_intent(
     )
 
     if intent in {"REPORT_OPTIONS", "REPORTS"}:
-        report_options = _report_options()
+        report_options = _report_options(role=member.role)
         save_export_session(session_key, ExportSessionState(options=report_options))
         return success_response(_format_conversational_options(report_options))
 

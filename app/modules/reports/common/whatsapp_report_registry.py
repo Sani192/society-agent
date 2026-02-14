@@ -3,6 +3,101 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.permissions.report_permissions import REPORT_PERMISSIONS
+
+
+@dataclass(frozen=True)
+class WhatsAppReportDefinition:
+    category: str
+    report_code: str
+    report_key: str
+    label: str
+    requires_event_id: bool
+    supported_formats: tuple[str, ...] = ("csv", "excel", "pdf")
+    aliases: tuple[str, ...] = ()
+
+
+WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="EVENT_FINANCIAL_SUMMARY",
+        report_key="event-summary",
+        label="Event Financial Summary",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="FLAT_PAYMENTS",
+        report_key="flat-payments",
+        label="Flat Payments",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="BLOCK_PAYMENTS",
+        report_key="block-payments",
+        label="Block Payments",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="SPONSOR_CONTRIBUTIONS",
+        report_key="sponsor-contributions",
+        label="Sponsor Contributions",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="CONTRIBUTION_REFUNDS",
+        report_key="contribution-refunds",
+        label="Contribution Refunds",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="BALANCE_CONTINUITY",
+        report_key="balance-continuity",
+        label="Balance Continuity",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="MEMBER_REFUNDS",
+        report_key="member-refunds",
+        label="Member Refunds",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="financial",
+        report_code="LEDGER",
+        report_key="ledger",
+        label="Ledger",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="admin",
+        report_code="MEMBER_DIRECTORY",
+        report_key="member-directory",
+        label="Member Directory",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="admin",
+        report_code="ONBOARDING_STATUS",
+        report_key="onboarding-status",
+        label="Onboarding Status",
+        requires_event_id=False,
+    ),
+    WhatsAppReportDefinition(
+        category="governance",
+        report_code="GOVERNANCE_AUDIT",
+        report_key="audit",
+        label="Governance Audit",
+        requires_event_id=False,
+        aliases=("audit-summary",),
+    ),
+)
+
 
 @dataclass(frozen=True)
 class WhatsAppReportRegistryEntry:
@@ -60,52 +155,39 @@ def list_valid_report_keys_for_category(
     )
 
 
-def build_whatsapp_report_registry(*, financial_handler, admin_handler, governance_handler):
-    return {
-        "financial:event-summary": WhatsAppReportRegistryEntry(
-            category="financial",
-            report_code="EVENT_FINANCIAL_SUMMARY",
-            report_key="event-summary",
-            label="Event Financial Summary",
-            handler=financial_handler,
-            requires_event_id=False,
-            normalized_report="event-summary",
-            supported_formats=("csv", "excel", "pdf"),
-        ),
-        "admin:onboarding-status": WhatsAppReportRegistryEntry(
-            category="admin",
-            report_code="ONBOARDING_STATUS",
-            report_key="onboarding-status",
-            label="Onboarding Status",
-            handler=admin_handler,
-            requires_event_id=False,
-            normalized_report="onboarding-status",
-            supported_formats=("csv", "excel", "pdf"),
-        ),
-        "governance:audit": WhatsAppReportRegistryEntry(
-            category="governance",
-            report_code="GOVERNANCE_AUDIT",
-            report_key="audit",
-            label="Governance Audit",
-            handler=governance_handler,
-            requires_event_id=False,
-            normalized_report="audit",
-            supported_formats=("csv", "excel", "pdf"),
-        ),
-        "governance:audit-summary": WhatsAppReportRegistryEntry(
-            category="governance",
-            report_code="GOVERNANCE_AUDIT",
-            report_key="audit",
-            label="Governance Audit",
-            handler=governance_handler,
-            requires_event_id=False,
-            normalized_report="audit",
-            supported_formats=("csv", "excel", "pdf"),
-        ),
-    }
+def build_whatsapp_report_registry(*, handlers_by_code: dict[str, Callable]):
+    registry: dict[str, WhatsAppReportRegistryEntry] = {}
+
+    for definition in WHATSAPP_REPORT_DEFINITIONS:
+        handler = handlers_by_code.get(definition.report_code)
+        if not handler:
+            continue
+
+        report_variants = (definition.report_key, *definition.aliases)
+        for report_variant in report_variants:
+            command_key = normalize_command_key(
+                category=definition.category,
+                report=report_variant,
+            )
+            registry[command_key] = WhatsAppReportRegistryEntry(
+                category=definition.category,
+                report_code=definition.report_code,
+                report_key=definition.report_key,
+                label=definition.label,
+                handler=handler,
+                requires_event_id=definition.requires_event_id,
+                normalized_report=definition.report_key,
+                supported_formats=definition.supported_formats,
+            )
+
+    return registry
 
 
-def list_exportable_report_options(*, registry: dict[str, WhatsAppReportRegistryEntry]):
+def list_exportable_report_options(
+    *,
+    registry: dict[str, WhatsAppReportRegistryEntry],
+    role: str | None = None,
+):
     options = []
     seen_keys = set()
 
@@ -116,6 +198,12 @@ def list_exportable_report_options(*, registry: dict[str, WhatsAppReportRegistry
         )
         if normalized_command_key in seen_keys:
             continue
+
+        if role:
+            allowed_roles = REPORT_PERMISSIONS.get(entry.report_code, set())
+            if role not in allowed_roles:
+                continue
+
         seen_keys.add(normalized_command_key)
 
         options.append(

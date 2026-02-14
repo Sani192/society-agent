@@ -75,6 +75,6 @@ def test_parse_report_export_invalid_report_for_category():
     )
     assert isinstance(error, str)
     assert "Invalid report: event-summary for category admin" in error
-    assert "Accepted values: onboarding-status" in error
+    assert "Accepted values: member-directory, onboarding-status" in error
     assert "Try: report options" in error
     assert "Example: report export --category financial --report event-summary --format pdf" in error

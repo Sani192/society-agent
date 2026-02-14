@@ -167,9 +167,19 @@ def parse_report_export(message: str):
     tokens = (message or "").strip().lower().split()
     formats = {"csv", "excel", "pdf"}
     export_registry = build_whatsapp_report_registry(
-        financial_handler=lambda **_kwargs: None,
-        admin_handler=lambda **_kwargs: None,
-        governance_handler=lambda **_kwargs: None,
+        handlers_by_code={
+            "EVENT_FINANCIAL_SUMMARY": lambda **_kwargs: None,
+            "FLAT_PAYMENTS": lambda **_kwargs: None,
+            "BLOCK_PAYMENTS": lambda **_kwargs: None,
+            "SPONSOR_CONTRIBUTIONS": lambda **_kwargs: None,
+            "CONTRIBUTION_REFUNDS": lambda **_kwargs: None,
+            "BALANCE_CONTINUITY": lambda **_kwargs: None,
+            "MEMBER_REFUNDS": lambda **_kwargs: None,
+            "LEDGER": lambda **_kwargs: None,
+            "MEMBER_DIRECTORY": lambda **_kwargs: None,
+            "ONBOARDING_STATUS": lambda **_kwargs: None,
+            "GOVERNANCE_AUDIT": lambda **_kwargs: None,
+        }
     )
     categories = set(list_valid_categories(registry=export_registry))
 

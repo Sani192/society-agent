@@ -35,7 +35,8 @@ def test_export_unknown_report_key_guidance_lists_valid_values():
 
     error_message = str(exc_info.value)
     assert "Invalid report for category 'financial'" in error_message
-    assert "Valid report keys: event-summary" in error_message
+    assert "Valid report keys:" in error_message
+    assert "event-summary" in error_message
     assert "Try: report options" in error_message
 
 
