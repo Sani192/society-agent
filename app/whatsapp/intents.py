@@ -37,6 +37,10 @@ INTENTS = {
     "EXPORT_REPORT": "report export",
     "REPORT_OPTIONS": "report options",
     "REPORTS": "reports",
+    "EXPORT_SELECTION": "export",
+    "CHOOSE_REPORT": "choose report",
+    "REPORT_FORMAT": "format",
+    "REPORT_EVENT": "event",
     "SUMMARY": "summary",
 
     # actions
