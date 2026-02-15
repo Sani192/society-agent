@@ -52,3 +52,38 @@ def test_export_blocks_unauthorized_role():
             report="event-summary",
             format="pdf",
         )
+
+
+def test_export_csv_returns_bytes_payload(monkeypatch):
+    member = SimpleNamespace(role="chairman", society_id="soc-1", id="member-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Diwali")
+
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.ensure_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.record_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.EventFinancialSummaryReport.generate",
+        lambda db, event_id: {"headers": ["Flat", "Amount"], "rows": [["A-101", 100]]},
+    )
+
+    society = SimpleNamespace(name="Test Society")
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = society
+
+    result = WhatsAppReportExportService.export(
+        db=db,
+        member=member,
+        event=event,
+        category="financial",
+        report="event-summary",
+        format="csv",
+    )
+
+    assert result["format"] == "csv"
+    assert isinstance(result["payload"], bytes)
+    assert result["payload"] == b"Flat,Amount\r\nA-101,100\r\n"
