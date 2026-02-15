@@ -7,24 +7,12 @@ def detect_intent(message: str):
     tokens = msg.split()
     logger.info("Detecting intent", extra={"message_text": msg})
 
-    if msg.startswith("choose report "):
-        logger.info("Intent detected by conversational export prefix", extra={"intent": "CHOOSE_REPORT"})
-        return "CHOOSE_REPORT"
-
     if msg.startswith("export "):
         if len(tokens) > 1 and tokens[1].isdigit():
             logger.info("Intent detected by conversational export selection", extra={"intent": "EXPORT_SELECTION"})
             return "EXPORT_SELECTION"
         logger.info("Export prefix found but no numeric selection")
         return None
-
-    if msg.startswith("format "):
-        logger.info("Intent detected by conversational export format", extra={"intent": "REPORT_FORMAT"})
-        return "REPORT_FORMAT"
-
-    if msg.startswith("event "):
-        logger.info("Intent detected by conversational export event", extra={"intent": "REPORT_EVENT"})
-        return "REPORT_EVENT"
 
     for intent, keyword in INTENTS.items():
         if msg == keyword:

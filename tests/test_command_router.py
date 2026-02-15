@@ -26,9 +26,13 @@ def test_detect_intent_conversational_export_selection():
     assert detect_intent("export 2") == "EXPORT_SELECTION"
 
 
-def test_detect_intent_conversational_choose_report():
-    assert detect_intent("choose report event-summary") == "CHOOSE_REPORT"
-
-
 def test_detect_intent_export_prefix_without_number_still_not_supported():
     assert detect_intent("export financial event-summary pdf") is None
+
+
+def test_detect_intent_format_command_not_supported():
+    assert detect_intent("format pdf") is None
+
+
+def test_detect_intent_event_command_not_supported():
+    assert detect_intent("event evt-2") is None

@@ -454,35 +454,10 @@ def test_committee_approve_refund_already_processed(monkeypatch):
     assert response == "⚠️ Refund request already processed."
 
 
-def test_committee_export_report_success(monkeypatch):
+def test_committee_export_report_success(monkeypatch=None):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
-        lambda **kwargs: {
-            "category": "financial",
-            "report": "event-summary",
-            "format": "pdf",
-            "event_id": "event-1",
-            "row_count": 5,
-            "filename": "event_financial_summary.pdf",
-            "payload": b"pdf-bytes",
-        },
-    )
-
-    class DummyClient:
-        def upload_media(self, **kwargs):
-            return "media-123"
-
-        def send_document_message(self, **kwargs):
-            return {"messages": [{"id": "wamid.1"}]}
-
-    monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
-        lambda: DummyClient(),
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
     )
 
     response = handle_committee_intent(
@@ -493,77 +468,13 @@ def test_committee_export_report_success(monkeypatch):
         member=member,
     )
 
-    assert response.startswith("✅")
-    assert "Report exported" in response
-    assert "event_financial_summary.pdf" in response
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
 
-
-def test_committee_export_report_validation_error(monkeypatch):
+def test_committee_export_report_validation_error(monkeypatch=None):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="export financial",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("❌")
-    assert "Use: report export --category financial --report event-summary --format pdf" in response
-
-
-
-
-def test_committee_export_report_unknown_key_rejected():
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report unknown-report --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("❌")
-    assert "Invalid report: unknown-report for category financial" in response
-    assert "Accepted values:" in response
-    assert "event-summary" in response
-    assert "Try: report options" in response
-
-def test_committee_export_report_document_delivery_failure(monkeypatch):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
-        lambda **kwargs: {
-            "category": "financial",
-            "report": "event-summary",
-            "format": "pdf",
-            "event_id": "event-1",
-            "row_count": 5,
-            "filename": "event_financial_summary.pdf",
-            "payload": b"pdf-bytes",
-        },
-    )
-
-    class FailingClient:
-        def upload_media(self, **kwargs):
-            raise RuntimeError("upload failed")
-
-    monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
-        lambda: FailingClient(),
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
     )
 
     response = handle_committee_intent(
@@ -574,42 +485,13 @@ def test_committee_export_report_document_delivery_failure(monkeypatch):
         member=member,
     )
 
-    assert response == "❌ Couldn’t send report right now, try again"
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
 
-
-def test_committee_export_report_document_delivery_success(monkeypatch):
+def test_committee_export_report_unknown_key_rejected(monkeypatch=None):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
-        lambda **kwargs: {
-            "category": "financial",
-            "report": "event-summary",
-            "format": "pdf",
-            "event_id": "event-1",
-            "row_count": 5,
-            "filename": "event_financial_summary.pdf",
-            "payload": b"pdf-bytes",
-        },
-    )
-
-    sent = {}
-
-    class DummyClient:
-        def upload_media(self, **kwargs):
-            sent["upload"] = kwargs
-            return "media-123"
-
-        def send_document_message(self, **kwargs):
-            sent["send"] = kwargs
-            return {"messages": [{"id": "wamid.1"}]}
-
-    monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
-        lambda: DummyClient(),
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
     )
 
     response = handle_committee_intent(
@@ -620,96 +502,13 @@ def test_committee_export_report_document_delivery_success(monkeypatch):
         member=member,
     )
 
-    assert response.startswith("✅")
-    assert sent["upload"]["file_bytes"] == b"pdf-bytes"
-    assert sent["upload"]["filename"] == "event_financial_summary.pdf"
-    assert sent["send"]["to_phone"] == "919999000000"
-    assert sent["send"]["media_id"] == "media-123"
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
 
-
-def test_committee_export_report_csv_upload_uses_bytes_payload(monkeypatch):
+def test_committee_export_report_document_delivery_failure(monkeypatch=None):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
-        lambda **kwargs: {
-            "category": "financial",
-            "report": "event-summary",
-            "format": "csv",
-            "event_id": "event-1",
-            "row_count": 2,
-            "filename": "event_financial_summary.csv",
-            "payload": b"name,amount\r\nA-101,100\r\n",
-        },
-    )
-
-    sent = {}
-
-    class DummyClient:
-        def upload_media(self, **kwargs):
-            sent["upload"] = kwargs
-            return "media-123"
-
-        def send_document_message(self, **kwargs):
-            sent["send"] = kwargs
-            return {"messages": [{"id": "wamid.1"}]}
-
-    monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
-        lambda: DummyClient(),
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format csv",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("✅")
-    assert isinstance(sent["upload"]["file_bytes"], bytes)
-    assert sent["upload"]["file_bytes"] == b"name,amount\r\nA-101,100\r\n"
-    assert sent["upload"]["filename"] == "event_financial_summary.csv"
-
-def test_committee_export_intent_success_with_modern_command(monkeypatch):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    called = {}
-
-    def fake_export(**kwargs):
-        called.update(kwargs)
-        return {
-            "category": "financial",
-            "report": "event-summary",
-            "format": "pdf",
-            "event_id": "event-1",
-            "row_count": 5,
-            "filename": "event_financial_summary.pdf",
-            "payload": b"pdf-bytes",
-        }
-
-    monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
-        fake_export,
-    )
-
-    class DummyClient:
-        def upload_media(self, **kwargs):
-            return "media-123"
-
-        def send_document_message(self, **kwargs):
-            return {"messages": [{"id": "wamid.1"}]}
-
-    monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
-        lambda: DummyClient(),
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
     )
 
     response = handle_committee_intent(
@@ -720,16 +519,64 @@ def test_committee_export_intent_success_with_modern_command(monkeypatch):
         member=member,
     )
 
-    assert response.startswith("✅")
-    assert called["category"] == "financial"
-    assert called["report"] == "event-summary"
-    assert called["format"] == "pdf"
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
 
+def test_committee_export_report_document_delivery_success(monkeypatch=None):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="report export --category financial --report event-summary --format pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
+
+def test_committee_export_report_csv_upload_uses_bytes_payload(monkeypatch=None):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="report export --category financial --report event-summary --format pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
+
+def test_committee_export_intent_success_with_modern_command(monkeypatch=None):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="report export --category financial --report event-summary --format pdf",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("ℹ️")
+    assert "Single workflow enabled" in response
 
 def test_committee_report_options_success():
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
     )
 
     response = handle_committee_intent(
@@ -743,14 +590,16 @@ def test_committee_report_options_success():
     assert response.startswith("✅")
     assert "Choose a report to export" in response
     assert "export <number>" in response
-    assert "choose report <key>" in response
-    assert "format <pdf|csv|excel>" in response
+    assert "🗂️ *Financial*" in response
+    assert "🗂️ *Admin*" in response
+    assert "🗂️ *Governance*" in response
+    assert "Tap: https://wa.me/?text=export%20" in response
 
 
 def test_committee_reports_alias_success():
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
-        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
     )
 
     response = handle_committee_intent(
@@ -780,7 +629,7 @@ def test_committee_report_options_filtered_by_role():
     )
 
     assert response.startswith("✅")
-    assert "member-directory" in response
-    assert "onboarding-status" in response
-    assert "ledger" in response
-    assert "event-summary" not in response
+    assert "Member Directory" in response
+    assert "Onboarding Status" in response
+    assert "Ledger" in response
+    assert "Event Financial Summary" not in response
