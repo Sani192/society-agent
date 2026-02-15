@@ -81,6 +81,7 @@ class WhatsAppReportExportService:
             "report": report,
             "format": normalized_format,
             "event_id": str(event.id) if event else None,
+            "event_name": event.name if event else "General",
             "row_count": row_count,
             "filename": f"{filename_stem}.{extension}",
             "payload": payload,
