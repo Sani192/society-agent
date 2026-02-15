@@ -534,7 +534,8 @@ def test_committee_export_report_unknown_key_rejected():
 
     assert response.startswith("❌")
     assert "Invalid report: unknown-report for category financial" in response
-    assert "Accepted values: event-summary" in response
+    assert "Accepted values:" in response
+    assert "event-summary" in response
     assert "Try: report options" in response
 
 def test_committee_export_report_document_delivery_failure(monkeypatch):
@@ -714,3 +715,24 @@ def test_committee_reports_alias_success():
 
     assert response.startswith("✅")
     assert "Choose a report to export" in response
+
+
+def test_committee_report_options_filtered_by_role():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="secretary", society_id="soc-1", phone_number="919999000000"
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REPORT_OPTIONS",
+        message="report options",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "member-directory" in response
+    assert "onboarding-status" in response
+    assert "ledger" in response
+    assert "event-summary" not in response
