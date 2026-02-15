@@ -627,6 +627,54 @@ def test_committee_export_report_document_delivery_success(monkeypatch):
     assert sent["send"]["media_id"] == "media-123"
 
 
+def test_committee_export_report_csv_upload_uses_bytes_payload(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(
+        id="member-1", role="chairman", society_id="soc-1", phone_number="919999000000"
+    )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.WhatsAppReportExportService.export",
+        lambda **kwargs: {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "csv",
+            "event_id": "event-1",
+            "row_count": 2,
+            "filename": "event_financial_summary.csv",
+            "payload": b"name,amount\r\nA-101,100\r\n",
+        },
+    )
+
+    sent = {}
+
+    class DummyClient:
+        def upload_media(self, **kwargs):
+            sent["upload"] = kwargs
+            return "media-123"
+
+        def send_document_message(self, **kwargs):
+            sent["send"] = kwargs
+            return {"messages": [{"id": "wamid.1"}]}
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: DummyClient(),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="EXPORT_REPORT",
+        message="report export --category financial --report event-summary --format csv",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert isinstance(sent["upload"]["file_bytes"], bytes)
+    assert sent["upload"]["file_bytes"] == b"name,amount\r\nA-101,100\r\n"
+    assert sent["upload"]["filename"] == "event_financial_summary.csv"
+
 def test_committee_export_intent_success_with_modern_command(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(

@@ -17,7 +17,7 @@ def export_csv(headers, rows):
     writer = csv.writer(output)
     writer.writerow(headers)
     writer.writerows(rows)
-    return output.getvalue()
+    return output.getvalue().encode("utf-8")
 
 
 def export_excel(sheet_name: str, headers: list, rows: list):
