@@ -129,10 +129,17 @@ def handle_inbound_message(
             return link_response
 
         if not intent:
-            logger.info("No intent detected", extra={"sender_id": message.sender_id})
+            logger.info(
+                "No intent detected",
+                extra={"sender_id": message.sender_id, "channel": message.channel},
+            )
             if message.channel == "telegram" and not member:
                 return info_response(
                     "I couldn't detect a command. If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram."
+                )
+            if message.channel == "whatsapp":
+                return info_response(
+                    "Command not supported. Please use *commands* to view available commands."
                 )
             return info_response("Sorry, I didn’t understand this command.")
 
@@ -169,7 +176,14 @@ def handle_inbound_message(
         if public_response:
             return public_response
 
-        logger.warning("Intent reached unsupported fallback", extra={"intent": intent})
+        logger.warning(
+            "Intent reached unsupported fallback",
+            extra={"intent": intent, "channel": message.channel, "sender_id": message.sender_id},
+        )
+        if message.channel == "whatsapp":
+            return info_response(
+                "Command not supported. Please use *commands* to view available commands."
+            )
         return error_response("Command not supported.")
 
     except Exception:

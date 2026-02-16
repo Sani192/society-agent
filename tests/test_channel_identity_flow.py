@@ -135,3 +135,55 @@ def test_handler_passes_inbound_message_to_committee_handler_for_report_options(
 
     assert response == "ok"
     assert captured["inbound_message"].metadata["canonical_sender_id"] == "919898989898"
+
+
+def test_whatsapp_unsupported_intent_falls_back_to_reports_menu_hint():
+    db = MagicMock()
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000000",
+        display_name="Jane",
+        text="totally unsupported",
+        metadata={"canonical_sender_id": "919999000000"},
+    )
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+            Exception("unauthorized")
+        ),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: "UNKNOWN_INTENT",
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+
+
+def test_whatsapp_no_intent_falls_back_to_commands_hint():
+    db = MagicMock()
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000001",
+        display_name="John",
+        text="what is this",
+        metadata={"canonical_sender_id": "919999000001"},
+    )
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+            Exception("unauthorized")
+        ),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: None,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
