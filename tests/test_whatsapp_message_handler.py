@@ -21,7 +21,7 @@ def test_handle_message_unknown_intent(monkeypatch):
 
     response = handle_message("999", "unknown")
 
-    assert response == "ℹ️ Sorry, I didn’t understand this command."
+    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
     db.close.assert_called_once()
 
 

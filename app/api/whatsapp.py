@@ -273,7 +273,7 @@ async def whatsapp_webhook_event(request: Request):
                     include_more_row=include_more_row,
                 )
                 if sections:
-                    client.send_list_message(
+                    list_response = client.send_list_message(
                         to_phone=message.sender_id,
                         header_text="Reports",
                         body_text=(
@@ -284,6 +284,15 @@ async def whatsapp_webhook_event(request: Request):
                         sections=sections,
                         footer_text="Tip: You can also type report options anytime.",
                     )
+                    logger.info(
+                        "WhatsApp reports interactive list sent",
+                        extra={
+                            "sender_id": message.sender_id,
+                            "message_id": message.metadata.get("message_id"),
+                            "response_keys": sorted(list_response.keys()),
+                            "page_index": current_page,
+                        },
+                    )
                     continue
             except Exception:
                 logger.exception("Failed to send reports interactive list")
@@ -291,7 +300,24 @@ async def whatsapp_webhook_event(request: Request):
                 db.close()
 
         reply_text = handle_inbound_message(message)
-        client.send_text_message(message.sender_id, reply_text)
+        try:
+            send_response = client.send_text_message(message.sender_id, reply_text)
+            logger.info(
+                "WhatsApp text reply sent",
+                extra={
+                    "sender_id": message.sender_id,
+                    "message_id": message.metadata.get("message_id"),
+                    "response_keys": sorted(send_response.keys()),
+                },
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send WhatsApp text reply",
+                extra={
+                    "sender_id": message.sender_id,
+                    "message_id": message.metadata.get("message_id"),
+                },
+            )
 
     logger.info("WhatsApp webhook processing completed")
     return {"status": "ok"}

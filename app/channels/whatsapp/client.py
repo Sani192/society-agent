@@ -7,6 +7,7 @@ WhatsApp Cloud API client.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from json import JSONDecodeError
 
 import requests
 
@@ -20,6 +21,23 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.utils.logger import logger
+
+
+def _extract_response_payload(response: requests.Response, *, context: dict) -> dict:
+    if not response.content:
+        return {}
+    try:
+        return response.json()
+    except (JSONDecodeError, ValueError):
+        logger.warning(
+            "WhatsApp API response was not valid JSON",
+            extra={
+                **context,
+                "status_code": response.status_code,
+                "response_preview": response.text[:200],
+            },
+        )
+        return {}
 
 
 @dataclass(frozen=True)
@@ -46,10 +64,17 @@ class WhatsAppClient:
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            payload = response.json() if response.content else {}
+            payload = _extract_response_payload(
+                response,
+                context={"operation": "upload_media", "document_name": filename},
+            )
             media_id = payload.get("id")
             if not media_id:
                 raise ValueError("Media upload succeeded but media id missing")
+            logger.info(
+                "WhatsApp media upload completed",
+                extra={"document_name": filename, "media_id": media_id, "status_code": response.status_code},
+            )
             return media_id
         except (requests.RequestException, ValueError):
             logger.exception(
@@ -97,7 +122,15 @@ class WhatsAppClient:
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            return response.json() if response.content else {}
+            payload = _extract_response_payload(
+                response,
+                context={"operation": "send_document_message", "to_phone": to_phone},
+            )
+            logger.info(
+                "Received WhatsApp API response",
+                extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "document"},
+            )
+            return payload
         except requests.RequestException:
             logger.exception(
                 "Failed sending WhatsApp document message",
@@ -138,7 +171,10 @@ class WhatsAppClient:
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone},
             )
-            return response.json() if response.content else {}
+            return _extract_response_payload(
+                response,
+                context={"operation": "send_text_message", "to_phone": to_phone},
+            )
         except requests.RequestException:
             logger.exception(
                 "Failed sending WhatsApp message",
@@ -189,7 +225,15 @@ class WhatsAppClient:
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            return response.json() if response.content else {}
+            payload = _extract_response_payload(
+                response,
+                context={"operation": "send_list_message", "to_phone": to_phone},
+            )
+            logger.info(
+                "Received WhatsApp API response",
+                extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "interactive_list"},
+            )
+            return payload
         except requests.RequestException:
             logger.exception(
                 "Failed sending WhatsApp interactive list message",
