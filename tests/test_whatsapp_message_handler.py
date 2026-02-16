@@ -60,7 +60,7 @@ def test_handle_message_onboarding_short_circuit(monkeypatch):
     db.close.assert_called_once()
 
 
-def test_handle_message_routes_export_command_to_committee(monkeypatch):
+def test_handle_message_routes_report_options_to_committee(monkeypatch):
     db = MagicMock()
     member = SimpleNamespace(id="member-1", role="chairman")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
@@ -71,10 +71,10 @@ def test_handle_message_routes_export_command_to_committee(monkeypatch):
         lambda phone, db, **kwargs: member
     )
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
-    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: "EXPORT_REPORT")
+    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: "REPORT_OPTIONS")
 
     onboarding_handler = MagicMock(return_value=None)
-    committee_handler = MagicMock(return_value="✅ Export queued")
+    committee_handler = MagicMock(return_value="✅ Report options")
     public_handler = MagicMock(return_value=None)
 
     monkeypatch.setattr(
@@ -90,12 +90,12 @@ def test_handle_message_routes_export_command_to_committee(monkeypatch):
         public_handler
     )
 
-    response = handle_message("999", "report export --category financial --report event-summary --format pdf")
+    response = handle_message("999", "report options")
 
-    assert response == "✅ Export queued"
+    assert response == "✅ Report options"
     committee_handler.assert_called_once()
     called_kwargs = committee_handler.call_args.kwargs
-    assert called_kwargs["intent"] == "EXPORT_REPORT"
+    assert called_kwargs["intent"] == "REPORT_OPTIONS"
     assert called_kwargs["member"] == member
     assert called_kwargs["event"] == event
     public_handler.assert_not_called()

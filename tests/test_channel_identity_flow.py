@@ -106,7 +106,7 @@ def test_handler_uses_canonical_sender_for_public_and_onboarding():
     assert captured["public_phone"] == "919898989898"
 
 
-def test_handler_passes_inbound_message_to_committee_handler_for_exports():
+def test_handler_passes_inbound_message_to_committee_handler_for_report_options():
     db = MagicMock()
     captured = {}
 
@@ -114,7 +114,7 @@ def test_handler_passes_inbound_message_to_committee_handler_for_exports():
         channel="whatsapp",
         sender_id="999",
         display_name="Jane",
-        text="report export --category financial --report event-summary --format pdf",
+        text="report options",
         metadata={"canonical_sender_id": "919898989898"},
     )
 
@@ -127,7 +127,7 @@ def test_handler_passes_inbound_message_to_committee_handler_for_exports():
         session_factory=lambda: db,
         committee_member_resolver=lambda *args, **kwargs: object(),
         latest_event_getter=lambda db: None,
-        intent_detector=lambda text: "EXPORT_REPORT",
+        intent_detector=lambda text: "REPORT_OPTIONS",
         onboarding_intent_handler=lambda **kwargs: None,
         committee_intent_handler=committee_handler,
         public_intent_handler=lambda **kwargs: None,

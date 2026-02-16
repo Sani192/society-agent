@@ -1,12 +1,12 @@
 from app.commands.router import detect_intent
 
 
-def test_detect_intent_report_export_modern():
+def test_detect_intent_report_export_modern_not_supported():
     assert (
         detect_intent(
             "report export --category financial --report event-summary --format pdf"
         )
-        == "EXPORT_REPORT"
+        is None
     )
 
 
@@ -18,8 +18,8 @@ def test_detect_intent_report_options():
     assert detect_intent("report options") == "REPORT_OPTIONS"
 
 
-def test_detect_intent_reports_alias():
-    assert detect_intent("reports") == "REPORTS"
+def test_detect_intent_reports_alias_not_supported():
+    assert detect_intent("reports") is None
 
 
 def test_detect_intent_conversational_export_selection():

@@ -219,7 +219,7 @@ async def whatsapp_webhook_event(request: Request):
         )
         intent = detect_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
-        if intent in {"REPORTS", "REPORT_OPTIONS"} or requested_more_reports:
+        if intent == "REPORT_OPTIONS" or requested_more_reports:
             db = SessionLocal()
             try:
                 canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -282,7 +282,7 @@ async def whatsapp_webhook_event(request: Request):
                         ),
                         button_text="Choose Report",
                         sections=sections,
-                        footer_text="Tip: You can also type reports anytime.",
+                        footer_text="Tip: You can also type report options anytime.",
                     )
                     continue
             except Exception:

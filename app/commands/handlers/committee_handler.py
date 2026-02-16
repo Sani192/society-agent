@@ -310,15 +310,11 @@ def handle_committee_intent(
         or (inbound_message.sender_id if inbound_message is not None else None),
     )
 
-    if intent in {"REPORT_OPTIONS", "REPORTS"}:
+    if intent == "REPORT_OPTIONS":
         report_options = _report_options(role=member.role)
         save_export_session(session_key, ExportSessionState(options=report_options))
         return success_response(_format_conversational_options(report_options))
 
-    if intent == "CHOOSE_REPORT":
-        return info_response(
-            "Single workflow enabled. Send `report options` and then `export <number>`."
-        )
 
     if intent == "EXPORT_SELECTION":
         session = get_export_session(session_key)
@@ -379,20 +375,8 @@ def handle_committee_intent(
             inbound_message=inbound_message,
         )
 
-    if intent == "REPORT_EVENT":
-        return info_response(
-            "PDF is exported by default. Send `report options` and then `export <number>`."
-        )
 
-    if intent == "REPORT_FORMAT":
-        return info_response(
-            "PDF is exported by default. Send `report options` and then `export <number>`."
-        )
 
-    if intent == "EXPORT_REPORT":
-        return info_response(
-            "Single workflow enabled: send `report options` and then `export <number>` (PDF)."
-        )
 
     if intent == "PARTICIPATION_REPORT":
         if not event:
