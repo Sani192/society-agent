@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 @dataclass
 class ExportSessionState:
     options: list[dict] = field(default_factory=list)
+    current_page: int = 0
     selected_category: str | None = None
     selected_report: str | None = None
     report_format: str | None = None
