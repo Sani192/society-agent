@@ -94,9 +94,18 @@ def _build_reports_list_sections(options: list[dict]) -> list[dict]:
         grouped.setdefault(option["category"], []).append(option)
 
     sections: list[dict] = []
-    for category, entries in grouped.items():
+    max_total_rows = 10
+    used_rows = 0
+
+    for category in sorted(grouped):
+        entries = grouped[category]
+        if used_rows >= max_total_rows:
+            break
+
         rows = []
-        for option in entries[:10]:
+        for option in entries:
+            if used_rows >= max_total_rows:
+                break
             rows.append(
                 {
                     "id": f"export::{option['command_key']}",
@@ -104,6 +113,7 @@ def _build_reports_list_sections(options: list[dict]) -> list[dict]:
                     "description": f"Category: {category.title()} · PDF",
                 }
             )
+            used_rows += 1
 
         if rows:
             sections.append({"title": category.title(), "rows": rows})
@@ -164,7 +174,12 @@ async def whatsapp_webhook_event(request: Request):
             db = SessionLocal()
             try:
                 canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-                member = ensure_committee_member(canonical_sender, db)
+                member = ensure_committee_member(
+                    canonical_sender,
+                    db,
+                    channel_type="whatsapp",
+                    external_user_id=message.sender_id,
+                )
                 report_options = list_exportable_report_options(
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),

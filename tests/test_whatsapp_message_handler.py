@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.channels.whatsapp.adapter import parse_webhook_payload
+from app.api.whatsapp import _build_reports_list_sections
 from app.whatsapp.handler import handle_message
 
 
@@ -313,3 +314,21 @@ def test_parse_webhook_payload_supports_interactive_list_reply():
     assert len(messages) == 1
     assert messages[0].text == "export::financial:ledger"
     assert messages[0].metadata["interactive_list_reply_title"] == "Ledger"
+
+
+def test_build_reports_list_sections_caps_total_rows_to_whatsapp_limit():
+    options = []
+    for idx in range(12):
+        category = "financial" if idx < 8 else "governance"
+        options.append(
+            {
+                "category": category,
+                "command_key": f"{category}:report-{idx}",
+                "label": f"Report {idx}",
+            }
+        )
+
+    sections = _build_reports_list_sections(options)
+    total_rows = sum(len(section["rows"]) for section in sections)
+
+    assert total_rows == 10
