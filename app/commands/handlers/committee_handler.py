@@ -326,14 +326,30 @@ def handle_committee_intent(
             return info_response("No active export session. Send `report options` first.")
 
         tokens = (message or "").strip().lower().split()
+        normalized_message = (message or "").strip().lower()
         selected_option = None
         selected_index = None
+        selected_command_key = None
+
+        if normalized_message.startswith("export::"):
+            selected_command_key = normalized_message.removeprefix("export::").strip()
+
+        if selected_command_key:
+            selected_option = next(
+                (
+                    option
+                    for option in session.options
+                    if (option.get("command_key") or "").strip().lower() == selected_command_key
+                ),
+                None,
+            )
+
         if len(tokens) >= 2 and tokens[1].isdigit():
             selected_index = int(tokens[1]) - 1
         elif len(tokens) == 1 and tokens[0].isdigit():
             selected_index = int(tokens[0]) - 1
 
-        if selected_index is not None:
+        if selected_option is None and selected_index is not None:
             if 0 <= selected_index < len(session.options):
                 selected_option = session.options[selected_index]
         if not selected_option:
