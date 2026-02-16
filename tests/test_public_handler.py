@@ -521,7 +521,9 @@ def test_public_help_and_commands():
         member=None
     )
     assert "Available Commands" in commands
-    assert "report options (or reports)" in commands
+    assert "report options" in commands
+    assert "(or reports)" not in commands
+    assert "export <number>" not in commands
 
 
 def test_public_summary_formats_currency(monkeypatch):

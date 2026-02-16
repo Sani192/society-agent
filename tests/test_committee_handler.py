@@ -454,7 +454,7 @@ def test_committee_approve_refund_already_processed(monkeypatch):
     assert response == "⚠️ Refund request already processed."
 
 
-def test_committee_export_report_success(monkeypatch=None):
+def test_committee_export_selection_requires_active_session():
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(
         id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
@@ -462,116 +462,14 @@ def test_committee_export_report_success(monkeypatch=None):
 
     response = handle_committee_intent(
         db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
+        intent="EXPORT_SELECTION",
+        message="export 1",
         event=event,
         member=member,
     )
 
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
+    assert response == "ℹ️ No active export session. Send `report options` first."
 
-def test_committee_export_report_validation_error(monkeypatch=None):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
-
-def test_committee_export_report_unknown_key_rejected(monkeypatch=None):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
-
-def test_committee_export_report_document_delivery_failure(monkeypatch=None):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
-
-def test_committee_export_report_document_delivery_success(monkeypatch=None):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
-
-def test_committee_export_report_csv_upload_uses_bytes_payload(monkeypatch=None):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
-
-def test_committee_export_intent_success_with_modern_command(monkeypatch=None):
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="EXPORT_REPORT",
-        message="report export --category financial --report event-summary --format pdf",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("ℹ️")
-    assert "Single workflow enabled" in response
 
 def test_committee_report_options_success():
     event = SimpleNamespace(id="event-1", society_id="soc-1")
@@ -589,29 +487,13 @@ def test_committee_report_options_success():
 
     assert response.startswith("✅")
     assert "Choose a report to export" in response
+    assert "report export --category" not in response
     assert "export <number>" in response
     assert "🗂️ *Financial*" in response
     assert "🗂️ *Admin*" in response
     assert "🗂️ *Governance*" in response
     assert "↪ Reply: export" in response
-
-
-def test_committee_reports_alias_success():
-    event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(
-        id="member-1", name="Chairman Rao", role="chairman", society_id="soc-1", phone_number="919999000000"
-    )
-
-    response = handle_committee_intent(
-        db=MagicMock(),
-        intent="REPORTS",
-        message="reports",
-        event=event,
-        member=member,
-    )
-
-    assert response.startswith("✅")
-    assert "Choose a report to export" in response
+    assert "report export --category" not in response
 
 
 def test_committee_report_options_filtered_by_role():
