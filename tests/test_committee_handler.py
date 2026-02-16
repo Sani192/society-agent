@@ -593,7 +593,7 @@ def test_committee_report_options_success():
     assert "🗂️ *Financial*" in response
     assert "🗂️ *Admin*" in response
     assert "🗂️ *Governance*" in response
-    assert "Tap: https://wa.me/?text=export%20" in response
+    assert "↪ Reply: export" in response
 
 
 def test_committee_reports_alias_success():
