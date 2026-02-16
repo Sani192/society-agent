@@ -18,6 +18,13 @@ def detect_intent(message: str):
         logger.info("Export prefix found but no numeric selection")
         return None
 
+    if msg.startswith("export::"):
+        logger.info(
+            "Intent detected by interactive export selection",
+            extra={"intent": "EXPORT_SELECTION"},
+        )
+        return "EXPORT_SELECTION"
+
     for intent, keyword in INTENTS.items():
         if msg == keyword:
             logger.info("Intent detected by exact match", extra={"intent": intent})

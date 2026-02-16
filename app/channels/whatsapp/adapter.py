@@ -37,6 +37,10 @@ def parse_webhook_payload(payload: dict[str, Any]) -> list[InboundMessage]:
     for message in _iter_messages(payload):
         sender = message.get("from")
         text = (message.get("text") or {}).get("body")
+        interactive_list_reply = ((message.get("interactive") or {}).get("list_reply") or {})
+        interactive_button_reply = ((message.get("interactive") or {}).get("button_reply") or {})
+        if not text:
+            text = interactive_list_reply.get("id") or interactive_button_reply.get("id")
         if not sender or not text:
             logger.info(
                 "Skipping malformed inbound message",
@@ -51,7 +55,15 @@ def parse_webhook_payload(payload: dict[str, Any]) -> list[InboundMessage]:
                 sender_id=sender,
                 display_name=profile_name or sender,
                 text=text,
-                metadata={"message_id": message.get("id"), "canonical_sender_id": sender, "phone_number": sender},
+                metadata={
+                    "message_id": message.get("id"),
+                    "canonical_sender_id": sender,
+                    "phone_number": sender,
+                    "interactive_list_reply_id": interactive_list_reply.get("id"),
+                    "interactive_list_reply_title": interactive_list_reply.get("title"),
+                    "interactive_button_reply_id": interactive_button_reply.get("id"),
+                    "interactive_button_reply_title": interactive_button_reply.get("title"),
+                },
             )
         )
     logger.info("Parsed inbound WhatsApp messages", extra={"count": len(messages)})

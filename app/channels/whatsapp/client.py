@@ -146,6 +146,57 @@ class WhatsAppClient:
             )
             raise
 
+    def send_list_message(
+        self,
+        *,
+        to_phone: str,
+        header_text: str,
+        body_text: str,
+        button_text: str,
+        sections: list[dict],
+        footer_text: str | None = None,
+    ) -> dict:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
+        interactive_payload = {
+            "type": "list",
+            "header": {"type": "text", "text": header_text},
+            "body": {"text": body_text},
+            "action": {"button": button_text, "sections": sections},
+        }
+        if footer_text:
+            interactive_payload["footer"] = {"text": footer_text}
+
+        payload = {
+            "messaging_product": WHATSAPP_MESSAGING_PRODUCT,
+            "to": to_phone,
+            "type": "interactive",
+            "interactive": interactive_payload,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(
+            "Sending WhatsApp interactive list message",
+            extra={"to_phone": to_phone, "url": url, "message_type": "interactive_list"},
+        )
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            return response.json() if response.content else {}
+        except requests.RequestException:
+            logger.exception(
+                "Failed sending WhatsApp interactive list message",
+                extra={"to_phone": to_phone, "url": url},
+            )
+            raise
+
 
 def get_whatsapp_client() -> WhatsAppClient:
     logger.info("Preparing WhatsApp client")

@@ -30,6 +30,10 @@ def test_detect_intent_numeric_only_export_selection():
     assert detect_intent("2") == "EXPORT_SELECTION"
 
 
+def test_detect_intent_interactive_export_selection():
+    assert detect_intent("export::financial:ledger") == "EXPORT_SELECTION"
+
+
 def test_detect_intent_export_prefix_without_number_still_not_supported():
     assert detect_intent("export financial event-summary pdf") is None
 
