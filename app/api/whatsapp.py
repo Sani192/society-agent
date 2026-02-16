@@ -22,7 +22,16 @@ from app.channels.whatsapp.constants import (
     WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE,
 )
 from app.config import settings
+from app.db.session import SessionLocal
+from app.commands.router import detect_intent
+from app.modules.reports.common.whatsapp_report_registry import (
+    build_whatsapp_report_registry,
+    list_exportable_report_options,
+)
+from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
+from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
+from app.whatsapp.export_session import ExportSessionState, build_export_session_key, save_export_session
 from app.whatsapp.handler import handle_message
 
 router = APIRouter()
@@ -79,6 +88,28 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     logger.info("WhatsApp webhook signature verification passed")
 
 
+def _build_reports_list_sections(options: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for option in options:
+        grouped.setdefault(option["category"], []).append(option)
+
+    sections: list[dict] = []
+    for category, entries in grouped.items():
+        rows = []
+        for option in entries[:10]:
+            rows.append(
+                {
+                    "id": f"export::{option['command_key']}",
+                    "title": option["label"][:24],
+                    "description": f"Category: {category.title()} · PDF",
+                }
+            )
+
+        if rows:
+            sections.append({"title": category.title(), "rows": rows})
+    return sections[:10]
+
+
 @router.get("/whatsapp")
 def whatsapp_webhook_verify(
     hub_mode: str | None = Query(default=None, alias="hub.mode"),
@@ -128,6 +159,43 @@ async def whatsapp_webhook_event(request: Request):
                 "message_id": message.metadata.get("message_id"),
             },
         )
+        intent = detect_intent(message.text)
+        if intent in {"REPORTS", "REPORT_OPTIONS"}:
+            db = SessionLocal()
+            try:
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                member = ensure_committee_member(canonical_sender, db)
+                report_options = list_exportable_report_options(
+                    registry=build_whatsapp_report_registry(
+                        handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+                    ),
+                    role=member.role,
+                )
+
+                save_export_session(
+                    build_export_session_key(member_id=str(member.id), sender_id=canonical_sender),
+                    ExportSessionState(options=report_options),
+                )
+
+                sections = _build_reports_list_sections(report_options)
+                if sections:
+                    client.send_list_message(
+                        to_phone=message.sender_id,
+                        header_text="Reports",
+                        body_text=(
+                            "Pick a report category and tap a report. "
+                            "I will instantly generate the PDF and send it here."
+                        ),
+                        button_text="Choose Report",
+                        sections=sections,
+                        footer_text="Tip: You can also type reports anytime.",
+                    )
+                    continue
+            except Exception:
+                logger.exception("Failed to send reports interactive list")
+            finally:
+                db.close()
+
         reply_text = handle_inbound_message(message)
         client.send_text_message(message.sender_id, reply_text)
 
