@@ -68,7 +68,7 @@ def _report_options(*, role: str):
 def _format_conversational_options(options: list[dict]) -> str:
     lines = [
         format_heading("Choose a report to export", "📚"),
-        "Reply with `export <number>` to export as PDF.",
+        "Reply with `export <number>` (or just the number) to export as PDF.",
     ]
 
     grouped_options: dict[str, list[tuple[int, dict]]] = {}
@@ -79,9 +79,8 @@ def _format_conversational_options(options: list[dict]) -> str:
         lines.append("")
         lines.append(format_heading(category.title(), "🗂️"))
         for index, option in entries:
-            quick_link = f"https://wa.me/?text=export%20{index}"
             lines.append(f"{index}. {option['label']}")
-            lines.append(f"   Tap: {quick_link}")
+            lines.append(f"   ↪ Reply: export {index}")
     return join_lines(lines)
 
 
@@ -328,8 +327,13 @@ def handle_committee_intent(
 
         tokens = (message or "").strip().lower().split()
         selected_option = None
-        if intent == "EXPORT_SELECTION" and len(tokens) >= 2 and tokens[1].isdigit():
+        selected_index = None
+        if len(tokens) >= 2 and tokens[1].isdigit():
             selected_index = int(tokens[1]) - 1
+        elif len(tokens) == 1 and tokens[0].isdigit():
+            selected_index = int(tokens[0]) - 1
+
+        if selected_index is not None:
             if 0 <= selected_index < len(session.options):
                 selected_option = session.options[selected_index]
         if not selected_option:

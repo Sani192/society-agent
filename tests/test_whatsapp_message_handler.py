@@ -161,6 +161,52 @@ def test_export_session_select_option_end_to_end(monkeypatch):
     assert "Report exported" in select_response
 
 
+def test_export_session_select_option_by_number_only_end_to_end(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-e2e-2b", name="Chair Two B", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.WhatsAppReportExportService.export",
+        lambda **kwargs: {
+            "category": "financial",
+            "report": "event-summary",
+            "format": "pdf",
+            "event_id": "event-1",
+            "event_name": "Spring Fest",
+            "row_count": 5,
+            "filename": "event_financial_summary.pdf",
+            "payload": b"pdf-bytes",
+        },
+    )
+
+    class DummyClient:
+        def upload_media(self, **kwargs):
+            return "media-123"
+
+        def send_document_message(self, **kwargs):
+            return {"messages": [{"id": "wamid.1"}]}
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        lambda: DummyClient(),
+    )
+
+    options_response = handle_message("919005", "report options")
+    select_response = handle_message("919005", "1")
+
+    assert options_response.startswith("✅")
+    assert select_response.startswith("✅")
+    assert "Report exported" in select_response
+
+
 def test_export_session_invalid_selection_recovery_end_to_end(monkeypatch):
     db = MagicMock()
     member = SimpleNamespace(id="member-e2e-3", name="Chair Three", role="chairman", society_id="soc-1")
