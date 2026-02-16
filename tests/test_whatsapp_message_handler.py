@@ -2,7 +2,11 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.channels.whatsapp.adapter import parse_webhook_payload
-from app.api.whatsapp import _build_reports_list_sections
+from app.api.whatsapp import (
+    WHATSAPP_MORE_REPORTS_ROW_ID,
+    _build_reports_list_sections,
+    _chunk_report_options,
+)
 from app.whatsapp.handler import handle_message
 
 
@@ -316,9 +320,9 @@ def test_parse_webhook_payload_supports_interactive_list_reply():
     assert messages[0].metadata["interactive_list_reply_title"] == "Ledger"
 
 
-def test_build_reports_list_sections_caps_total_rows_to_whatsapp_limit():
+def test_build_reports_list_sections_paginates_without_dropping_options():
     options = []
-    for idx in range(12):
+    for idx in range(23):
         category = "financial" if idx < 8 else "governance"
         options.append(
             {
@@ -328,7 +332,114 @@ def test_build_reports_list_sections_caps_total_rows_to_whatsapp_limit():
             }
         )
 
-    sections = _build_reports_list_sections(options)
+    pages = _chunk_report_options(options, page_size=10)
+    assert len(pages) == 3
+
+    seen_ids = []
+    for page_idx in range(len(pages)):
+        sections = _build_reports_list_sections(options, page_index=page_idx)
+        page_ids = [
+            row["id"]
+            for section in sections
+            for row in section["rows"]
+        ]
+        assert len(page_ids) <= 10
+        seen_ids.extend(page_ids)
+
+    assert seen_ids == [f"export::{option['command_key']}" for option in options]
+
+
+def test_build_reports_list_sections_includes_more_reports_action_row():
+    options = [
+        {
+            "category": "financial",
+            "command_key": f"financial:report-{idx}",
+            "label": f"Report {idx}",
+        }
+        for idx in range(11)
+    ]
+
+    sections = _build_reports_list_sections(options, page_index=0, include_more_row=True)
+
+    more_rows = [
+        row
+        for section in sections
+        for row in section["rows"]
+        if row["id"] == WHATSAPP_MORE_REPORTS_ROW_ID
+    ]
     total_rows = sum(len(section["rows"]) for section in sections)
 
-    assert total_rows == 10
+    assert len(more_rows) == 1
+    assert more_rows[0]["title"] == "More reports"
+    assert total_rows <= 10
+
+
+def test_build_reports_list_sections_governance_entries_discoverable_across_pages():
+    options = [
+        {
+            "category": "admin",
+            "command_key": f"admin:report-{idx}",
+            "label": f"Admin Report {idx}",
+        }
+        for idx in range(10)
+    ]
+    options.append(
+        {
+            "category": "governance",
+            "command_key": "governance:audit",
+            "label": "Governance Audit",
+        }
+    )
+
+    first_page_sections = _build_reports_list_sections(options, page_index=0, include_more_row=True)
+    second_page_sections = _build_reports_list_sections(options, page_index=1, include_more_row=True)
+
+    first_page_ids = {
+        row["id"] for section in first_page_sections for row in section["rows"]
+    }
+    second_page_ids = {
+        row["id"] for section in second_page_sections for row in section["rows"]
+    }
+
+    assert "export::governance:audit" not in first_page_ids
+    assert "export::governance:audit" in second_page_ids
+
+
+def test_build_reports_list_sections_stable_page_order_for_future_reports():
+    base_options = [
+        {
+            "category": "financial",
+            "command_key": f"financial:report-{idx}",
+            "label": f"Report {idx}",
+        }
+        for idx in range(13)
+    ]
+
+    page_one_before = _build_reports_list_sections(base_options, page_index=1)
+    page_one_before_ids = [
+        row["id"]
+        for section in page_one_before
+        for row in section["rows"]
+    ]
+
+    extended_options = base_options + [
+        {
+            "category": "governance",
+            "command_key": "governance:audit",
+            "label": "Governance Audit",
+        },
+        {
+            "category": "governance",
+            "command_key": "governance:meeting-minutes",
+            "label": "Meeting Minutes",
+        },
+    ]
+
+    page_one_after = _build_reports_list_sections(extended_options, page_index=1)
+    page_one_after_ids = [
+        row["id"]
+        for section in page_one_after
+        for row in section["rows"]
+    ]
+
+    assert page_one_after_ids[: len(page_one_before_ids)] == page_one_before_ids

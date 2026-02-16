@@ -31,10 +31,42 @@ from app.modules.reports.common.whatsapp_report_registry import (
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
-from app.whatsapp.export_session import ExportSessionState, build_export_session_key, save_export_session
+from app.whatsapp.export_session import (
+    ExportSessionState,
+    build_export_session_key,
+    get_export_session,
+    save_export_session,
+)
 from app.whatsapp.handler import handle_message
 
 router = APIRouter()
+
+WHATSAPP_LIST_MAX_ROWS = 10
+WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
+
+
+def _report_page_option_limit(*, total_options: int, page_size: int = WHATSAPP_LIST_MAX_ROWS) -> int:
+    if page_size <= 1:
+        return 1
+    return page_size - 1 if total_options > page_size else page_size
+
+
+def _chunk_report_options(options: list[dict], page_size: int = WHATSAPP_LIST_MAX_ROWS) -> list[list[dict]]:
+    if page_size <= 0:
+        page_size = WHATSAPP_LIST_MAX_ROWS
+    return [options[idx : idx + page_size] for idx in range(0, len(options), page_size)]
+
+
+def _normalize_report_page(page_index: int, total_pages: int) -> int:
+    if total_pages <= 0:
+        return 0
+    return page_index % total_pages
+
+
+def _next_report_page(current_page: int, total_pages: int) -> int:
+    if total_pages <= 0:
+        return 0
+    return (current_page + 1) % total_pages
 
 
 class WhatsAppRequest(BaseModel):
@@ -88,36 +120,52 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     logger.info("WhatsApp webhook signature verification passed")
 
 
-def _build_reports_list_sections(options: list[dict]) -> list[dict]:
+def _build_reports_list_sections(
+    options: list[dict],
+    *,
+    page_index: int = 0,
+    page_size: int = WHATSAPP_LIST_MAX_ROWS,
+    include_more_row: bool = False,
+) -> list[dict]:
+    effective_page_size = _report_page_option_limit(total_options=len(options), page_size=page_size) if include_more_row else page_size
+    option_pages = _chunk_report_options(options, page_size=effective_page_size)
+    if not option_pages:
+        return []
+
+    normalized_page = _normalize_report_page(page_index=page_index, total_pages=len(option_pages))
+    page_options = option_pages[normalized_page]
+
     grouped: dict[str, list[dict]] = {}
-    for option in options:
+    for option in page_options:
         grouped.setdefault(option["category"], []).append(option)
 
     sections: list[dict] = []
-    max_total_rows = 10
-    used_rows = 0
-
     for category in sorted(grouped):
-        entries = grouped[category]
-        if used_rows >= max_total_rows:
-            break
-
-        rows = []
-        for option in entries:
-            if used_rows >= max_total_rows:
-                break
-            rows.append(
-                {
-                    "id": f"export::{option['command_key']}",
-                    "title": option["label"][:24],
-                    "description": f"Category: {category.title()} · PDF",
-                }
-            )
-            used_rows += 1
-
+        rows = [
+            {
+                "id": f"export::{option['command_key']}",
+                "title": option["label"][:24],
+                "description": f"Category: {category.title()} · PDF",
+            }
+            for option in grouped[category]
+        ]
         if rows:
             sections.append({"title": category.title(), "rows": rows})
-    return sections[:10]
+
+    if include_more_row:
+        sections.append(
+            {
+                "title": "More",
+                "rows": [
+                    {
+                        "id": WHATSAPP_MORE_REPORTS_ROW_ID,
+                        "title": "More reports",
+                        "description": "Show the next page of reports",
+                    }
+                ],
+            }
+        )
+    return sections
 
 
 @router.get("/whatsapp")
@@ -170,7 +218,8 @@ async def whatsapp_webhook_event(request: Request):
             },
         )
         intent = detect_intent(message.text)
-        if intent in {"REPORTS", "REPORT_OPTIONS"}:
+        requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
+        if intent in {"REPORTS", "REPORT_OPTIONS"} or requested_more_reports:
             db = SessionLocal()
             try:
                 canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -187,12 +236,42 @@ async def whatsapp_webhook_event(request: Request):
                     role=member.role,
                 )
 
-                save_export_session(
-                    build_export_session_key(member_id=str(member.id), sender_id=canonical_sender),
-                    ExportSessionState(options=report_options),
+                session_key = build_export_session_key(
+                    member_id=str(member.id),
+                    sender_id=canonical_sender,
+                )
+                session = get_export_session(session_key)
+                requested_next_page = requested_more_reports
+                current_page = session.current_page if session else 0
+                include_more_row = len(report_options) > WHATSAPP_LIST_MAX_ROWS
+                option_pages = _chunk_report_options(
+                    report_options,
+                    page_size=_report_page_option_limit(
+                        total_options=len(report_options),
+                        page_size=WHATSAPP_LIST_MAX_ROWS,
+                    )
+                    if include_more_row
+                    else WHATSAPP_LIST_MAX_ROWS,
                 )
 
-                sections = _build_reports_list_sections(report_options)
+                if requested_next_page and option_pages:
+                    current_page = _next_report_page(current_page=current_page, total_pages=len(option_pages))
+                else:
+                    current_page = _normalize_report_page(
+                        page_index=current_page,
+                        total_pages=len(option_pages),
+                    )
+
+                save_export_session(
+                    session_key,
+                    ExportSessionState(options=report_options, current_page=current_page),
+                )
+
+                sections = _build_reports_list_sections(
+                    report_options,
+                    page_index=current_page,
+                    include_more_row=include_more_row,
+                )
                 if sections:
                     client.send_list_message(
                         to_phone=message.sender_id,
