@@ -7,7 +7,7 @@ from app.commands.handlers.committee_handler import handle_committee_intent
 from app.commands.handlers.common import get_latest_event
 from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
-from app.commands.router import detect_intent
+from app.whatsapp.router import detect_whatsapp_intent
 from app.db.session import SessionLocal
 from app.utils.guards import ensure_committee_member
 
@@ -25,7 +25,7 @@ def handle_message(phone_number: str, message: str):
         session_factory=SessionLocal,
         committee_member_resolver=ensure_committee_member,
         latest_event_getter=get_latest_event,
-        intent_detector=detect_intent,
+        intent_detector=detect_whatsapp_intent,
         onboarding_intent_handler=handle_onboarding_intent,
         committee_intent_handler=handle_committee_intent,
         public_intent_handler=handle_public_intent,

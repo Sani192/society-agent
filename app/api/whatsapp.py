@@ -23,7 +23,7 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.db.session import SessionLocal
-from app.commands.router import detect_intent
+from app.whatsapp.router import detect_whatsapp_intent
 from app.modules.reports.common.whatsapp_report_registry import (
     build_whatsapp_report_registry,
     list_exportable_report_options,
@@ -436,7 +436,7 @@ async def whatsapp_webhook_event(request: Request):
             )
             continue
 
-        intent = detect_intent(message.text)
+        intent = detect_whatsapp_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
         if intent == "REPORT_OPTIONS" or requested_more_reports:
             db = SessionLocal()

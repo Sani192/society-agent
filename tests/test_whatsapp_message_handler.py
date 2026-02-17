@@ -17,7 +17,7 @@ def test_handle_message_unknown_intent(monkeypatch):
         "app.whatsapp.handler.ensure_committee_member",
         lambda phone, db: SimpleNamespace(id="member-1")
     )
-    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: None)
+    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: None)
 
     response = handle_message("999", "unknown")
 
@@ -33,7 +33,7 @@ def test_handle_message_onboarding_short_circuit(monkeypatch):
         lambda phone, db: SimpleNamespace(id="member-1")
     )
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: None)
-    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: "ONBOARD")
+    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: "ONBOARD")
 
     onboarding_handler = MagicMock(return_value="✅ Onboarded")
     committee_handler = MagicMock(return_value=None)
@@ -71,7 +71,7 @@ def test_handle_message_routes_report_options_to_committee(monkeypatch):
         lambda phone, db, **kwargs: member
     )
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
-    monkeypatch.setattr("app.whatsapp.handler.detect_intent", lambda message: "REPORT_OPTIONS")
+    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: "REPORT_OPTIONS")
 
     onboarding_handler = MagicMock(return_value=None)
     committee_handler = MagicMock(return_value="✅ Report options")
@@ -443,3 +443,31 @@ def test_build_reports_list_sections_stable_page_order_for_future_reports():
     ]
 
     assert page_one_after_ids[: len(page_one_before_ids)] == page_one_before_ids
+
+
+def test_handle_message_link_member_is_not_supported_for_whatsapp(monkeypatch):
+    db = MagicMock()
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db: (_ for _ in ()).throw(Exception("unauthorized"))
+    )
+
+    response = handle_message("919999000111", "link member ABC123")
+
+    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    db.close.assert_called_once()
+
+
+def test_handle_message_verify_phone_is_not_supported_for_whatsapp(monkeypatch):
+    db = MagicMock()
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db: (_ for _ in ()).throw(Exception("unauthorized"))
+    )
+
+    response = handle_message("919999000112", "verify phone 9999000011")
+
+    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    db.close.assert_called_once()

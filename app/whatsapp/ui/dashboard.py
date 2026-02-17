@@ -49,8 +49,6 @@ def build_society_sections() -> list[dict]:
             "rows": [
                 {"id": "ui::join-society", "title": "Join Society", "description": "Link your flat"},
                 {"id": "join", "title": "Join (Template)", "description": "Command template for joining"},
-                {"id": "link member", "title": "Link Member", "description": "Link existing member profile"},
-                {"id": "verify phone", "title": "Verify Phone", "description": "Verify phone ownership"},
                 {"id": "join status", "title": "Join Status", "description": "Track your request"},
             ],
         }
