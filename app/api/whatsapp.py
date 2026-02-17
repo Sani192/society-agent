@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
 from app.channels.core.handler import handle_inbound_message
+from app.channels.core.types import InboundMessage
 from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.channels.whatsapp.constants import (
@@ -30,6 +31,7 @@ from app.modules.reports.common.whatsapp_report_registry import (
 )
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.users.user_query_service import UserQueryService
+from app.modules.onboarding.join_code_service import JoinCodeService
 from app.commands.handlers.common import get_latest_event, resolve_flat
 from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
@@ -55,6 +57,13 @@ from app.whatsapp.export_session import (
     build_export_session_key,
     get_export_session,
     save_export_session,
+)
+from app.whatsapp.join_session import (
+    JoinSessionState,
+    build_join_session_key,
+    clear_join_session,
+    get_join_session,
+    save_join_session,
 )
 from app.whatsapp.handler import handle_message
 
@@ -238,7 +247,12 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::join-society":
-        client.send_text_message(message.sender_id, "Enter join code and flat.\nExample:\njoin ABC123 A-101")
+        session_key = build_join_session_key(sender_id=message.sender_id)
+        save_join_session(
+            session_key,
+            JoinSessionState(pending_action="JOIN"),
+        )
+        client.send_text_message(message.sender_id, "Please enter join code")
         return True
 
     if msg == "ui::finance":
@@ -476,6 +490,49 @@ async def whatsapp_webhook_event(request: Request):
                 extra={"sender_id": message.sender_id, "message_id": message.metadata.get("message_id")},
             )
             continue
+
+        join_session_key = build_join_session_key(sender_id=message.sender_id)
+        join_session = get_join_session(join_session_key)
+        if join_session and join_session.pending_action == "JOIN":
+            user_text = message.text.strip()
+            db = SessionLocal()
+            try:
+                if not join_session.join_code:
+                    society = JoinCodeService.get_society_by_join_code(db, user_text)
+                    if not society:
+                        client.send_text_message(message.sender_id, "❌ Invalid join code.")
+                        continue
+                    save_join_session(
+                        join_session_key,
+                        JoinSessionState(pending_action="JOIN", join_code=user_text),
+                    )
+                    client.send_text_message(message.sender_id, "Please enter flat number")
+                    continue
+
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                synthetic_command = f"join {join_session.join_code} {user_text}"
+                reply_text = handle_inbound_message(
+                    InboundMessage(
+                        channel=message.channel,
+                        sender_id=message.sender_id,
+                        display_name=message.display_name,
+                        text=synthetic_command,
+                        metadata={**message.metadata, "canonical_sender_id": canonical_sender},
+                    )
+                )
+                clear_join_session(join_session_key)
+                send_response = client.send_text_message(message.sender_id, reply_text)
+                logger.info(
+                    "WhatsApp text reply sent from conversational join flow",
+                    extra={
+                        "sender_id": message.sender_id,
+                        "message_id": message.metadata.get("message_id"),
+                        "response_keys": sorted(send_response.keys()),
+                    },
+                )
+                continue
+            finally:
+                db.close()
 
         intent = detect_whatsapp_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
