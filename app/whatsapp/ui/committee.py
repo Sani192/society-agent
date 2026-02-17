@@ -16,7 +16,7 @@ def build_committee_sections() -> list[dict]:
         {
             "title": "Operations",
             "rows": [
-                {"id": "add event", "title": "Add Event", "description": "Create a new event"},
+                {"id": "add event", "title": "Add Event", "description": "Guided setup for a new event"},
                 {"id": "expense", "title": "Add Expense", "description": "Record event expense"},
                 {"id": "add sponsor", "title": "Add Sponsor", "description": "Record sponsor contribution"},
                 {"id": "refund sponsor", "title": "Refund Sponsor", "description": "Reverse sponsor entry"},

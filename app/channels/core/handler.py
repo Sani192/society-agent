@@ -15,6 +15,10 @@ from app.modules.users.channel_identity_service import (
 )
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
+from app.whatsapp.event_creation_session import (
+    build_event_creation_session_key,
+    get_event_creation_session,
+)
 from app.whatsapp.response_templates import (
     error_response,
     info_response,
@@ -122,6 +126,15 @@ def handle_inbound_message(
         )
 
         intent = intent_detector(message.text)
+
+        if not intent and member and message.channel == "whatsapp":
+            event_session_key = build_event_creation_session_key(
+                member_id=str(getattr(member, "id", "")),
+                sender_id=canonical_sender_id,
+            )
+            if get_event_creation_session(event_session_key):
+                intent = "ADD_EVENT"
+
         link_response = _attempt_telegram_member_link(
             db=db, message=message, intent=intent
         )
