@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.whatsapp.handlers.committee_handler import handle_committee_intent
+from app.whatsapp.committee_action_session import clear_committee_action_session
 from tests.constants import COMMITTEE_PHONE
 from tests.utils import QueryMock
 
@@ -171,14 +172,180 @@ def test_committee_participation_report(monkeypatch):
 def test_committee_remind_flat_requires_number():
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(id="member-1", role="treasurer")
+    inbound = SimpleNamespace(sender_id="sender-remind-1", metadata={})
     response = handle_committee_intent(
         db=MagicMock(),
         intent="REMIND_FLAT",
         message="remind",
         event=event,
         member=member,
+        inbound_message=inbound,
     )
-    assert response == "❌ Example: remind A-101"
+    clear_committee_action_session("member-1:sender-remind-1")
+    assert response == "ℹ️ Please share flat number. Example: A-101"
+
+
+def test_committee_add_expense_guided_flow(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-g1", role="secretary")
+    inbound = SimpleNamespace(sender_id="sender-g1", metadata={})
+
+    called = {}
+
+    def fake_add_expense(**kwargs):
+        called["description"] = kwargs["description"]
+        called["amount"] = kwargs["amount"]
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.ExpenseService.add_expense",
+        fake_add_expense,
+    )
+
+    step1 = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EXPENSE",
+        message="expense",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    assert step1 == "ℹ️ Please share expense reason/category."
+
+    step2 = handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="Water cans",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    assert step2 == "ℹ️ Please share expense amount. Example: 1200"
+
+    step3 = handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="1200",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    clear_committee_action_session("member-g1:sender-g1")
+    assert called["description"] == "Water cans"
+    assert called["amount"] == 1200
+    assert "Expense added: ₹1,200" in step3
+
+
+def test_committee_add_sponsor_guided_flow(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-g2", role="chairman")
+    inbound = SimpleNamespace(sender_id="sender-g2", metadata={})
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+    called = {}
+
+    def fake_add_contribution(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.ContributionService.add_contribution",
+        fake_add_contribution,
+    )
+
+    step1 = handle_committee_intent(
+        db=db,
+        intent="ADD_SPONSOR",
+        message="add sponsor",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    assert step1 == "ℹ️ Sponsor type? Reply: monetary or in-kind"
+
+    handle_committee_intent(
+        db=db,
+        intent="COMMITTEE_PENDING_ACTION",
+        message="monetary",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=db,
+        intent="COMMITTEE_PENDING_ACTION",
+        message="ABC Corp",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    step4 = handle_committee_intent(
+        db=db,
+        intent="COMMITTEE_PENDING_ACTION",
+        message="5000",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    clear_committee_action_session("member-g2:sender-g2")
+    assert called["contribution_type"] == "sponsor"
+    assert called["amount"] == 5000
+    assert step4 == "✅ 🤝 *Sponsor added*\nSponsor added successfully."
+
+
+def test_committee_refund_sponsor_guided_flow(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-g3", role="chairman")
+    inbound = SimpleNamespace(sender_id="sender-g3", metadata={})
+
+    called = {}
+
+    def fake_process_refund(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        fake_process_refund,
+    )
+
+    step1 = handle_committee_intent(
+        db=MagicMock(),
+        intent="REFUND_SPONSOR",
+        message="refund sponsor",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    assert step1 == "ℹ️ Please share contribution code. Example: SP-001"
+
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="sp-001",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="500",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    step4 = handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="duplicate charge",
+        event=event,
+        member=member,
+        inbound_message=inbound,
+    )
+    clear_committee_action_session("member-g3:sender-g3")
+    assert called["contribution_code"] == "SP-001"
+    assert called["amount"] == 500
+    assert called["reason"] == "duplicate charge"
+    assert step4 == "✅ ↩️ *Refund processed*\nSponsor refund processed (SP-001)."
 
 
 def test_committee_remind_flat_success():
