@@ -37,16 +37,16 @@ def build_committee_more_sections() -> list[dict]:
         {
             "title": "Approval Templates",
             "rows": [
-                {"id": "ui::approve-user", "title": "Approve User", "description": "Template: approve user REQ-001"},
+                {"id": "ui::approve-user", "title": "Approve User", "description": "Send: approve user <request_code>"},
                 {
                     "id": "ui::approve-payment",
                     "title": "Approve Payment",
-                    "description": "Template: approve payment PAY-001",
+                    "description": "Send: approve payment <request_code>",
                 },
                 {
                     "id": "ui::approve-refund",
                     "title": "Approve Refund",
-                    "description": "Template: approve refund REF-001",
+                    "description": "Send: approve refund <request_code>",
                 },
             ],
         },
