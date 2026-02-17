@@ -58,6 +58,8 @@ INTENTS = {
     "MY_BALANCE": "my balance",
     "MY_STATUS": "my status",
 
+    "MENU": "menu",
+
     # ========= HELP (last, lowest risk) =========
     "HELP": "help",
     "COMMANDS": "commands",

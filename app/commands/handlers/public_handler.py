@@ -520,69 +520,21 @@ def handle_public_intent(
 
     if intent == "HELP":
         return success_response(
-            join_lines([
-                "You can manage event participation, payments and view details.",
-                "",
-                "Type *commands* to see everything you can do."
-            ]),
-            heading="Society Assistant Help",
-            emoji="🤖"
+            "Type *menu*.",
+            heading="Society Control Panel",
         )
 
     if intent == "COMMANDS":
         return success_response(
             join_lines([
-                "🎫 *Participation*",
-                "- add pass veg 2 jain 1",
-                "- add pass veg 2 jain 1 for A-101 (committee)",
-                "- my pass",
-                "- my status",
+                "Type *menu*.",
                 "",
-                "🏠 *Join Society*",
-                "- join ABC123 A-101",
-                "- join ABC123 A-101 phone 9876543210 (committee)",
-                "- join status",
-                "- join status phone 9876543210 (committee)",
-                "",
-                "💰 *Payments*",
-                "- pay 500",
-                "- pay 500 for A-101 (committee)",
-                "- my payments",
-                "- my payment requests",
-                "- my balance",
-                "",
-                "↩️ *Refunds*",
-                "- refund 200 reason guest absent",
-                "- refund 200 reason guest absent for A-101 (committee)",
-                "- my refund requests",
-                "",
-                "🧾 *Expenses* (Committee)",
-                "- expense water tanker 1200",
-                "",
-                "📅 *Events* (Committee)",
-                "- add event Name | 2026-12-31 19:00 | food: veg,jain | adult:300 | child:150 | deadline:2026-12-30 18:00",
-                "",
-                "📊 *Reports* (Committee)",
-                "- participation report",
-                "- pending payments",
-                "- report options",
-                "",
-                "📈 *Group-safe Reports*",
-                "- summary",
-                "- block report",
-                "",
-                "✅ *Approvals* (Treasurer)",
-                "- approve payment PAY-001",
-                "- approve refund REF-001",
-                "- payment requests",
-                "- refund requests",
-                "",
-                "ℹ️ *Help*",
-                "- help",
-                "- commands"
+                "Quick actions:",
+                "pay 500",
+                "refund 200 guest absent",
+                "add pass veg 2 jain 1 kids 1",
             ]),
-            heading="Available Commands",
-            emoji="📋"
+            heading="Society Control Panel",
         )
 
     return None

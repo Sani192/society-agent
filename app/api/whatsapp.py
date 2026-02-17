@@ -29,6 +29,23 @@ from app.modules.reports.common.whatsapp_report_registry import (
     list_exportable_report_options,
 )
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
+from app.modules.users.user_query_service import UserQueryService
+from app.commands.handlers.common import get_latest_event, resolve_flat
+from app.whatsapp.response_templates import format_currency
+from app.whatsapp.ui import (
+    add_or_update_pass_prompt,
+    build_committee_sections,
+    build_finance_sections,
+    build_main_dashboard_sections,
+    build_make_payment_sections,
+    build_my_account_sections,
+    build_participation_sections,
+    build_payments_sections,
+    build_society_sections,
+    format_financial_overview,
+    payment_custom_amount_prompt,
+    refund_request_prompt,
+)
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
 from app.whatsapp.export_session import (
@@ -68,6 +85,189 @@ def _next_report_page(current_page: int, total_pages: int) -> int:
         return 0
     return (current_page + 1) % total_pages
 
+
+
+
+def _is_committee_member(*, db, sender_id: str, external_user_id: str) -> bool:
+    try:
+        ensure_committee_member(
+            sender_id,
+            db,
+            channel_type="whatsapp",
+            external_user_id=external_user_id,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
+    client.send_list_message(
+        to_phone=sender_id,
+        header_text="Society Control Panel",
+        body_text="Select a section",
+        button_text="Open",
+        sections=build_main_dashboard_sections(is_committee=is_committee),
+    )
+
+
+def _try_handle_ui_message(*, client, message) -> bool:
+    msg = message.text.strip().lower()
+
+    if msg in {"menu", "ui::menu"}:
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            _send_dashboard_ui(
+                client=client,
+                sender_id=message.sender_id,
+                is_committee=_is_committee_member(
+                    db=db,
+                    sender_id=canonical_sender,
+                    external_user_id=message.sender_id,
+                ),
+            )
+            return True
+        finally:
+            db.close()
+
+    if msg == "ui::participation":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="Participation",
+            body_text="Participation",
+            button_text="Open",
+            sections=build_participation_sections(),
+        )
+        return True
+
+    if msg == "ui::participation:add-update-pass":
+        client.send_text_message(message.sender_id, add_or_update_pass_prompt())
+        return True
+
+    if msg == "ui::payments":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="Your Financial Overview",
+            body_text="Select an action",
+            button_text="Open",
+            sections=build_payments_sections(),
+        )
+        return True
+
+    if msg == "ui::finance:view-balance":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            latest_event = get_latest_event(db)
+            if not latest_event:
+                client.send_text_message(message.sender_id, "No active event found.")
+                return True
+            flat = resolve_flat(db, phone_number=canonical_sender, society_id=latest_event.society_id)
+            balance = UserQueryService.get_my_balance(db=db, event_id=latest_event.id, flat_id=flat.id)
+            summary = UserQueryService.get_my_payment_summary(db=db, event_id=latest_event.id, flat_id=flat.id)
+            client.send_text_message(
+                message.sender_id,
+                format_financial_overview(
+                    expected=format_currency(balance["expected"]),
+                    paid=format_currency(balance["paid"]),
+                    refunded=format_currency(summary["refunded"]),
+                    outstanding=format_currency(balance["balance"]),
+                ),
+            )
+            return True
+        except Exception:
+            logger.exception("Failed to build financial overview")
+            return False
+        finally:
+            db.close()
+
+    if msg == "ui::make-payment":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            latest_event = get_latest_event(db)
+            if not latest_event:
+                client.send_text_message(message.sender_id, "No active event found.")
+                return True
+            flat = resolve_flat(db, phone_number=canonical_sender, society_id=latest_event.society_id)
+            balance = UserQueryService.get_my_balance(db=db, event_id=latest_event.id, flat_id=flat.id)
+            outstanding = max(balance["balance"], 0)
+            client.send_list_message(
+                to_phone=message.sender_id,
+                header_text="Make Payment",
+                body_text=f"Outstanding Amount: {format_currency(outstanding)}",
+                button_text="Choose",
+                sections=build_make_payment_sections(outstanding_amount=str(int(outstanding) if float(outstanding).is_integer() else outstanding)),
+            )
+            return True
+        except Exception:
+            logger.exception("Failed to build make payment menu")
+            return False
+        finally:
+            db.close()
+
+    if msg == "ui::finance:pay-custom":
+        client.send_text_message(message.sender_id, payment_custom_amount_prompt())
+        return True
+
+    if msg == "ui::request-refund":
+        client.send_text_message(message.sender_id, refund_request_prompt())
+        return True
+
+    if msg == "ui::my-account":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="My Account",
+            body_text="Select a section",
+            button_text="Open",
+            sections=build_my_account_sections(),
+        )
+        return True
+
+    if msg == "ui::society":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="Society",
+            body_text="Select a section",
+            button_text="Open",
+            sections=build_society_sections(),
+        )
+        return True
+
+    if msg == "ui::join-society":
+        client.send_text_message(message.sender_id, "Enter join code and flat.\nExample:\njoin ABC123 A-101")
+        return True
+
+    if msg == "ui::finance":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="Finance",
+            body_text="Select a section",
+            button_text="Open",
+            sections=build_finance_sections(),
+        )
+        return True
+
+    if msg == "ui::administration":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            if not _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id):
+                client.send_text_message(message.sender_id, "Access restricted.")
+                return True
+            client.send_list_message(
+                to_phone=message.sender_id,
+                header_text="Administration",
+                body_text="Select a section",
+                button_text="Open",
+                sections=build_committee_sections(),
+            )
+            return True
+        finally:
+            db.close()
+
+    return False
 
 class WhatsAppRequest(BaseModel):
     phone_number: str
@@ -217,6 +417,13 @@ async def whatsapp_webhook_event(request: Request):
                 "message_id": message.metadata.get("message_id"),
             },
         )
+        if _try_handle_ui_message(client=client, message=message):
+            logger.info(
+                "WhatsApp premium UI response sent",
+                extra={"sender_id": message.sender_id, "message_id": message.metadata.get("message_id")},
+            )
+            continue
+
         intent = detect_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
         if intent == "REPORT_OPTIONS" or requested_more_reports:
