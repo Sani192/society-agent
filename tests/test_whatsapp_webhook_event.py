@@ -43,3 +43,69 @@ def test_whatsapp_webhook_event_handles_send_text_errors(monkeypatch):
 
     assert response == {"status": "ok"}
     assert sent_attempts == [("919999000000", "reply")]
+
+
+def test_whatsapp_webhook_event_sends_dashboard_list_for_menu(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.1"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000001",
+        display_name="Jane",
+        text="menu",
+        metadata={"message_id": "wamid.2", "canonical_sender_id": "919999000001"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    assert list_attempts[0]["header_text"] == "Society Control Panel"
+
+
+def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.3"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000002",
+        display_name="Jane",
+        text="ui::participation:add-update-pass",
+        metadata={"message_id": "wamid.3"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert text_attempts == [(
+        "919999000002",
+        "Enter food counts.\nExample:\nveg 2 jain 1 kids 1",
+    )]
