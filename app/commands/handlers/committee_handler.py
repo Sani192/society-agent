@@ -8,6 +8,8 @@ Created on Tue Feb 04 10:33:10 2026
 
 # app/whatsapp/handlers/committee_handler.py
 
+from datetime import datetime
+
 from sqlalchemy import func
 
 from app.db.models import Flat, Payment, Refund, EventFoodPass
@@ -47,6 +49,13 @@ from app.commands.parser import (
     parse_reason,
 )
 
+from app.whatsapp.event_creation_session import (
+    EventCreationSessionState,
+    build_event_creation_session_key,
+    clear_event_creation_session,
+    get_event_creation_session,
+    save_event_creation_session,
+)
 from app.whatsapp.export_session import (
     ExportSessionState,
     build_export_session_key,
@@ -54,6 +63,145 @@ from app.whatsapp.export_session import (
     get_export_session,
     save_export_session,
 )
+
+
+
+
+EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
+EVENT_WIZARD_STEPS = [
+    "name",
+    "event_date",
+    "food_types",
+    "charge_per_adult",
+    "charge_per_child",
+    "payment_deadline",
+]
+
+
+def _event_wizard_prompt(step: str) -> str:
+    prompts = {
+        "name": "What is the event name?",
+        "event_date": (
+            "What is the event date and time?\n"
+            f"Use format {EVENT_DATETIME_FORMAT}. Example: 2026-12-31 19:00"
+        ),
+        "food_types": (
+            "Which food types are available?\n"
+            "Reply with comma-separated values. Example: veg,jain"
+        ),
+        "charge_per_adult": "What is the adult charge amount? Example: 300",
+        "charge_per_child": "What is the child charge amount? Example: 150",
+        "payment_deadline": (
+            "Optional: what is the payment deadline?\n"
+            f"Use format {EVENT_DATETIME_FORMAT}, or reply `skip`."
+        ),
+    }
+    return prompts[step]
+
+
+def _next_event_wizard_step(current_step: str) -> str | None:
+    try:
+        idx = EVENT_WIZARD_STEPS.index(current_step)
+    except ValueError:
+        return None
+    if idx + 1 >= len(EVENT_WIZARD_STEPS):
+        return None
+    return EVENT_WIZARD_STEPS[idx + 1]
+
+
+def _start_event_creation_wizard(*, session_key: str | None):
+    state = EventCreationSessionState(step="name")
+    save_event_creation_session(session_key, state)
+    return info_response(
+        _event_wizard_prompt("name"),
+        heading="Event setup (guided)",
+        emoji="🧭",
+    )
+
+
+def _handle_event_creation_wizard_step(*, db, member, message: str, session_key: str | None, state: EventCreationSessionState):
+    answer = message.strip()
+
+    if state.step == "name":
+        if not answer:
+            return error_response("Event name cannot be empty. Please enter a valid name.")
+        state.name = answer
+
+    elif state.step == "event_date":
+        try:
+            state.event_date = datetime.strptime(answer, EVENT_DATETIME_FORMAT)
+        except ValueError:
+            return error_response(
+                "Please enter date/time in YYYY-MM-DD HH:MM format. Example: 2026-12-31 19:00"
+            )
+
+    elif state.step == "food_types":
+        food_types = [item.strip().lower() for item in answer.split(",") if item.strip()]
+        if not food_types:
+            return error_response("Please provide at least one food type. Example: veg,jain")
+        state.food_types = food_types
+
+    elif state.step == "charge_per_adult":
+        if not answer.isdigit():
+            return error_response("Adult charge must be a whole number. Example: 300")
+        state.charge_per_adult = int(answer)
+
+    elif state.step == "charge_per_child":
+        if not answer.isdigit():
+            return error_response("Child charge must be a whole number. Example: 150")
+        state.charge_per_child = int(answer)
+
+    elif state.step == "payment_deadline":
+        payment_deadline = None
+        if answer.lower() not in {"skip", "none", "na", "n/a"}:
+            try:
+                payment_deadline = datetime.strptime(answer, EVENT_DATETIME_FORMAT)
+            except ValueError:
+                return error_response(
+                    "Please enter deadline in YYYY-MM-DD HH:MM format, or reply `skip`.\n"
+                    "Example: 2026-12-30 18:00"
+                )
+
+        created_event = EventService.create_event(
+            db=db,
+            society_id=member.society_id,
+            name=state.name,
+            event_date=state.event_date,
+            food_types=state.food_types or [],
+            charge_per_adult=state.charge_per_adult or 0,
+            charge_per_child=state.charge_per_child or 0,
+            payment_deadline=payment_deadline,
+            created_by=member.id,
+        )
+        clear_event_creation_session(session_key)
+
+        return success_response(
+            join_lines(
+                [
+                    f"Event: {created_event.name}",
+                    f"Date: {format_datetime(created_event.event_date)}",
+                    f"Food: {', '.join(created_event.food_types)}",
+                    f"Adult: {format_currency(created_event.charge_per_adult)}",
+                    f"Child: {format_currency(created_event.charge_per_child)}",
+                    f"Deadline: {format_datetime(created_event.payment_deadline)}",
+                ]
+            ),
+            heading="Event created",
+            emoji="📅",
+        )
+
+    next_step = _next_event_wizard_step(state.step)
+    if not next_step:
+        clear_event_creation_session(session_key)
+        return error_response("Could not continue guided event setup. Please send `add event` to restart.")
+
+    state.step = next_step
+    save_event_creation_session(session_key, state)
+    return info_response(
+        _event_wizard_prompt(next_step),
+        heading="Event setup (guided)",
+        emoji="🧭",
+    )
 
 
 def _report_options(*, role: str):
@@ -190,42 +338,71 @@ def handle_committee_intent(
             emoji="🧾",
         )
 
+    event_session_key = build_event_creation_session_key(
+        member_id=str(getattr(member, "id", "")) if member else None,
+        sender_id=(
+            inbound_message.metadata.get("canonical_sender_id")
+            if inbound_message is not None
+            else None
+        )
+        or (inbound_message.sender_id if inbound_message is not None else None),
+    )
+
     if intent == "ADD_EVENT":
         if not is_action_allowed(member.role, "ADD_EVENT"):
             return warning_response("Only Chairman or Secretary can add events.")
 
-        parsed, error = parse_event_creation(message)
+        trimmed_message = message.strip()
+        parsed, error = parse_event_creation(trimmed_message)
+
+        if parsed:
+            event_data = parsed
+            created_event = EventService.create_event(
+                db=db,
+                society_id=member.society_id,
+                name=event_data["name"],
+                event_date=event_data["event_date"],
+                food_types=event_data["food_types"],
+                charge_per_adult=event_data["charge_per_adult"],
+                charge_per_child=event_data["charge_per_child"],
+                payment_deadline=event_data["payment_deadline"],
+                created_by=member.id,
+            )
+            clear_event_creation_session(event_session_key)
+
+            return success_response(
+                join_lines(
+                    [
+                        f"Event: {created_event.name}",
+                        f"Date: {format_datetime(created_event.event_date)}",
+                        f"Food: {', '.join(created_event.food_types)}",
+                        f"Adult: {format_currency(created_event.charge_per_adult)}",
+                        f"Child: {format_currency(created_event.charge_per_child)}",
+                        f"Deadline: {format_datetime(created_event.payment_deadline)}",
+                    ]
+                ),
+                heading="Event created",
+                emoji="📅",
+            )
+
+        if trimmed_message.lower() == "add event":
+            return _start_event_creation_wizard(session_key=event_session_key)
+
+        existing_state = get_event_creation_session(event_session_key)
+        if existing_state:
+            return _handle_event_creation_wizard_step(
+                db=db,
+                member=member,
+                message=trimmed_message,
+                session_key=event_session_key,
+                state=existing_state,
+            )
+
+        if error and "Missing fields" in error:
+            return _start_event_creation_wizard(session_key=event_session_key)
+
         if error:
             return error_response(error)
-
-        event_data = parsed
-
-        created_event = EventService.create_event(
-            db=db,
-            society_id=member.society_id,
-            name=event_data["name"],
-            event_date=event_data["event_date"],
-            food_types=event_data["food_types"],
-            charge_per_adult=event_data["charge_per_adult"],
-            charge_per_child=event_data["charge_per_child"],
-            payment_deadline=event_data["payment_deadline"],
-            created_by=member.id,
-        )
-
-        return success_response(
-            join_lines(
-                [
-                    f"Event: {created_event.name}",
-                    f"Date: {format_datetime(created_event.event_date)}",
-                    f"Food: {', '.join(created_event.food_types)}",
-                    f"Adult: {format_currency(created_event.charge_per_adult)}",
-                    f"Child: {format_currency(created_event.charge_per_child)}",
-                    f"Deadline: {format_datetime(created_event.payment_deadline)}",
-                ]
-            ),
-            heading="Event created",
-            emoji="📅",
-        )
 
     if intent == "PENDING_PAYMENTS":
         if not is_action_allowed(member.role, "PAY"):

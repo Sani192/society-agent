@@ -471,3 +471,39 @@ def test_handle_message_verify_phone_is_not_supported_for_whatsapp(monkeypatch):
 
     assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
     db.close.assert_called_once()
+
+
+def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-wizard", role="secretary", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member,
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: None)
+
+    calls = []
+
+    def fake_committee_handler(**kwargs):
+        calls.append(kwargs)
+        return "✅ continued"
+
+    monkeypatch.setattr("app.whatsapp.handler.handle_committee_intent", fake_committee_handler)
+
+    from app.whatsapp.event_creation_session import (
+        EventCreationSessionState,
+        build_event_creation_session_key,
+        save_event_creation_session,
+    )
+
+    session_key = build_event_creation_session_key(member_id="member-wizard", sender_id="999")
+    save_event_creation_session(session_key, EventCreationSessionState(step="event_date", name="Diwali"))
+
+    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: None)
+
+    response = handle_message("999", "2026-11-01 19:00")
+
+    assert response == "✅ continued"
+    assert calls[0]["intent"] == "ADD_EVENT"

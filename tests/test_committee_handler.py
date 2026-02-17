@@ -515,3 +515,155 @@ def test_committee_report_options_filtered_by_role():
     assert "Onboarding Status" in response
     assert "Ledger" in response
     assert "Event Financial Summary" not in response
+
+
+def test_committee_add_event_starts_guided_setup_on_exact_command():
+    member = SimpleNamespace(id="member-guided-1", role="secretary", society_id="soc-1")
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="add event",
+        event=None,
+        member=member,
+        inbound_message=SimpleNamespace(sender_id="999", metadata={}),
+    )
+
+    assert "Event setup (guided)" in response
+    assert "What is the event name?" in response
+
+
+def test_committee_add_event_uses_wizard_when_fields_missing(monkeypatch):
+    member = SimpleNamespace(id="member-guided-2", role="secretary", society_id="soc-1")
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="add event Holi | 2026-03-10 19:00",
+        event=None,
+        member=member,
+        inbound_message=SimpleNamespace(sender_id="998", metadata={}),
+    )
+
+    assert "Event setup (guided)" in response
+    assert "What is the event name?" in response
+
+
+def test_committee_add_event_wizard_completes_and_creates_event(monkeypatch):
+    member = SimpleNamespace(id="member-guided-3", role="secretary", society_id="soc-1")
+    inbound = SimpleNamespace(sender_id="997", metadata={})
+
+    created = {}
+
+    def fake_create_event(**kwargs):
+        created.update(kwargs)
+        return SimpleNamespace(
+            name=kwargs["name"],
+            event_date=kwargs["event_date"],
+            food_types=kwargs["food_types"],
+            charge_per_adult=kwargs["charge_per_adult"],
+            charge_per_child=kwargs["charge_per_child"],
+            payment_deadline=kwargs["payment_deadline"],
+        )
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.EventService.create_event",
+        fake_create_event,
+    )
+
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="add event",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="Summer Fest",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="2026-05-01 19:30",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="veg,jain",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="350",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="150",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="skip",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+
+    assert "Event created" in response
+    assert created["name"] == "Summer Fest"
+    assert created["food_types"] == ["veg", "jain"]
+    assert created["charge_per_adult"] == 350
+    assert created["charge_per_child"] == 150
+    assert created["payment_deadline"] is None
+
+
+def test_committee_add_event_wizard_reprompts_on_invalid_date():
+    member = SimpleNamespace(id="member-guided-4", role="secretary", society_id="soc-1")
+    inbound = SimpleNamespace(sender_id="996", metadata={})
+
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="add event",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="Monsoon Meet",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EVENT",
+        message="tomorrow evening",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+
+    assert response.startswith("❌")
+    assert "YYYY-MM-DD HH:MM" in response
