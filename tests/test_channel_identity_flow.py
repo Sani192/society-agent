@@ -2,6 +2,11 @@ from unittest.mock import MagicMock
 
 from app.channels.core.handler import handle_inbound_message
 from app.channels.core.types import InboundMessage
+from app.whatsapp.committee_action_session import (
+    CommitteeActionSessionState,
+    clear_committee_action_session,
+    save_committee_action_session,
+)
 
 
 def test_telegram_link_member_flow_short_circuits(monkeypatch):
@@ -187,3 +192,40 @@ def test_whatsapp_no_intent_falls_back_to_commands_hint():
     )
 
     assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+
+
+def test_whatsapp_pending_committee_action_maps_free_text_to_pending_intent():
+    db = MagicMock()
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000002",
+        display_name="John",
+        text="Water cans",
+        metadata={"canonical_sender_id": "919999000002"},
+    )
+
+    save_committee_action_session(
+        "member-1:919999000002",
+        CommitteeActionSessionState(action="ADD_EXPENSE", step="reason"),
+    )
+
+    captured = {}
+
+    def committee_handler(**kwargs):
+        captured["intent"] = kwargs["intent"]
+        return "ok"
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: type("M", (), {"id": "member-1"})(),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: None,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=committee_handler,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    clear_committee_action_session("member-1:919999000002")
+    assert response == "ok"
+    assert captured["intent"] == "COMMITTEE_PENDING_ACTION"

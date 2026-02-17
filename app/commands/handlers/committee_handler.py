@@ -63,6 +63,13 @@ from app.whatsapp.export_session import (
     get_export_session,
     save_export_session,
 )
+from app.whatsapp.committee_action_session import (
+    CommitteeActionSessionState,
+    build_committee_action_session_key,
+    clear_committee_action_session,
+    get_committee_action_session,
+    save_committee_action_session,
+)
 
 
 
@@ -299,6 +306,149 @@ def _dispatch_export_result(*, result, member, inbound_message):
     )
 
 
+def _build_committee_action_session_key(*, member, inbound_message):
+    return build_committee_action_session_key(
+        member_id=str(getattr(member, "id", "")) if member else None,
+        sender_id=(
+            inbound_message.metadata.get("canonical_sender_id")
+            if inbound_message is not None and inbound_message.metadata
+            else None
+        )
+        or (inbound_message.sender_id if inbound_message is not None else None),
+    )
+
+
+def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
+    prompts = {
+        ("ADD_EXPENSE", "reason"): "Please share expense reason/category.",
+        ("ADD_EXPENSE", "amount"): "Please share expense amount. Example: 1200",
+        ("ADD_SPONSOR", "sponsor_type"): "Sponsor type? Reply: monetary or in-kind",
+        ("ADD_SPONSOR", "sponsor_name"): "Sponsor name (or flat number). Example: Shree Caterers or A-101",
+        ("ADD_SPONSOR", "amount_or_details"): "Share sponsor amount/details.",
+        ("REFUND_SPONSOR", "contribution_code"): "Please share contribution code. Example: SP-001",
+        ("REFUND_SPONSOR", "amount"): "Please share refund amount. Example: 500",
+        ("REFUND_SPONSOR", "reason"): "Please share refund reason.",
+        ("REMIND_FLAT", "flat_number"): "Please share flat number. Example: A-101",
+    }
+    return prompts[(state.action, state.step)]
+
+
+def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_name: str, amount_or_details: str):
+    flat_id = None
+    normalized_sponsor_type = sponsor_type.strip().lower()
+    normalized_name = sponsor_name.strip()
+    payload = amount_or_details.strip()
+
+    flat = (
+        db.query(Flat)
+        .filter(
+            Flat.flat_number == normalized_name,
+            Flat.society_id == event.society_id,
+        )
+        .first()
+    )
+    if flat:
+        flat_id = flat.id
+        normalized_name = f"Flat {flat.flat_number}"
+
+    if normalized_sponsor_type == "in-kind":
+        ContributionService.add_contribution(
+            db=db,
+            event_id=event.id,
+            society_id=event.society_id,
+            contribution_type="in_kind",
+            source_name=normalized_name,
+            flat_id=flat_id,
+            in_kind_details=payload,
+            performed_by=member.id,
+            notes="Via WhatsApp",
+        )
+        return success_response(
+            "In-kind sponsor added successfully.",
+            heading="Sponsor added",
+            emoji="🤝",
+        )
+
+    amount = int(payload)
+    ContributionService.add_contribution(
+        db=db,
+        event_id=event.id,
+        society_id=event.society_id,
+        contribution_type="sponsor",
+        source_name=normalized_name,
+        flat_id=flat_id,
+        amount=amount,
+        performed_by=member.id,
+        notes="Via WhatsApp",
+    )
+    return success_response("Sponsor added successfully.", heading="Sponsor added", emoji="🤝")
+
+
+def _build_reminder_preview(*, db, event, flat_number: str):
+    flat = (
+        db.query(Flat)
+        .filter(
+            Flat.flat_number == flat_number, Flat.society_id == event.society_id
+        )
+        .first()
+    )
+
+    if not flat:
+        return error_response("Flat not found.")
+
+    food_pass = (
+        db.query(EventFoodPass)
+        .filter(
+            EventFoodPass.event_id == event.id,
+            EventFoodPass.flat_id == flat.id,
+            EventFoodPass.is_participating.is_(True),
+        )
+        .first()
+    )
+
+    if not food_pass:
+        return error_response("Flat has not joined the event.")
+
+    paid_amount = (
+        db.query(func.coalesce(func.sum(Payment.paid_amount), 0))
+        .filter(Payment.event_id == event.id, Payment.flat_id == flat.id)
+        .scalar()
+    )
+
+    refunded_amount = (
+        db.query(func.coalesce(func.sum(Refund.amount), 0))
+        .filter(
+            Refund.event_id == event.id,
+            Refund.flat_id == flat.id,
+            Refund.status == "refunded",
+        )
+        .scalar()
+    )
+
+    pending_amount = food_pass.total_amount - paid_amount - refunded_amount
+    if pending_amount <= 0:
+        return success_response(
+            f"{flat_number} has no pending payment.",
+            heading="Payment Reminder",
+            emoji="📢",
+        )
+
+    return success_response(
+        join_lines(
+            [
+                f"Dear {flat_number},",
+                f"Your pending amount for *{event.name}* is "
+                f"{format_currency(pending_amount)}.",
+                "Please pay at your convenience.",
+                "",
+                "Thank you.",
+            ]
+        ),
+        heading="Payment Reminder",
+        emoji="📢",
+    )
+
+
 def handle_committee_intent(
     *,
     db,
@@ -308,6 +458,15 @@ def handle_committee_intent(
     member,
     inbound_message=None,
 ):
+    committee_action_session_key = _build_committee_action_session_key(
+        member=member,
+        inbound_message=inbound_message,
+    )
+    pending_action_state = get_committee_action_session(committee_action_session_key)
+
+    if intent in {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR", "REMIND_FLAT"}:
+        clear_committee_action_session(committee_action_session_key)
+
     if intent == "ADD_EXPENSE":
         if not is_action_allowed(member.role, "ADD_EXPENSE"):
             return warning_response(
@@ -319,10 +478,29 @@ def handle_committee_intent(
             return error_response("No active event found. Please contact committee.")
 
         amount = parse_amount(message)
-        if not amount:
-            return error_response("Please specify amount. Example: expense water 1200")
+        reason = message.replace(str(amount), "").strip() if amount else ""
 
-        reason = message.replace(str(amount), "").strip()
+        has_direct_args = message.strip().lower() != "expense"
+        if not has_direct_args:
+            state = CommitteeActionSessionState(action="ADD_EXPENSE", step="reason")
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
+
+        if not reason:
+            state = CommitteeActionSessionState(action="ADD_EXPENSE", step="reason")
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
+
+        if not amount:
+            state = CommitteeActionSessionState(
+                action="ADD_EXPENSE",
+                step="amount",
+                data={"reason": reason},
+            )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
+
+        clear_committee_action_session(committee_action_session_key)
 
         ExpenseService.add_expense(
             db=db,
@@ -337,6 +515,123 @@ def handle_committee_intent(
             heading="Expense added",
             emoji="🧾",
         )
+
+    if intent == "COMMITTEE_PENDING_ACTION" and pending_action_state:
+        answer = (message or "").strip()
+        state = pending_action_state
+
+        if not event:
+            clear_committee_action_session(committee_action_session_key)
+            return error_response("No active event found. Please contact committee.")
+
+        if state.action == "ADD_EXPENSE":
+            if state.step == "reason":
+                if not answer:
+                    return error_response("Expense reason/category is required.")
+                state.data["reason"] = answer
+                state.step = "amount"
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+
+            if state.step == "amount":
+                if not answer.isdigit():
+                    return error_response("Expense amount must be numeric. Example: 1200")
+                amount = int(answer)
+                reason = state.data.get("reason") or "WhatsApp expense"
+                clear_committee_action_session(committee_action_session_key)
+                ExpenseService.add_expense(
+                    db=db,
+                    event_id=event.id,
+                    description=reason,
+                    amount=amount,
+                    performed_by=member.id,
+                    override_reason="Via WhatsApp",
+                )
+                return success_response(
+                    f"Expense added: {format_currency(amount)}",
+                    heading="Expense added",
+                    emoji="🧾",
+                )
+
+        if state.action == "ADD_SPONSOR":
+            if state.step == "sponsor_type":
+                sponsor_type = answer.lower()
+                if sponsor_type not in {"monetary", "in-kind"}:
+                    return error_response("Sponsor type must be `monetary` or `in-kind`.")
+                state.data["sponsor_type"] = sponsor_type
+                state.step = "sponsor_name"
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+
+            if state.step == "sponsor_name":
+                if not answer:
+                    return error_response("Sponsor name (or flat) is required.")
+                state.data["sponsor_name"] = answer
+                state.step = "amount_or_details"
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+
+            if state.step == "amount_or_details":
+                sponsor_type = state.data.get("sponsor_type", "")
+                sponsor_name = state.data.get("sponsor_name", "")
+                if sponsor_type == "monetary" and not answer.isdigit():
+                    return error_response("Sponsor amount must be numeric. Example: 5000")
+                if not answer:
+                    return error_response("Sponsor amount/details is required.")
+                clear_committee_action_session(committee_action_session_key)
+                return _add_sponsor_contribution(
+                    db=db,
+                    event=event,
+                    member=member,
+                    sponsor_type=sponsor_type,
+                    sponsor_name=sponsor_name,
+                    amount_or_details=answer,
+                )
+
+        if state.action == "REFUND_SPONSOR":
+            if state.step == "contribution_code":
+                if not answer:
+                    return error_response("Contribution code is required.")
+                state.data["contribution_code"] = answer.upper()
+                state.step = "amount"
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+
+            if state.step == "amount":
+                if not answer.isdigit():
+                    return error_response("Refund amount must be numeric. Example: 500")
+                state.data["amount"] = answer
+                state.step = "reason"
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+
+            if state.step == "reason":
+                if not answer:
+                    return error_response("Refund reason is required.")
+                clear_committee_action_session(committee_action_session_key)
+                try:
+                    ContributionRefundService.process_refund(
+                        db=db,
+                        event_id=event.id,
+                        contribution_code=state.data["contribution_code"],
+                        amount=int(state.data["amount"]),
+                        reason=answer,
+                        performed_by=member.id,
+                    )
+                except Exception as exc:
+                    return error_response(str(exc))
+                return success_response(
+                    f"Sponsor refund processed ({state.data['contribution_code']}).",
+                    heading="Refund processed",
+                    emoji="↩️",
+                )
+
+        if state.action == "REMIND_FLAT":
+            if state.step == "flat_number":
+                if not answer:
+                    return error_response("Flat number is required.")
+                clear_committee_action_session(committee_action_session_key)
+                return _build_reminder_preview(db=db, event=event, flat_number=answer)
 
     event_session_key = build_event_creation_session_key(
         member_id=str(getattr(member, "id", "")) if member else None,
@@ -586,72 +881,13 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 2:
-            return error_response("Example: remind A-101")
+            state = CommitteeActionSessionState(action="REMIND_FLAT", step="flat_number")
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         flat_number = parts[1]
 
-        flat = (
-            db.query(Flat)
-            .filter(
-                Flat.flat_number == flat_number, Flat.society_id == event.society_id
-            )
-            .first()
-        )
-
-        if not flat:
-            return error_response("Flat not found.")
-
-        food_pass = (
-            db.query(EventFoodPass)
-            .filter(
-                EventFoodPass.event_id == event.id,
-                EventFoodPass.flat_id == flat.id,
-                EventFoodPass.is_participating.is_(True),
-            )
-            .first()
-        )
-
-        if not food_pass:
-            return error_response("Flat has not joined the event.")
-
-        paid_amount = (
-            db.query(func.coalesce(func.sum(Payment.paid_amount), 0))
-            .filter(Payment.event_id == event.id, Payment.flat_id == flat.id)
-            .scalar()
-        )
-
-        refunded_amount = (
-            db.query(func.coalesce(func.sum(Refund.amount), 0))
-            .filter(
-                Refund.event_id == event.id,
-                Refund.flat_id == flat.id,
-                Refund.status == "refunded",
-            )
-            .scalar()
-        )
-
-        pending_amount = food_pass.total_amount - paid_amount - refunded_amount
-        if pending_amount <= 0:
-            return success_response(
-                f"{flat_number} has no pending payment.",
-                heading="Payment Reminder",
-                emoji="📢",
-            )
-
-        return success_response(
-            join_lines(
-                [
-                    f"Dear {flat_number},",
-                    f"Your pending amount for *{event.name}* is "
-                    f"{format_currency(pending_amount)}.",
-                    "Please pay at your convenience.",
-                    "",
-                    "Thank you.",
-                ]
-            ),
-            heading="Payment Reminder",
-            emoji="📢",
-        )
+        return _build_reminder_preview(db=db, event=event, flat_number=flat_number)
 
     if intent == "APPROVE":
         if not is_action_allowed(member.role, "ALL"):
@@ -753,103 +989,77 @@ def handle_committee_intent(
         raw = message.replace("add sponsor", "", 1).strip()
 
         if not raw:
-            return error_response("Example: add sponsor Shree Caterers 10000")
+            state = CommitteeActionSessionState(action="ADD_SPONSOR", step="sponsor_type")
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
-        flat_id = None
-
-        # ------------------------------------------------
-        # IN-KIND SPONSOR (name + in-kind + details)
-        # ------------------------------------------------
         if "in-kind" in raw:
             before, after = raw.split("in-kind", 1)
-
             sponsor_name = before.strip()
             details = after.strip()
-
-            if not sponsor_name or not details:
-                return error_response(
-                    "Example: add sponsor Shree Caterers in-kind water cans"
+            if not sponsor_name:
+                state = CommitteeActionSessionState(
+                    action="ADD_SPONSOR",
+                    step="sponsor_name",
+                    data={"sponsor_type": "in-kind"},
                 )
-
-            # detect flat-based sponsor
-            flat = (
-                db.query(Flat)
-                .filter(
-                    Flat.flat_number == sponsor_name,
-                    Flat.society_id == event.society_id,
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+            if not details:
+                state = CommitteeActionSessionState(
+                    action="ADD_SPONSOR",
+                    step="amount_or_details",
+                    data={"sponsor_type": "in-kind", "sponsor_name": sponsor_name},
                 )
-                .first()
-            )
-
-            if flat:
-                flat_id = flat.id
-                sponsor_name = f"Flat {flat.flat_number}"
-
-            ContributionService.add_contribution(
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
+            return _add_sponsor_contribution(
                 db=db,
-                event_id=event.id,
-                society_id=event.society_id,
-                contribution_type="in_kind",
-                source_name=sponsor_name,
-                flat_id=flat_id,
-                in_kind_details=details,
-                performed_by=member.id,
-                notes="Via WhatsApp",
+                event=event,
+                member=member,
+                sponsor_type="in-kind",
+                sponsor_name=sponsor_name,
+                amount_or_details=details,
             )
 
-            return success_response(
-                "In-kind sponsor added successfully.",
-                heading="Sponsor added",
-                emoji="🤝",
-            )
-
-        # ------------------------------------------------
-        # MONETARY SPONSOR
-        # ------------------------------------------------
         parts = raw.split()
-
         if len(parts) < 2:
-            return error_response("Example: add sponsor Shree Caterers 5000")
+            state = CommitteeActionSessionState(
+                action="ADD_SPONSOR",
+                step="amount_or_details",
+                data={"sponsor_type": "monetary", "sponsor_name": raw},
+            )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         try:
-            amount = int(parts[-1])
+            int(parts[-1])
         except ValueError:
-            return error_response(
-                "Amount must be numeric. Example: add sponsor ABC 5000"
+            state = CommitteeActionSessionState(
+                action="ADD_SPONSOR",
+                step="sponsor_type",
             )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         sponsor_name = " ".join(parts[:-1]).strip()
-
+        amount = parts[-1]
         if not sponsor_name:
-            return error_response("Sponsor name is required.")
-
-        # detect flat-based sponsor
-        flat = (
-            db.query(Flat)
-            .filter(
-                Flat.flat_number == sponsor_name, Flat.society_id == event.society_id
+            state = CommitteeActionSessionState(
+                action="ADD_SPONSOR",
+                step="sponsor_name",
+                data={"sponsor_type": "monetary"},
             )
-            .first()
-        )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
-        if flat:
-            flat_id = flat.id
-            sponsor_name = f"Flat {flat.flat_number}"
-
-        ContributionService.add_contribution(
+        return _add_sponsor_contribution(
             db=db,
-            event_id=event.id,
-            society_id=event.society_id,
-            contribution_type="sponsor",
-            source_name=sponsor_name,
-            flat_id=flat_id,
-            amount=amount,
-            performed_by=member.id,
-            notes="Via WhatsApp",
-        )
-
-        return success_response(
-            "Sponsor added successfully.", heading="Sponsor added", emoji="🤝"
+            event=event,
+            member=member,
+            sponsor_type="monetary",
+            sponsor_name=sponsor_name,
+            amount_or_details=amount,
         )
 
     if intent == "REFUND_SPONSOR":
@@ -858,32 +1068,54 @@ def handle_committee_intent(
 
         parts = message.split()
 
-        if len(parts) < 6:
-            return error_response(
-                "Example: refund sponsor SP-001 500 reason banner cancelled"
-            )
+        if len(parts) < 3:
+            state = CommitteeActionSessionState(action="REFUND_SPONSOR", step="contribution_code")
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         contribution_code = parts[2]
 
         # ✅ amount is ALWAYS the token after contribution code
+        if len(parts) < 4:
+            state = CommitteeActionSessionState(
+                action="REFUND_SPONSOR",
+                step="amount",
+                data={"contribution_code": contribution_code.upper()},
+            )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
         try:
             amount = int(parts[3])
         except ValueError:
-            return error_response(
-                "Invalid refund amount. Example: refund sponsor SP-007 500 reason xyz"
+            state = CommitteeActionSessionState(
+                action="REFUND_SPONSOR",
+                step="amount",
+                data={"contribution_code": contribution_code.upper()},
             )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         # reason = everything after 'reason'
         if "reason" not in parts:
-            return error_response(
-                "Please specify reason. Example: refund sponsor SP-007 500 reason xyz"
+            state = CommitteeActionSessionState(
+                action="REFUND_SPONSOR",
+                step="reason",
+                data={"contribution_code": contribution_code.upper(), "amount": str(amount)},
             )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         reason_index = parts.index("reason")
         reason = " ".join(parts[reason_index + 1 :]).strip()
 
         if not reason:
-            return error_response("Refund reason is required.")
+            state = CommitteeActionSessionState(
+                action="REFUND_SPONSOR",
+                step="reason",
+                data={"contribution_code": contribution_code.upper(), "amount": str(amount)},
+            )
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
 
         try:
             ContributionRefundService.process_refund(
