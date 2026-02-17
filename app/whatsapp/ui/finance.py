@@ -26,7 +26,7 @@ def build_make_payment_sections(*, outstanding_amount: str) -> list[dict]:
             "title": "Make Payment",
             "rows": [
                 {"id": f"pay {outstanding_amount}", "title": "Pay Full Amount", "description": "Submit full outstanding"},
-                {"id": "pay", "title": "Pay (Template)", "description": "Show pay command template"},
+                {"id": "pay", "title": "Pay Dues", "description": "Send: pay <amount>"},
                 {
                     "id": "ui::finance:pay-custom",
                     "title": "Pay Custom Amount",
