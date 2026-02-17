@@ -35,10 +35,13 @@ from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
     build_committee_sections,
+    build_finance_sections,
     build_main_dashboard_sections,
     build_make_payment_sections,
+    build_my_account_sections,
     build_participation_sections,
     build_payments_sections,
+    build_society_sections,
     format_financial_overview,
     payment_custom_amount_prompt,
     refund_request_prompt,
@@ -212,7 +215,27 @@ def _try_handle_ui_message(*, client, message) -> bool:
         client.send_text_message(message.sender_id, refund_request_prompt())
         return True
 
-    if msg == "ui::society" or msg == "ui::join-society":
+    if msg == "ui::my-account":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="My Account",
+            body_text="Select a section",
+            button_text="Open",
+            sections=build_my_account_sections(),
+        )
+        return True
+
+    if msg == "ui::society":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="Society",
+            body_text="Select a section",
+            button_text="Open",
+            sections=build_society_sections(),
+        )
+        return True
+
+    if msg == "ui::join-society":
         client.send_text_message(message.sender_id, "Enter join code and flat.\nExample:\njoin ABC123 A-101")
         return True
 
@@ -222,13 +245,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             header_text="Finance",
             body_text="Select a section",
             button_text="Open",
-            sections=[{
-                "title": "Finance",
-                "rows": [
-                    {"id": "ui::make-payment", "title": "Make Payment", "description": "Submit payment"},
-                    {"id": "ui::request-refund", "title": "Request Refund", "description": "Initiate refund"},
-                ],
-            }],
+            sections=build_finance_sections(),
         )
         return True
 
