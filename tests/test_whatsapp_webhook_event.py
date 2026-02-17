@@ -80,6 +80,7 @@ def test_whatsapp_webhook_event_sends_dashboard_list_for_menu(monkeypatch):
     assert len(sections) == 1
     assert sections[0]["title"] == "Sections"
     assert len(sections[0]["rows"]) <= 10
+    assert any(row["id"] == "ui::reports" for row in sections[0]["rows"])
 
 
 def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
@@ -181,3 +182,73 @@ def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypat
     assert len(list_attempts) == 1
     total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
     assert total_rows <= 10
+
+
+def test_whatsapp_webhook_event_reports_menu_committee_gated_rows(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.6"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000006",
+        display_name="Jane",
+        text="ui::reports",
+        metadata={"message_id": "wamid.6", "canonical_sender_id": "919999000006"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: False)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+    assert response == {"status": "ok"}
+
+    rows = list_attempts[0]["sections"][0]["rows"]
+    row_ids = {row["id"] for row in rows}
+    assert {"summary", "block report", "report options"}.issubset(row_ids)
+    assert "participation report" not in row_ids
+
+
+def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.7"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000007",
+        display_name="Jane",
+        text="ui::administration:more",
+        metadata={"message_id": "wamid.7", "canonical_sender_id": "919999000007"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
+    assert total_rows <= 10
+    row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
+    assert {"ui::approve-user", "ui::approve-payment", "ui::approve-refund"}.issubset(row_ids)

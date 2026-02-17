@@ -4,6 +4,7 @@ MAIN_MENU_ID = "ui::menu"
 MY_ACCOUNT_ID = "ui::my-account"
 SOCIETY_ID = "ui::society"
 FINANCE_ID = "ui::finance"
+REPORTS_ID = "ui::reports"
 ADMINISTRATION_ID = "ui::administration"
 
 
@@ -12,6 +13,7 @@ def build_main_dashboard_sections(*, is_committee: bool) -> list[dict]:
         {"id": MY_ACCOUNT_ID, "title": "My Account", "description": "Participation and personal finance"},
         {"id": SOCIETY_ID, "title": "Society", "description": "Join and membership status"},
         {"id": FINANCE_ID, "title": "Finance", "description": "Payments and refunds"},
+        {"id": REPORTS_ID, "title": "Reports", "description": "Summary and export options"},
     ]
     if is_committee:
         rows.append(

@@ -4,6 +4,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.api.whatsapp import WhatsAppRequest, whatsapp_webhook
+from app.whatsapp.intents import WHATSAPP_INTENTS
+from app.whatsapp.ui.committee import build_committee_more_sections, build_committee_sections
+from app.whatsapp.ui.dashboard import build_finance_sections, build_my_account_sections, build_society_sections
+from app.whatsapp.ui.finance import build_make_payment_sections, build_payments_sections
+from app.whatsapp.ui.participation import build_participation_sections
+from app.whatsapp.ui.reports import build_reports_sections
 
 
 def _setup_common_mocks(monkeypatch, member=None):
@@ -172,3 +178,43 @@ def test_whatsapp_endpoint_onboarding_commands(monkeypatch, intent, message):
     assert response["reply"] == f"onboarding:{intent}"
     committee_spy.assert_not_called()
     public_spy.assert_not_called()
+
+
+def test_whatsapp_ui_rows_cover_whatsapp_intents():
+    intent_keywords = set(WHATSAPP_INTENTS.values())
+
+    sections = []
+    sections.extend(build_my_account_sections())
+    sections.extend(build_society_sections())
+    sections.extend(build_finance_sections())
+    sections.extend(build_participation_sections())
+    sections.extend(build_payments_sections())
+    sections.extend(build_make_payment_sections(outstanding_amount="500"))
+    sections.extend(build_reports_sections(is_committee=True))
+    sections.extend(build_committee_sections())
+    sections.extend(build_committee_more_sections())
+
+    row_ids = {
+        row["id"]
+        for section in sections
+        for row in section["rows"]
+    }
+
+    expected_template_only = {"menu", "commands", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund"}
+    template_helper_rows = {
+        "ui::approve-user",
+        "ui::approve-payment",
+        "ui::approve-refund",
+        "ui::join-society",
+        "ui::make-payment",
+        "ui::request-refund",
+    }
+
+    missing = sorted(
+        keyword
+        for keyword in intent_keywords
+        if keyword not in row_ids and keyword not in expected_template_only
+    )
+
+    assert not missing
+    assert template_helper_rows.issubset(row_ids)

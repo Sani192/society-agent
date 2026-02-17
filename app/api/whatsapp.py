@@ -34,6 +34,7 @@ from app.commands.handlers.common import get_latest_event, resolve_flat
 from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
+    build_committee_more_sections,
     build_committee_sections,
     build_finance_sections,
     build_main_dashboard_sections,
@@ -41,6 +42,7 @@ from app.whatsapp.ui import (
     build_my_account_sections,
     build_participation_sections,
     build_payments_sections,
+    build_reports_sections,
     build_society_sections,
     format_financial_overview,
     payment_custom_amount_prompt,
@@ -249,6 +251,27 @@ def _try_handle_ui_message(*, client, message) -> bool:
         )
         return True
 
+    if msg == "ui::reports":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            client.send_list_message(
+                to_phone=message.sender_id,
+                header_text="Reports",
+                body_text="Select a report action",
+                button_text="Open",
+                sections=build_reports_sections(
+                    is_committee=_is_committee_member(
+                        db=db,
+                        sender_id=canonical_sender,
+                        external_user_id=message.sender_id,
+                    )
+                ),
+            )
+            return True
+        finally:
+            db.close()
+
     if msg == "ui::administration":
         db = SessionLocal()
         try:
@@ -262,6 +285,24 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 body_text="Select a section",
                 button_text="Open",
                 sections=build_committee_sections(),
+            )
+            return True
+        finally:
+            db.close()
+
+    if msg == "ui::administration:more":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            if not _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id):
+                client.send_text_message(message.sender_id, "Access restricted.")
+                return True
+            client.send_list_message(
+                to_phone=message.sender_id,
+                header_text="Administration",
+                body_text="More actions",
+                button_text="Open",
+                sections=build_committee_more_sections(),
             )
             return True
         finally:

@@ -14,6 +14,7 @@ def build_payments_sections() -> list[dict]:
                     "title": "My Payment Requests",
                     "description": "Pending and approved requests",
                 },
+                {"id": "my refund requests", "title": "My Refund Requests", "description": "Track submitted refunds"},
             ],
         }
     ]
