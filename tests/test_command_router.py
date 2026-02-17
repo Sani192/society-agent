@@ -26,8 +26,12 @@ def test_detect_intent_conversational_export_selection():
     assert detect_intent("export 2") == "EXPORT_SELECTION"
 
 
-def test_detect_intent_numeric_only_export_selection():
-    assert detect_intent("2") == "EXPORT_SELECTION"
+def test_detect_intent_numeric_only_export_selection_when_allowed():
+    assert detect_intent("2", allow_numeric_export_selection=True) == "EXPORT_SELECTION"
+
+
+def test_detect_intent_numeric_only_export_selection_when_not_allowed():
+    assert detect_intent("2", allow_numeric_export_selection=False) is None
 
 
 def test_detect_intent_interactive_export_selection():

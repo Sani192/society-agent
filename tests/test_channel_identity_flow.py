@@ -7,6 +7,11 @@ from app.whatsapp.committee_action_session import (
     clear_committee_action_session,
     save_committee_action_session,
 )
+from app.whatsapp.export_session import (
+    ExportSessionState,
+    clear_export_session,
+    save_export_session,
+)
 
 
 def test_telegram_link_member_flow_short_circuits(monkeypatch):
@@ -229,3 +234,71 @@ def test_whatsapp_pending_committee_action_maps_free_text_to_pending_intent():
     clear_committee_action_session("member-1:919999000002")
     assert response == "ok"
     assert captured["intent"] == "COMMITTEE_PENDING_ACTION"
+
+
+def test_whatsapp_numeric_intent_not_treated_as_export_without_active_session():
+    db = MagicMock()
+    captured = {}
+
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999111111",
+        display_name="John",
+        text="2",
+        metadata={"canonical_sender_id": "919999111111"},
+    )
+
+    def fake_detector(text, **kwargs):
+        captured["allow_numeric"] = kwargs.get("allow_numeric_export_selection")
+        return None
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
+        latest_event_getter=lambda db: None,
+        intent_detector=fake_detector,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert captured["allow_numeric"] is False
+
+
+def test_whatsapp_numeric_intent_treated_as_export_with_active_session_for_sender():
+    db = MagicMock()
+    captured = {}
+
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999111112",
+        display_name="John",
+        text="2",
+        metadata={"canonical_sender_id": "919999111112"},
+    )
+
+    save_export_session(
+        "member-1:919999111112",
+        ExportSessionState(options=[{"category": "financial", "report_key": "event-summary", "label": "Event Summary", "supported_formats": ["pdf"], "example_command": "export 1", "command_key": "financial:event-summary"}]),
+    )
+
+    def fake_detector(text, **kwargs):
+        captured["allow_numeric"] = kwargs.get("allow_numeric_export_selection")
+        return "EXPORT_SELECTION"
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: type("M", (), {"id": "member-1"})(),
+        latest_event_getter=lambda db: None,
+        intent_detector=fake_detector,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: "ok",
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    clear_export_session("member-1:919999111112")
+    assert response == "ok"
+    assert captured["allow_numeric"] is True

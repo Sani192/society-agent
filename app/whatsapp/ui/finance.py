@@ -38,11 +38,23 @@ def build_make_payment_sections(*, outstanding_amount: str) -> list[dict]:
 
 
 def payment_custom_amount_prompt() -> str:
-    return "Enter amount.\nExample:\n500"
+    return (
+        "Please reply with payment amount only.\n"
+        "Example:\n"
+        "500\n\n"
+        "Expected next reply: a number only.\n"
+        "Type `cancel` to stop."
+    )
 
 
 def refund_request_prompt() -> str:
-    return "Enter amount and reason.\nExample:\n200 guest absent"
+    return (
+        "Please reply with refund amount and reason.\n"
+        "Example:\n"
+        "200 guest absent\n\n"
+        "Expected next reply: amount followed by reason.\n"
+        "Type `cancel` to stop."
+    )
 
 
 def format_financial_overview(*, expected: str, paid: str, refunded: str, outstanding: str) -> str:
