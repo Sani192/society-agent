@@ -7,6 +7,7 @@ def build_payments_sections() -> list[dict]:
             "title": "Payments",
             "rows": [
                 {"id": "ui::finance:view-balance", "title": "View Balance", "description": "Current ledger"},
+                {"id": "my balance", "title": "My Balance", "description": "Show current balance using command"},
                 {"id": "my payments", "title": "View Payment History", "description": "All transactions"},
                 {
                     "id": "my payment requests",
@@ -24,6 +25,7 @@ def build_make_payment_sections(*, outstanding_amount: str) -> list[dict]:
             "title": "Make Payment",
             "rows": [
                 {"id": f"pay {outstanding_amount}", "title": "Pay Full Amount", "description": "Submit full outstanding"},
+                {"id": "pay", "title": "Pay (Template)", "description": "Show pay command template"},
                 {
                     "id": "ui::finance:pay-custom",
                     "title": "Pay Custom Amount",

@@ -267,6 +267,18 @@ def _try_handle_ui_message(*, client, message) -> bool:
         finally:
             db.close()
 
+    if msg == "ui::approve-user":
+        client.send_text_message(message.sender_id, "approve user REQ-001")
+        return True
+
+    if msg == "ui::approve-payment":
+        client.send_text_message(message.sender_id, "approve payment PAY-001")
+        return True
+
+    if msg == "ui::approve-refund":
+        client.send_text_message(message.sender_id, "approve refund REF-001")
+        return True
+
     return False
 
 class WhatsAppRequest(BaseModel):
