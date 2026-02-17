@@ -24,6 +24,7 @@ INTENTS = {
     "JOIN_STATUS": "join status",
     "JOIN": "join",
 
+
     # channel identity onboarding
     "LINK_MEMBER": "link member",
     "VERIFY_PHONE": "verify phone",
@@ -63,4 +64,15 @@ INTENTS = {
     # ========= HELP (last, lowest risk) =========
     "HELP": "help",
     "COMMANDS": "commands",
+}
+
+TELEGRAM_ONLY_INTENTS = {
+    "LINK_MEMBER": "link member",
+    "VERIFY_PHONE": "verify phone",
+}
+
+WHATSAPP_INTENTS = {
+    intent: keyword
+    for intent, keyword in INTENTS.items()
+    if intent not in TELEGRAM_ONLY_INTENTS
 }

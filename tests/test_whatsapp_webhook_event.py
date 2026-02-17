@@ -35,7 +35,7 @@ def test_whatsapp_webhook_event_handles_send_text_errors(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
     monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
     monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
-    monkeypatch.setattr("app.api.whatsapp.detect_intent", lambda message: "HELP")
+    monkeypatch.setattr("app.api.whatsapp.detect_whatsapp_intent", lambda message: "HELP")
     monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: "reply")
     monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
 

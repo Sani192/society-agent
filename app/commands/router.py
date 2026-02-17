@@ -2,9 +2,10 @@ from app.utils.logger import logger
 from app.whatsapp.intents import INTENTS
 
 
-def detect_intent(message: str):
+def detect_intent(message: str, *, intents: dict[str, str] | None = None):
     msg = message.lower().strip()
     tokens = msg.split()
+    intent_map = intents or INTENTS
     logger.info("Detecting intent", extra={"message_text": msg})
 
     if msg.isdigit():
@@ -37,17 +38,17 @@ def detect_intent(message: str):
         )
         return "EXPORT_SELECTION"
 
-    for intent, keyword in INTENTS.items():
+    for intent, keyword in intent_map.items():
         if msg == keyword:
             logger.info("Intent detected by exact match", extra={"intent": intent})
             return intent
 
-    for intent, keyword in INTENTS.items():
+    for intent, keyword in intent_map.items():
         if msg.startswith(keyword + " "):
             logger.info("Intent detected by startswith", extra={"intent": intent})
             return intent
 
-    for intent, keyword in INTENTS.items():
+    for intent, keyword in intent_map.items():
         if f" {keyword} " in f" {msg} ":
             logger.info("Intent detected by word-boundary", extra={"intent": intent})
             return intent
