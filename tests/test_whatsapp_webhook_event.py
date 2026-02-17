@@ -2,6 +2,7 @@ import asyncio
 
 from app.api.whatsapp import whatsapp_webhook_event
 from app.channels.core.types import InboundMessage
+from app.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
 
 
 class StubRequest:
@@ -252,3 +253,90 @@ def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monk
     assert total_rows <= 10
     row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
     assert {"ui::approve-user", "ui::approve-payment", "ui::approve-refund"}.issubset(row_ids)
+
+
+def test_whatsapp_webhook_event_ui_join_society_starts_conversation(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.join.1"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000008",
+        display_name="Jane",
+        text="ui::join-society",
+        metadata={"message_id": "wamid.join.1"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert text_attempts == [("919999000008", "Please enter join code")]
+    session = get_join_session("919999000008")
+    assert session is not None
+    assert session.pending_action == "JOIN"
+
+
+def test_whatsapp_webhook_event_conversational_join_submits_on_flat(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.join.2"}]}
+
+    save_join_session("919999000009", JoinSessionState(pending_action="JOIN"))
+
+    inbound_code = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000009",
+        display_name="Jane",
+        text="ABC123",
+        metadata={"message_id": "wamid.join.2", "canonical_sender_id": "919999000009"},
+    )
+    inbound_flat = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000009",
+        display_name="Jane",
+        text="A-101",
+        metadata={"message_id": "wamid.join.3", "canonical_sender_id": "919999000009"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound_code, inbound_flat])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr(
+        "app.api.whatsapp.JoinCodeService.get_society_by_join_code",
+        lambda db, join_code: object() if join_code == "ABC123" else None,
+    )
+
+    def fake_handle_inbound_message(message):
+        assert message.text == "join ABC123 A-101"
+        return "✅ done"
+
+    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", fake_handle_inbound_message)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert text_attempts == [
+        ("919999000009", "Please enter flat number"),
+        ("919999000009", "✅ done"),
+    ]
+    assert get_join_session("919999000009") is None
