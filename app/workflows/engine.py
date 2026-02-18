@@ -16,6 +16,7 @@ from datetime import datetime
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
+OVERRIDE_ROLES = {"chairman", "secretary", "treasurer"}
 
 
 class WorkflowDecision:
@@ -69,44 +70,45 @@ class WorkflowEngine:
                 message="Action allowed"
             )
 
-        if current_state == "CLOSED":
-            if not performed_by:
-                logger.warning("Override denied: missing performer | action=%s context=%s", action, context)
-                return WorkflowDecision(
-                    allowed=False,
-                    requires_override=False,
-                    message="Override denied: performer required for CLOSED state"
-                )
+        state_suffix = " for CLOSED state" if current_state == "CLOSED" else ""
 
-            member = (
-                db.query(CommitteeMember)
-                .filter(CommitteeMember.id == performed_by)
-                .first()
+        if not performed_by:
+            logger.warning("Override denied: missing performer | action=%s context=%s", action, context)
+            return WorkflowDecision(
+                allowed=False,
+                requires_override=False,
+                message=f"Override denied: performer required{state_suffix}"
             )
 
-            if (
-                not member
-                or not member.is_active
-                or member.role not in {"chairman", "secretary", "treasurer"}
-            ):
-                logger.warning(
-                    "Override denied: invalid member for CLOSED | action=%s context=%s",
-                    action,
-                    context
-                )
-                return WorkflowDecision(
-                    allowed=False,
-                    requires_override=False,
-                    message="Override denied: only chairman, secretary, or treasurer may override CLOSED state"
-                )
+        member = (
+            db.query(CommitteeMember)
+            .filter(CommitteeMember.id == performed_by)
+            .first()
+        )
 
-            if not override_reason or not override_reason.strip():
-                logger.warning("Override denied: reason required | action=%s context=%s", action, context)
-                return WorkflowDecision(
-                    allowed=False,
-                    requires_override=False,
-                    message="Override denied: reason required for CLOSED state"
-                )
+        if (
+            not member
+            or not member.is_active
+            or member.role not in OVERRIDE_ROLES
+        ):
+            logger.warning(
+                "Override denied: invalid member | action=%s context=%s",
+                action,
+                context
+            )
+            return WorkflowDecision(
+                allowed=False,
+                requires_override=False,
+                message=f"Override denied: only chairman, secretary, or treasurer may override{state_suffix}"
+            )
+
+        if not override_reason or not override_reason.strip():
+            logger.warning("Override denied: reason required | action=%s context=%s", action, context)
+            return WorkflowDecision(
+                allowed=False,
+                requires_override=False,
+                message=f"Override denied: reason required{state_suffix}"
+            )
 
         # Action not normally allowed → override possible
         logger.info("Workflow requires override | action=%s context=%s", action, context)
