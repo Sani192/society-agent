@@ -2,6 +2,7 @@ import asyncio
 
 from app.api.whatsapp import whatsapp_webhook_event
 from app.channels.core.types import InboundMessage
+from app.whatsapp.finance_action_session import get_finance_action_session
 from app.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
 
 
@@ -340,3 +341,116 @@ def test_whatsapp_webhook_event_conversational_join_submits_on_flat(monkeypatch)
         ("919999000009", "✅ done"),
     ]
     assert get_join_session("919999000009") is None
+
+
+def test_whatsapp_webhook_event_ui_pay_custom_sets_pending_action(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.pay.1"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000010",
+        display_name="Jane",
+        text="ui::finance:pay-custom",
+        metadata={"message_id": "wamid.pay.1"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert "Expected next reply: a number only." in text_attempts[0][1]
+    assert "Type `cancel` to stop." in text_attempts[0][1]
+    session = get_finance_action_session("919999000010")
+    assert session is not None
+    assert session.pending_action == "PAY_CUSTOM"
+
+
+def test_whatsapp_webhook_event_pay_custom_numeric_reply_routes_to_pay(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.pay.2"}]}
+
+    inbound_trigger = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000011",
+        display_name="Jane",
+        text="ui::finance:pay-custom",
+        metadata={"message_id": "wamid.pay.2"},
+    )
+    inbound_amount = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000011",
+        display_name="Jane",
+        text="500",
+        metadata={"message_id": "wamid.pay.3"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound_trigger, inbound_amount])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: f"handled:{message.text}")
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert text_attempts[-1] == ("919999000011", "handled:pay 500")
+    assert get_finance_action_session("919999000011") is None
+
+
+def test_whatsapp_webhook_event_refund_pending_action_accepts_amount_and_reason_without_prefix(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.refund.1"}]}
+
+    inbound_trigger = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000012",
+        display_name="Jane",
+        text="ui::request-refund",
+        metadata={"message_id": "wamid.refund.1"},
+    )
+    inbound_payload = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000012",
+        display_name="Jane",
+        text="200 guest absent",
+        metadata={"message_id": "wamid.refund.2"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound_trigger, inbound_payload])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: f"handled:{message.text}")
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert "Expected next reply: amount followed by reason." in text_attempts[0][1]
+    assert text_attempts[-1] == ("919999000012", "handled:refund 200 guest absent")
+    assert get_finance_action_session("919999000012") is None

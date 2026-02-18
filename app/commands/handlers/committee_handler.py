@@ -320,15 +320,15 @@ def _build_committee_action_session_key(*, member, inbound_message):
 
 def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
     prompts = {
-        ("ADD_EXPENSE", "reason"): "Please share expense reason/category.",
-        ("ADD_EXPENSE", "amount"): "Please share expense amount. Example: 1200",
-        ("ADD_SPONSOR", "sponsor_type"): "Sponsor type? Reply: monetary or in-kind",
-        ("ADD_SPONSOR", "sponsor_name"): "Sponsor name (or flat number). Example: Shree Caterers or A-101",
-        ("ADD_SPONSOR", "amount_or_details"): "Share sponsor amount/details.",
-        ("REFUND_SPONSOR", "contribution_code"): "Please share contribution code. Example: SP-001",
-        ("REFUND_SPONSOR", "amount"): "Please share refund amount. Example: 500",
-        ("REFUND_SPONSOR", "reason"): "Please share refund reason.",
-        ("REMIND_FLAT", "flat_number"): "Please share flat number. Example: A-101",
+        ("ADD_EXPENSE", "reason"): "Please share expense reason/category.\nExpected next reply: reason text.\nType `cancel` to stop.",
+        ("ADD_EXPENSE", "amount"): "Please share expense amount. Example: 1200\nExpected next reply: numeric amount only.\nType `cancel` to stop.",
+        ("ADD_SPONSOR", "sponsor_type"): "Sponsor type? Reply: monetary or in-kind\nExpected next reply: `monetary` or `in-kind`.\nType `cancel` to stop.",
+        ("ADD_SPONSOR", "sponsor_name"): "Sponsor name (or flat number). Example: Shree Caterers or A-101\nExpected next reply: sponsor name/flat.\nType `cancel` to stop.",
+        ("ADD_SPONSOR", "amount_or_details"): "Share sponsor amount/details.\nExpected next reply: amount for monetary, or details for in-kind.\nType `cancel` to stop.",
+        ("REFUND_SPONSOR", "contribution_code"): "Please share contribution code. Example: SP-001\nExpected next reply: contribution code.\nType `cancel` to stop.",
+        ("REFUND_SPONSOR", "amount"): "Please share refund amount. Example: 500\nExpected next reply: numeric amount only.\nType `cancel` to stop.",
+        ("REFUND_SPONSOR", "reason"): "Please share refund reason.\nExpected next reply: reason text.\nType `cancel` to stop.",
+        ("REMIND_FLAT", "flat_number"): "Please share flat number. Example: A-101\nExpected next reply: flat number.\nType `cancel` to stop.",
     }
     return prompts[(state.action, state.step)]
 
@@ -519,6 +519,10 @@ def handle_committee_intent(
     if intent == "COMMITTEE_PENDING_ACTION" and pending_action_state:
         answer = (message or "").strip()
         state = pending_action_state
+
+        if answer.lower() == "cancel":
+            clear_committee_action_session(committee_action_session_key)
+            return info_response("Cancelled pending action.")
 
         if not event:
             clear_committee_action_session(committee_action_session_key)

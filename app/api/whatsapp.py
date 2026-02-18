@@ -58,6 +58,13 @@ from app.whatsapp.export_session import (
     get_export_session,
     save_export_session,
 )
+from app.whatsapp.finance_action_session import (
+    FinanceActionSessionState,
+    build_finance_action_session_key,
+    clear_finance_action_session,
+    get_finance_action_session,
+    save_finance_action_session,
+)
 from app.whatsapp.join_session import (
     JoinSessionState,
     build_join_session_key,
@@ -219,10 +226,20 @@ def _try_handle_ui_message(*, client, message) -> bool:
             db.close()
 
     if msg == "ui::finance:pay-custom":
+        finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+        save_finance_action_session(
+            finance_session_key,
+            FinanceActionSessionState(pending_action="PAY_CUSTOM"),
+        )
         client.send_text_message(message.sender_id, payment_custom_amount_prompt())
         return True
 
     if msg == "ui::request-refund":
+        finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+        save_finance_action_session(
+            finance_session_key,
+            FinanceActionSessionState(pending_action="REFUND_REQUEST"),
+        )
         client.send_text_message(message.sender_id, refund_request_prompt())
         return True
 
@@ -533,6 +550,67 @@ async def whatsapp_webhook_event(request: Request):
                 continue
             finally:
                 db.close()
+
+        finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+        finance_session = get_finance_action_session(finance_session_key)
+        normalized_text = (message.text or "").strip().lower()
+
+        if finance_session and normalized_text == "cancel":
+            clear_finance_action_session(finance_session_key)
+            send_response = client.send_text_message(message.sender_id, "Cancelled. You can use menu to start again.")
+            logger.info(
+                "WhatsApp finance pending action cancelled",
+                extra={
+                    "sender_id": message.sender_id,
+                    "message_id": message.metadata.get("message_id"),
+                    "response_keys": sorted(send_response.keys()),
+                },
+            )
+            continue
+
+        if finance_session and finance_session.pending_action == "PAY_CUSTOM" and normalized_text.isdigit():
+            synthetic_command = f"pay {normalized_text}"
+            inbound = InboundMessage(
+                channel=message.channel,
+                sender_id=message.sender_id,
+                display_name=message.display_name,
+                text=synthetic_command,
+                metadata=message.metadata,
+            )
+            reply_text = handle_inbound_message(inbound)
+            clear_finance_action_session(finance_session_key)
+            send_response = client.send_text_message(message.sender_id, reply_text)
+            logger.info(
+                "WhatsApp finance pay-custom conversational reply sent",
+                extra={
+                    "sender_id": message.sender_id,
+                    "message_id": message.metadata.get("message_id"),
+                    "response_keys": sorted(send_response.keys()),
+                },
+            )
+            continue
+
+        if finance_session and finance_session.pending_action == "REFUND_REQUEST" and normalized_text:
+            synthetic_command = f"refund {message.text.strip()}"
+            inbound = InboundMessage(
+                channel=message.channel,
+                sender_id=message.sender_id,
+                display_name=message.display_name,
+                text=synthetic_command,
+                metadata=message.metadata,
+            )
+            reply_text = handle_inbound_message(inbound)
+            clear_finance_action_session(finance_session_key)
+            send_response = client.send_text_message(message.sender_id, reply_text)
+            logger.info(
+                "WhatsApp finance refund conversational reply sent",
+                extra={
+                    "sender_id": message.sender_id,
+                    "message_id": message.metadata.get("message_id"),
+                    "response_keys": sorted(send_response.keys()),
+                },
+            )
+            continue
 
         intent = detect_whatsapp_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID

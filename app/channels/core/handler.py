@@ -23,6 +23,10 @@ from app.whatsapp.committee_action_session import (
     build_committee_action_session_key,
     get_committee_action_session,
 )
+from app.whatsapp.export_session import (
+    build_export_session_key,
+    get_export_session,
+)
 from app.whatsapp.response_templates import (
     error_response,
     info_response,
@@ -129,7 +133,23 @@ def handle_inbound_message(
             extra={"event_id": getattr(event, "id", None)},
         )
 
-        intent = intent_detector(message.text)
+        allow_numeric_export_selection = False
+        if message.channel == "whatsapp":
+            export_session_key = build_export_session_key(
+                member_id=str(getattr(member, "id", "")) if member else None,
+                sender_id=canonical_sender_id,
+            )
+            allow_numeric_export_selection = bool(
+                export_session_key and get_export_session(export_session_key)
+            )
+
+        try:
+            intent = intent_detector(
+                message.text,
+                allow_numeric_export_selection=allow_numeric_export_selection,
+            )
+        except TypeError:
+            intent = intent_detector(message.text)
 
         if not intent and member and message.channel == "whatsapp":
             event_session_key = build_event_creation_session_key(

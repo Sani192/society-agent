@@ -182,7 +182,8 @@ def test_committee_remind_flat_requires_number():
         inbound_message=inbound,
     )
     clear_committee_action_session("member-1:sender-remind-1")
-    assert response == "ℹ️ Please share flat number. Example: A-101"
+    assert "Please share flat number. Example: A-101" in response
+    assert "Type `cancel` to stop." in response
 
 
 def test_committee_add_expense_guided_flow(monkeypatch):
@@ -209,7 +210,8 @@ def test_committee_add_expense_guided_flow(monkeypatch):
         member=member,
         inbound_message=inbound,
     )
-    assert step1 == "ℹ️ Please share expense reason/category."
+    assert "Please share expense reason/category." in step1
+    assert "Type `cancel` to stop." in step1
 
     step2 = handle_committee_intent(
         db=MagicMock(),
@@ -219,7 +221,8 @@ def test_committee_add_expense_guided_flow(monkeypatch):
         member=member,
         inbound_message=inbound,
     )
-    assert step2 == "ℹ️ Please share expense amount. Example: 1200"
+    assert "Please share expense amount. Example: 1200" in step2
+    assert "Type `cancel` to stop." in step2
 
     step3 = handle_committee_intent(
         db=MagicMock(),
@@ -260,7 +263,8 @@ def test_committee_add_sponsor_guided_flow(monkeypatch):
         member=member,
         inbound_message=inbound,
     )
-    assert step1 == "ℹ️ Sponsor type? Reply: monetary or in-kind"
+    assert "Sponsor type? Reply: monetary or in-kind" in step1
+    assert "Type `cancel` to stop." in step1
 
     handle_committee_intent(
         db=db,
@@ -315,7 +319,8 @@ def test_committee_refund_sponsor_guided_flow(monkeypatch):
         member=member,
         inbound_message=inbound,
     )
-    assert step1 == "ℹ️ Please share contribution code. Example: SP-001"
+    assert "Please share contribution code. Example: SP-001" in step1
+    assert "Type `cancel` to stop." in step1
 
     handle_committee_intent(
         db=MagicMock(),

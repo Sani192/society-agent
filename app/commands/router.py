@@ -2,13 +2,18 @@ from app.utils.logger import logger
 from app.whatsapp.intents import INTENTS
 
 
-def detect_intent(message: str, *, intents: dict[str, str] | None = None):
+def detect_intent(
+    message: str,
+    *,
+    intents: dict[str, str] | None = None,
+    allow_numeric_export_selection: bool = True,
+):
     msg = message.lower().strip()
     tokens = msg.split()
     intent_map = intents or INTENTS
     logger.info("Detecting intent", extra={"message_text": msg})
 
-    if msg.isdigit():
+    if msg.isdigit() and allow_numeric_export_selection:
         logger.info("Intent detected by numeric conversational export selection", extra={"intent": "EXPORT_SELECTION"})
         return "EXPORT_SELECTION"
 
