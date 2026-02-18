@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 class EventService:
 
     @staticmethod
+    def _resolve_close_reason(reason, override_reason):
+        resolved_reason = reason if reason is not None else override_reason
+        if resolved_reason is None or not str(resolved_reason).strip():
+            raise Exception("Close reason is required.")
+        return str(resolved_reason).strip()
+
+    @staticmethod
     @log_service_call(logger, "EventService.create_event")
     def create_event(
         db: Session,
@@ -285,17 +292,27 @@ class EventService:
         *,
         event_id,
         performed_by,
+        reason=None,
+        source=None,
+        action="CLOSE_EVENT",
         override_reason=None
     ):
-        context = build_log_context(event_id=event_id, performed_by=performed_by)
+        context = build_log_context(
+            event_id=event_id,
+            performed_by=performed_by,
+            source=source,
+            action=action
+        )
         logger.info("Closing event | context=%s", context)
-        if override_reason is None or not str(override_reason).strip():
-            logger.warning("Close event rejected due to missing reason | context=%s", context)
-            raise Exception("Close reason is required.")
+        close_reason = EventService._resolve_close_reason(reason, override_reason)
+        if performed_by is None and (source is None or not str(source).strip()):
+            logger.warning("Close event rejected due to missing performer/source | context=%s", context)
+            raise Exception("Close event requires performed_by or source.")
 
-        close_reason = override_reason
         event = db.query(Event).filter(Event.id == event_id).first()
         workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
+        if not event or not workflow:
+            raise Exception("Event or workflow state not found.")
 
         decision = WorkflowEngine.check_action(
             db=db,
@@ -327,20 +344,29 @@ class EventService:
             )
             logger.info("Applied workflow override | reason=%s context=%s", close_reason, context)
 
-        event.status = "CLOSED"
-        workflow.current_state = "CLOSED"
-        workflow.allowed_next_states = []
-        logger.info("Updated event workflow state to CLOSED | context=%s", context)
+        try:
+            event.status = "CLOSED"
+            workflow.current_state = "CLOSED"
+            workflow.allowed_next_states = []
+            logger.info("Updated event workflow state to CLOSED | context=%s", context)
 
-        db.add(AuditLog(
-            society_id=event.society_id,
-            entity_type="event",
-            entity_id=event_id,
-            action="CLOSE_EVENT",
-            reason=close_reason,
-            performed_by=performed_by
-        ))
-        logger.info("Captured close event audit log | context=%s", context)
+            audit_reason = close_reason
+            if source and str(source).strip():
+                audit_reason = f"{close_reason} | source={str(source).strip()}"
 
-        db.commit()
-        logger.info("Committed close event transition | context=%s", context)
+            db.add(AuditLog(
+                society_id=event.society_id,
+                entity_type="event",
+                entity_id=event_id,
+                action=action,
+                reason=audit_reason,
+                performed_by=performed_by
+            ))
+            logger.info("Captured close event audit log | context=%s", context)
+
+            db.commit()
+            logger.info("Committed close event transition | context=%s", context)
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to close event, rolled back transaction | context=%s", context)
+            raise

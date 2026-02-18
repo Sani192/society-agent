@@ -110,10 +110,6 @@ def test_close_event_requires_reason_before_state_update():
     event = SimpleNamespace(society_id="soc-1", status="EVENT_DAY")
     workflow = SimpleNamespace(current_state="EVENT_DAY", allowed_next_states=["CLOSE_EVENT"])
     db = MagicMock()
-    db.query.side_effect = [
-        QueryMock(first_result=event),
-        QueryMock(first_result=workflow)
-    ]
 
     with pytest.raises(Exception, match="Close reason is required."):
         EventService.close_event(
@@ -132,7 +128,7 @@ def test_close_event_requires_reason_before_state_update():
 
 def test_close_event_success_with_reason_records_exact_audit_reason(monkeypatch):
     reason = "Closed after post-event reconciliation"
-    event = SimpleNamespace(society_id="soc-1", status="EVENT_DAY")
+    event = SimpleNamespace(id="event-1", society_id="soc-1", status="EVENT_DAY")
     workflow = SimpleNamespace(current_state="EVENT_DAY", allowed_next_states=["CLOSE_EVENT"])
     db = MagicMock()
     db.query.side_effect = [
@@ -149,7 +145,8 @@ def test_close_event_success_with_reason_records_exact_audit_reason(monkeypatch)
         db=db,
         event_id="event-1",
         performed_by="member-1",
-        override_reason=reason
+        reason=reason,
+        action="CLOSE_EVENT"
     )
 
     assert event.status == "CLOSED"
@@ -164,3 +161,39 @@ def test_close_event_success_with_reason_records_exact_audit_reason(monkeypatch)
     ]
     assert len(audit_logs) == 1
     assert audit_logs[0].reason == reason
+    assert audit_logs[0].performed_by == "member-1"
+
+
+def test_close_event_from_system_source_still_creates_audit(monkeypatch):
+    reason = "AUTO_CLOSE: event_date passed by 3 hours"
+    event = SimpleNamespace(id="event-1", society_id="soc-1", status="EVENT_DAY")
+    workflow = SimpleNamespace(current_state="EVENT_DAY", allowed_next_states=["CLOSE_EVENT"])
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=workflow)
+    ]
+
+    monkeypatch.setattr(
+        "app.modules.events.service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=True)
+    )
+
+    EventService.close_event(
+        db=db,
+        event_id="event-1",
+        performed_by=None,
+        source="system:auto_close_job",
+        reason=reason,
+        action="AUTO_CLOSE_EVENT"
+    )
+
+    audit_logs = [
+        call.args[0]
+        for call in db.add.call_args_list
+        if isinstance(call.args[0], AuditLog)
+    ]
+    assert len(audit_logs) == 1
+    assert audit_logs[0].action == "AUTO_CLOSE_EVENT"
+    assert audit_logs[0].reason == "AUTO_CLOSE: event_date passed by 3 hours | source=system:auto_close_job"
+    assert audit_logs[0].performed_by is None
