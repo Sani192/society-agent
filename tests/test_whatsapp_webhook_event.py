@@ -345,6 +345,91 @@ def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monk
     assert {"ui::approve-user", "ui::approve-payment", "ui::approve-refund"}.issubset(row_ids)
 
 
+def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.approval.user"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    pending_user = type("PendingUser", (), {"request_code": "REQ-009", "flat_number": "A-303"})()
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000071",
+        display_name="Jane",
+        text="ui::approve-user",
+        metadata={"message_id": "wamid.approval.user", "canonical_sender_id": "919999000071"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "app.api.whatsapp.get_latest_event",
+        lambda db: type("Event", (), {"id": "evt-1", "society_id": "soc-1"})(),
+    )
+    monkeypatch.setattr(
+        "app.api.whatsapp.AdminOnboardingQueryService.list_pending_users",
+        lambda db, society_id: [pending_user],
+    )
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    rows = list_attempts[0]["sections"][0]["rows"]
+    assert rows[0]["id"] == "approve user REQ-009"
+    assert rows[0]["description"] == "Flat A-303"
+
+
+def test_whatsapp_webhook_event_ui_approve_payment_falls_back_to_template_when_list_send_fails(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise RuntimeError("list unsupported")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.approval.payment"}]}
+
+    payment_request = type("PaymentRequest", (), {"request_code": "PAY-004", "amount": 1200})()
+    flat = type("Flat", (), {"flat_number": "B-204"})()
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000072",
+        display_name="Jane",
+        text="ui::approve-payment",
+        metadata={"message_id": "wamid.approval.payment", "canonical_sender_id": "919999000072"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "app.api.whatsapp.get_latest_event",
+        lambda db: type("Event", (), {"id": "evt-1", "society_id": "soc-1"})(),
+    )
+    monkeypatch.setattr(
+        "app.api.whatsapp.PaymentRequestService.list_requests",
+        lambda db, event_id, status: [(payment_request, flat)],
+    )
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert text_attempts == [("919999000072", "approve payment PAY-001")]
+
+
 def test_whatsapp_webhook_event_ui_join_society_starts_conversation(monkeypatch):
     text_attempts = []
 
