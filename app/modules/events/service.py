@@ -289,6 +289,11 @@ class EventService:
     ):
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Closing event | context=%s", context)
+        if override_reason is None or not str(override_reason).strip():
+            logger.warning("Close event rejected due to missing reason | context=%s", context)
+            raise Exception("Close reason is required.")
+
+        close_reason = override_reason
         event = db.query(Event).filter(Event.id == event_id).first()
         workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
 
@@ -297,7 +302,7 @@ class EventService:
             event_id=event_id,
             action="CLOSE_EVENT",
             performed_by=performed_by,
-            override_reason=override_reason
+            override_reason=close_reason
         )
 
         if not decision.allowed:
@@ -308,7 +313,7 @@ class EventService:
             )
             if not decision.requires_override:
                 raise Exception(decision.message)
-            if not override_reason:
+            if not close_reason:
                 raise Exception(decision.message)
             WorkflowEngine.apply_override(
                 db=db,
@@ -317,10 +322,10 @@ class EventService:
                 entity_type="event",
                 entity_id=event_id,
                 action="CLOSE_EVENT",
-                reason=override_reason,
+                reason=close_reason,
                 performed_by=performed_by
             )
-            logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
+            logger.info("Applied workflow override | reason=%s context=%s", close_reason, context)
 
         event.status = "CLOSED"
         workflow.current_state = "CLOSED"
@@ -332,7 +337,7 @@ class EventService:
             entity_type="event",
             entity_id=event_id,
             action="CLOSE_EVENT",
-            reason=override_reason or "Event closed",
+            reason=close_reason,
             performed_by=performed_by
         ))
         logger.info("Captured close event audit log | context=%s", context)
