@@ -507,3 +507,126 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
 
     assert response == "✅ continued"
     assert calls[0]["intent"] == "ADD_EVENT"
+
+
+def test_activate_event_intent_to_event_service(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-activate", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-activate", name="Spring Fest", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member,
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    called = {}
+
+    def fake_activate_event(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.EventService.activate_event",
+        fake_activate_event,
+    )
+
+    response = handle_message("919011", "activate event")
+
+    assert response.startswith("✅")
+    assert "Event activated" in response
+    assert called["event_id"] == "event-activate"
+    assert called["performed_by"] == "member-activate"
+
+
+def test_lock_passes_intent_to_event_service(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-lock", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-lock", name="Spring Fest", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member,
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    called = {}
+
+    def fake_lock_passes(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.EventService.lock_passes",
+        fake_lock_passes,
+    )
+
+    response = handle_message("919012", "lock passes")
+
+    assert response.startswith("✅")
+    assert "Passes locked" in response
+    assert called["event_id"] == "event-lock"
+    assert called["performed_by"] == "member-lock"
+
+
+def test_start_event_intent_to_event_service(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-start", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-start", name="Spring Fest", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member,
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    called = {}
+
+    def fake_start_event_day(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.EventService.start_event_day",
+        fake_start_event_day,
+    )
+
+    response = handle_message("919013", "start event")
+
+    assert response.startswith("✅")
+    assert "Event day started" in response
+    assert called["event_id"] == "event-start"
+    assert called["performed_by"] == "member-start"
+
+
+def test_add_sponsor_intent_to_contribution_service(monkeypatch):
+    db = MagicMock()
+    member = SimpleNamespace(id="member-sponsor", role="chairman", society_id="soc-1")
+    event = SimpleNamespace(id="event-sponsor", name="Spring Fest", society_id="soc-1")
+
+    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        "app.whatsapp.handler.ensure_committee_member",
+        lambda phone, db, **kwargs: member,
+    )
+    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    called = {}
+
+    def fake_add_contribution(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler.ContributionService.add_contribution",
+        fake_add_contribution,
+    )
+
+    response = handle_message("919014", "add sponsor ABC Corp 5000")
+
+    assert response.startswith("✅")
+    assert "Sponsor added" in response
+    assert called["event_id"] == "event-sponsor"
+    assert called["performed_by"] == "member-sponsor"
+    assert called["amount"] == 5000

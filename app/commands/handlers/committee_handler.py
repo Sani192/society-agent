@@ -732,6 +732,84 @@ def handle_committee_intent(
         if error:
             return error_response(error)
 
+    if intent == "ACTIVATE_EVENT":
+        if not is_action_allowed(member.role, "ADD_EVENT"):
+            return warning_response("Only Chairman or Secretary can activate events.")
+
+        target_event = event
+        if not target_event:
+            target_event = (
+                db.query(Event)
+                .filter(Event.society_id == member.society_id)
+                .order_by(Event.created_at.desc())
+                .first()
+            )
+
+        if not target_event:
+            return error_response("No event found to activate. Please create an event first.")
+
+        try:
+            EventService.activate_event(
+                db=db,
+                event_id=target_event.id,
+                performed_by=member.id,
+                override_reason="Via WhatsApp",
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Event activated: {target_event.name}",
+            heading="Event activated",
+            emoji="🟢",
+        )
+
+    if intent == "LOCK_PASSES":
+        if not is_action_allowed(member.role, "ADD_EVENT"):
+            return warning_response("Only Chairman or Secretary can lock passes.")
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        try:
+            EventService.lock_passes(
+                db=db,
+                event_id=event.id,
+                performed_by=member.id,
+                override_reason="Via WhatsApp",
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Passes locked for event: {event.name}",
+            heading="Passes locked",
+            emoji="🔐",
+        )
+
+    if intent == "START_EVENT":
+        if not is_action_allowed(member.role, "ADD_EVENT"):
+            return warning_response("Only Chairman or Secretary can start event day.")
+
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        try:
+            EventService.start_event_day(
+                db=db,
+                event_id=event.id,
+                performed_by=member.id,
+                override_reason="Via WhatsApp",
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Event day started: {event.name}",
+            heading="Event started",
+            emoji="🎉",
+        )
+
     if intent == "CLOSE_EVENT":
         if not is_action_allowed(member.role, "CLOSE_EVENT"):
             return warning_response("Only Chairman, Secretary, or Treasurer can close events.")
@@ -957,6 +1035,23 @@ def handle_committee_intent(
         flat_number = parts[1]
 
         return _build_reminder_preview(db=db, event=event, flat_number=flat_number)
+
+    if intent == "COMMANDS":
+        return success_response(
+            join_lines([
+                "Committee quick actions:",
+                "add event",
+                "activate event",
+                "lock passes",
+                "start event",
+                "close event reason settlement completed",
+                "expense water 1200",
+                "add sponsor ABC Corp 5000",
+                "refund sponsor SP-001 500 reason duplicate entry",
+                "report options",
+            ]),
+            heading="Committee commands",
+        )
 
     if intent == "APPROVE":
         if not is_action_allowed(member.role, "ALL"):

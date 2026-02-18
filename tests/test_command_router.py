@@ -48,3 +48,15 @@ def test_detect_intent_format_command_not_supported():
 
 def test_detect_intent_event_command_not_supported():
     assert detect_intent("event evt-2") is None
+
+
+def test_detect_intent_activate_event_command():
+    assert detect_intent("activate event") == "ACTIVATE_EVENT"
+
+
+def test_detect_intent_lock_passes_command():
+    assert detect_intent("lock passes") == "LOCK_PASSES"
+
+
+def test_detect_intent_start_event_command():
+    assert detect_intent("start event") == "START_EVENT"
