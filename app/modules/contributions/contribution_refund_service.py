@@ -10,6 +10,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.models import ContributionRefund, EventContribution, AuditLog
+from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,8 @@ class ContributionRefundService:
         contribution_code,
         amount,
         reason,
-        performed_by
+        performed_by,
+        override_reason=None
     ):
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info(
@@ -75,6 +77,28 @@ class ContributionRefundService:
             context
         )
 
+        decision = WorkflowEngine.check_action(
+            db=db,
+            event_id=event_id,
+            action="REFUND_CONTRIBUTION",
+            performed_by=performed_by,
+            override_reason=override_reason
+        )
+
+        is_override = False
+
+        if not decision.allowed:
+            logger.warning(
+                "Workflow denied contribution refund action | requires_override=%s context=%s",
+                decision.requires_override,
+                context
+            )
+            if not decision.requires_override:
+                raise Exception(decision.message)
+            if not override_reason:
+                raise Exception(decision.message)
+            is_override = True
+
 
         refund = ContributionRefund(
             contribution_id=contribution.id,
@@ -87,12 +111,29 @@ class ContributionRefundService:
         db.flush()
         logger.info("Created contribution refund record | id=%s context=%s", refund.id, context)
 
+        if is_override:
+            WorkflowEngine.apply_override(
+                db=db,
+                society_id=contribution.society_id,
+                event_id=event_id,
+                entity_type="contribution_refund",
+                entity_id=refund.id,
+                action="REFUND_CONTRIBUTION",
+                reason=override_reason,
+                performed_by=performed_by
+            )
+            logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
+
         db.add(AuditLog(
             society_id=contribution.society_id,
             entity_type="contribution_refund",
             entity_id=refund.id,
             action="REFUND_CONTRIBUTION",
-            reason=reason,
+            reason=(
+                f"OVERRIDE: {override_reason}"
+                if is_override
+                else reason
+            ),
             performed_by=performed_by
         ))
         logger.info("Captured contribution refund audit log | context=%s", context)
