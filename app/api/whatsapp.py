@@ -33,6 +33,7 @@ from app.modules.reports.whatsapp_export_service import WhatsAppReportExportServ
 from app.modules.users.user_query_service import UserQueryService
 from app.modules.onboarding.join_code_service import JoinCodeService
 from app.commands.handlers.common import get_latest_event, resolve_flat
+from app.commands.parser import parse_pass_counts
 from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
@@ -160,6 +161,11 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::participation:add-update-pass":
+        finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+        save_finance_action_session(
+            finance_session_key,
+            FinanceActionSessionState(pending_action="ADD_PASS_COUNTS"),
+        )
         client.send_text_message(message.sender_id, add_or_update_pass_prompt())
         return True
 
@@ -604,6 +610,47 @@ async def whatsapp_webhook_event(request: Request):
             send_response = client.send_text_message(message.sender_id, reply_text)
             logger.info(
                 "WhatsApp finance refund conversational reply sent",
+                extra={
+                    "sender_id": message.sender_id,
+                    "message_id": message.metadata.get("message_id"),
+                    "response_keys": sorted(send_response.keys()),
+                },
+            )
+            continue
+
+        if finance_session and finance_session.pending_action == "ADD_PASS_COUNTS" and normalized_text:
+            counts = parse_pass_counts(normalized_text)
+            if sum(counts.values()) == 0:
+                send_response = client.send_text_message(
+                    message.sender_id,
+                    "❌ Specify counts. Example: veg 2 jain 1 kid 1",
+                )
+                logger.info(
+                    "WhatsApp participation add-pass conversational validation failed",
+                    extra={
+                        "sender_id": message.sender_id,
+                        "message_id": message.metadata.get("message_id"),
+                        "response_keys": sorted(send_response.keys()),
+                    },
+                )
+                continue
+
+            synthetic_command = (
+                f"add pass veg {counts['veg']} jain {counts['jain']} kids {counts['kids']}"
+            )
+            inbound = InboundMessage(
+                channel=message.channel,
+                sender_id=message.sender_id,
+                display_name=message.display_name,
+                text=synthetic_command,
+                metadata=message.metadata,
+            )
+            reply_text = handle_inbound_message(inbound)
+            if reply_text.startswith("✅"):
+                clear_finance_action_session(finance_session_key)
+            send_response = client.send_text_message(message.sender_id, reply_text)
+            logger.info(
+                "WhatsApp participation add-pass conversational reply sent",
                 extra={
                     "sender_id": message.sender_id,
                     "message_id": message.metadata.get("message_id"),
