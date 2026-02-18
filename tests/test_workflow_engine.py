@@ -36,7 +36,7 @@ def test_check_action_allows_known_action():
     assert result.message == "Action allowed"
 
 
-def test_check_action_requires_override_for_disallowed_action():
+def test_check_action_disallowed_denies_without_performer_in_non_closed_state():
     state_row = SimpleNamespace(current_state="ACTIVE")
     db = MagicMock()
     db.query.return_value = QueryMock(first_result=state_row)
@@ -45,6 +45,50 @@ def test_check_action_requires_override_for_disallowed_action():
         db=db,
         event_id="event-1",
         action="CLOSE_EVENT"
+    )
+
+    assert result.allowed is False
+    assert result.requires_override is False
+    assert "performer required" in result.message
+
+
+def test_check_action_disallowed_denies_for_non_committee_in_non_closed_state():
+    state_row = SimpleNamespace(current_state="ACTIVE")
+    member = SimpleNamespace(is_active=True, role="resident")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=state_row),
+        QueryMock(first_result=member),
+    ]
+
+    result = WorkflowEngine.check_action(
+        db=db,
+        event_id="event-1",
+        action="CLOSE_EVENT",
+        performed_by="member-1",
+        override_reason="Required"
+    )
+
+    assert result.allowed is False
+    assert result.requires_override is False
+    assert "only chairman, secretary, or treasurer" in result.message
+
+
+def test_check_action_disallowed_requires_override_when_valid_non_closed_state():
+    state_row = SimpleNamespace(current_state="ACTIVE")
+    member = SimpleNamespace(is_active=True, role="treasurer")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=state_row),
+        QueryMock(first_result=member),
+    ]
+
+    result = WorkflowEngine.check_action(
+        db=db,
+        event_id="event-1",
+        action="CLOSE_EVENT",
+        performed_by="member-1",
+        override_reason="Required"
     )
 
     assert result.allowed is False
