@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy import func
 
-from app.db.models import Flat, Payment, Refund, EventFoodPass
+from app.db.models import Event, Flat, Payment, Refund, EventFoodPass
 from app.modules.expenses.expense_service import ExpenseService
 from app.modules.onboarding.admin_approval_service import AdminApprovalService
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
@@ -464,7 +464,7 @@ def handle_committee_intent(
     )
     pending_action_state = get_committee_action_session(committee_action_session_key)
 
-    if intent in {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR", "REMIND_FLAT"}:
+    if intent in {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR", "REMIND_FLAT", "CLOSE_EVENT"}:
         clear_committee_action_session(committee_action_session_key)
 
     if intent == "ADD_EXPENSE":
@@ -702,6 +702,42 @@ def handle_committee_intent(
 
         if error:
             return error_response(error)
+
+    if intent == "CLOSE_EVENT":
+        if not is_action_allowed(member.role, "CLOSE_EVENT"):
+            return warning_response("Only Chairman, Secretary, or Treasurer can close events.")
+
+        reason = parse_reason(message, command_prefixes=("close event",))
+        if not reason or not reason.strip():
+            return error_response("Please provide a close reason. Example: close event reason settlement completed")
+
+        target_event = event
+        if not target_event:
+            target_event = (
+                db.query(Event)
+                .filter(Event.society_id == member.society_id)
+                .order_by(Event.created_at.desc())
+                .first()
+            )
+
+        if not target_event:
+            return error_response("No event found to close. Please contact committee.")
+
+        try:
+            EventService.close_event(
+                db=db,
+                event_id=target_event.id,
+                performed_by=member.id,
+                override_reason=reason.strip(),
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Event closed: {target_event.name}",
+            heading="Event closed",
+            emoji="🔒",
+        )
 
     if intent == "PENDING_PAYMENTS":
         if not is_action_allowed(member.role, "PAY"):

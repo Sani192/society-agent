@@ -42,6 +42,7 @@ INTENTS = {
     "ADD_PASS": "add pass",
     "ADD_EXPENSE": "expense",
     "ADD_EVENT": "add event",
+    "CLOSE_EVENT": "close event",
     "REMIND_FLAT": "remind",
 
     # payments & refunds (generic AFTER sponsor-specific)

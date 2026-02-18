@@ -36,12 +36,24 @@ def parse_pass_counts(message: str):
     return counts
 
 
-def parse_reason(message: str):
-    logger.info("Parsing refund reason from WhatsApp message")
-    match = re.search(r"reason\s+(.*)", message)
+def parse_reason(message: str, *, command_prefixes: tuple[str, ...] = ()):
+    logger.info("Parsing reason from WhatsApp message")
+    match = re.search(r"\breason\s+(.*)", message, re.IGNORECASE)
     reason = match.group(1).strip() if match else None
+
+    if not reason:
+        normalized_message = (message or "").strip()
+        for prefix in command_prefixes:
+            normalized_prefix = prefix.strip()
+            if not normalized_prefix:
+                continue
+            if normalized_message.lower().startswith(normalized_prefix.lower()):
+                reason = normalized_message[len(normalized_prefix):].strip()
+                if reason:
+                    break
+
     logger.info("Parsed reason", extra={"has_reason": bool(reason)})
-    return reason
+    return reason or None
 
 
 def parse_target_flat(message: str):
