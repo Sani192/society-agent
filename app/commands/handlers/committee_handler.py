@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy import func
 
-from app.db.models import Event, Flat, Payment, Refund, EventFoodPass
+from app.db.models import Event, Flat, Payment, Refund, EventFoodPass, WorkflowState
 from app.modules.expenses.expense_service import ExpenseService
 from app.modules.onboarding.admin_approval_service import AdminApprovalService
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
@@ -84,6 +84,28 @@ EVENT_WIZARD_STEPS = [
     "payment_deadline",
 ]
 
+INTENT_ROLE_ACTIONS = {
+    "ADD_EXPENSE": "ADD_EXPENSE",
+    "ADD_SPONSOR": "ADD_SPONSOR",
+    "REFUND_SPONSOR": "REFUND",
+    "REMIND_FLAT": "PAY",
+    "CLOSE_EVENT": "CLOSE_EVENT",
+}
+
+INTENT_ROLE_WARNINGS = {
+    "ADD_EXPENSE": (
+        "This action normally requires Secretary approval. "
+        "Please ask Chairman to override."
+    ),
+    "ADD_SPONSOR": "Only Chairman, Secretary, or Treasurer can add sponsor contributions.",
+    "REFUND_SPONSOR": "Only Treasurer or Chairman can refund sponsors.",
+    "REMIND_FLAT": "This action normally requires Treasurer approval.",
+    "CLOSE_EVENT": "Only Chairman, Secretary, or Treasurer can close events.",
+}
+
+CLOSED_OVERRIDE_INTENTS = {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR"}
+COMMITTEE_ROLES = {"chairman", "secretary", "treasurer"}
+
 
 def _event_wizard_prompt(step: str) -> str:
     prompts = {
@@ -104,6 +126,60 @@ def _event_wizard_prompt(step: str) -> str:
         ),
     }
     return prompts[step]
+
+
+def _extract_override_reason(raw_message: str) -> tuple[str, str | None]:
+    if not raw_message:
+        return "", None
+
+    marker = " override "
+    normalized = f" {raw_message.strip()} "
+    if marker not in normalized.lower():
+        return raw_message, None
+
+    lower_message = raw_message.lower()
+    split_index = lower_message.rfind(" override ")
+    base_message = raw_message[:split_index].strip()
+    override_reason = raw_message[split_index + len(" override "):].strip() or None
+    return base_message, override_reason
+
+
+def _event_state_for_intent(*, db, event) -> str | None:
+    if not event:
+        return None
+
+    try:
+        state_row = (
+            db.query(WorkflowState)
+            .filter(WorkflowState.event_id == event.id)
+            .first()
+        )
+    except Exception:
+        return None
+
+    if not state_row:
+        return None
+    return getattr(state_row, "current_state", None)
+
+
+def can_execute_intent(*, member, intent: str, event_state: str | None, override_reason: str | None) -> tuple[bool, str | None]:
+    action = INTENT_ROLE_ACTIONS.get(intent)
+    if not action:
+        return True, None
+
+    if is_action_allowed(member.role, action):
+        return True, None
+
+    is_closed_override = (
+        intent in CLOSED_OVERRIDE_INTENTS
+        and event_state == "CLOSED"
+        and member.role in COMMITTEE_ROLES
+        and bool((override_reason or "").strip())
+    )
+    if is_closed_override:
+        return True, None
+
+    return False, INTENT_ROLE_WARNINGS.get(intent, "You are not allowed to perform this action.")
 
 
 def _next_event_wizard_step(current_step: str) -> str | None:
@@ -334,7 +410,7 @@ def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
     return prompts[(state.action, state.step)]
 
 
-def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_name: str, amount_or_details: str):
+def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_name: str, amount_or_details: str, override_reason: str | None = None):
     flat_id = None
     normalized_sponsor_type = sponsor_type.strip().lower()
     normalized_name = sponsor_name.strip()
@@ -363,6 +439,7 @@ def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_n
             in_kind_details=payload,
             performed_by=member.id,
             notes="Via WhatsApp",
+            override_reason=override_reason,
         )
         return success_response(
             "In-kind sponsor added successfully.",
@@ -381,6 +458,7 @@ def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_n
         amount=amount,
         performed_by=member.id,
         notes="Via WhatsApp",
+        override_reason=override_reason,
     )
     return success_response("Sponsor added successfully.", heading="Sponsor added", emoji="🤝")
 
@@ -468,20 +546,26 @@ def handle_committee_intent(
     if intent in {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR", "REMIND_FLAT", "CLOSE_EVENT"}:
         clear_committee_action_session(committee_action_session_key)
 
+
     if intent == "ADD_EXPENSE":
-        if not is_action_allowed(member.role, "ADD_EXPENSE"):
-            return warning_response(
-                "This action normally requires Secretary approval. "
-                "Please ask Chairman to override."
-            )
+        normalized_message, override_reason = _extract_override_reason(message)
+        event_state = _event_state_for_intent(db=db, event=event) if override_reason else None
+        can_execute, warning = can_execute_intent(
+            member=member,
+            intent=intent,
+            event_state=event_state,
+            override_reason=override_reason,
+        )
+        if not can_execute:
+            return warning_response(warning)
 
         if not event:
             return error_response("No active event found. Please contact committee.")
 
-        amount = parse_amount(message)
-        reason = message.replace(str(amount), "").strip() if amount else ""
+        amount = parse_amount(normalized_message)
+        reason = normalized_message.replace(str(amount), "").strip() if amount else ""
 
-        has_direct_args = message.strip().lower() != "expense"
+        has_direct_args = normalized_message.strip().lower() != "expense"
         if not has_direct_args:
             state = CommitteeActionSessionState(action="ADD_EXPENSE", step="reason")
             save_committee_action_session(committee_action_session_key, state)
@@ -509,7 +593,7 @@ def handle_committee_intent(
             description=reason or "WhatsApp expense",
             amount=amount,
             performed_by=member.id,
-            override_reason="Via WhatsApp",
+            override_reason=override_reason or "Via WhatsApp",
         )
         return success_response(
             f"Expense added: {format_currency(amount)}",
@@ -811,8 +895,14 @@ def handle_committee_intent(
         )
 
     if intent == "CLOSE_EVENT":
-        if not is_action_allowed(member.role, "CLOSE_EVENT"):
-            return warning_response("Only Chairman, Secretary, or Treasurer can close events.")
+        can_execute, warning = can_execute_intent(
+            member=member,
+            intent=intent,
+            event_state=None,
+            override_reason=None,
+        )
+        if not can_execute:
+            return warning_response(warning)
 
         reason = parse_reason(message, command_prefixes=("close event",))
         if not reason or not reason.strip():
@@ -1020,8 +1110,14 @@ def handle_committee_intent(
         return success_response(join_lines(lines))
 
     if intent == "REMIND_FLAT":
-        if not is_action_allowed(member.role, "PAY"):
-            return warning_response("This action normally requires Treasurer approval.")
+        can_execute, warning = can_execute_intent(
+            member=member,
+            intent=intent,
+            event_state=None,
+            override_reason=None,
+        )
+        if not can_execute:
+            return warning_response(warning)
 
         if not event:
             return error_response("No active event found. Please contact committee.")
@@ -1147,10 +1243,21 @@ def handle_committee_intent(
         return success_response(join_lines(lines))
 
     if intent == "ADD_SPONSOR":
-        if not is_action_allowed(member.role, "ADD_SPONSOR"):
-            return warning_response("Only committee members can add sponsors.")
+        normalized_message, override_reason = _extract_override_reason(message)
+        event_state = _event_state_for_intent(db=db, event=event) if override_reason else None
+        can_execute, warning = can_execute_intent(
+            member=member,
+            intent=intent,
+            event_state=event_state,
+            override_reason=override_reason,
+        )
+        if not can_execute:
+            return warning_response(warning)
 
-        raw = message.replace("add sponsor", "", 1).strip()
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        raw = normalized_message.replace("add sponsor", "", 1).strip()
 
         if not raw:
             state = CommitteeActionSessionState(action="ADD_SPONSOR", step="sponsor_type")
@@ -1184,6 +1291,7 @@ def handle_committee_intent(
                 sponsor_type="in-kind",
                 sponsor_name=sponsor_name,
                 amount_or_details=details,
+                override_reason=override_reason,
             )
 
         parts = raw.split()
@@ -1224,13 +1332,22 @@ def handle_committee_intent(
             sponsor_type="monetary",
             sponsor_name=sponsor_name,
             amount_or_details=amount,
+            override_reason=override_reason,
         )
 
     if intent == "REFUND_SPONSOR":
-        if not is_action_allowed(member.role, "REFUND"):
-            return warning_response("Only Treasurer or Chairman can refund sponsors.")
+        normalized_message, override_reason = _extract_override_reason(message)
+        event_state = _event_state_for_intent(db=db, event=event) if override_reason else None
+        can_execute, warning = can_execute_intent(
+            member=member,
+            intent=intent,
+            event_state=event_state,
+            override_reason=override_reason,
+        )
+        if not can_execute:
+            return warning_response(warning)
 
-        parts = message.split()
+        parts = normalized_message.split()
 
         if len(parts) < 3:
             state = CommitteeActionSessionState(action="REFUND_SPONSOR", step="contribution_code")
@@ -1270,13 +1387,7 @@ def handle_committee_intent(
             return info_response(_prompt_for_pending_action_step(state))
 
         reason_index = parts.index("reason")
-        override_reason = None
-        if "override" in parts[reason_index + 1 :]:
-            override_index = parts.index("override", reason_index + 1)
-            reason = " ".join(parts[reason_index + 1 : override_index]).strip()
-            override_reason = " ".join(parts[override_index + 1 :]).strip() or None
-        else:
-            reason = " ".join(parts[reason_index + 1 :]).strip()
+        reason = " ".join(parts[reason_index + 1 :]).strip()
 
         if not reason:
             state = CommitteeActionSessionState(

@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -890,3 +891,75 @@ def test_committee_add_event_wizard_reprompts_on_invalid_date():
 
     assert response.startswith("❌")
     assert "YYYY-MM-DD HH:MM" in response
+
+
+@pytest.mark.parametrize(
+    "intent,message,patch_path,roles",
+    [
+        (
+            "ADD_EXPENSE",
+            "expense water 1200 override closed correction",
+            "app.whatsapp.handlers.committee_handler.ExpenseService.add_expense",
+            ["chairman", "secretary", "treasurer"],
+        ),
+        (
+            "ADD_SPONSOR",
+            "add sponsor ABC Corp 5000 override closed correction",
+            "app.whatsapp.handlers.committee_handler.ContributionService.add_contribution",
+            ["chairman", "secretary", "treasurer"],
+        ),
+        (
+            "REFUND_SPONSOR",
+            "refund sponsor SP-001 500 reason duplicate charge override closed correction",
+            "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+            ["chairman", "secretary", "treasurer"],
+        ),
+    ],
+)
+def test_closed_override_allows_all_committee_roles(monkeypatch, intent, message, patch_path, roles):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler._event_state_for_intent",
+        lambda **kwargs: "CLOSED",
+    )
+
+    called = {}
+
+    def fake_call(**kwargs):
+        called[kwargs["performed_by"]] = kwargs
+
+    monkeypatch.setattr(patch_path, fake_call)
+
+    for role in roles:
+        member = SimpleNamespace(id=f"member-{role}", role=role)
+        response = handle_committee_intent(
+            db=MagicMock(),
+            intent=intent,
+            message=message,
+            event=event,
+            member=member,
+        )
+
+        assert response.startswith("✅")
+        assert called[f"member-{role}"]["override_reason"] == "closed correction"
+
+
+def test_closed_override_still_blocks_missing_reason(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="treasurer")
+
+    monkeypatch.setattr(
+        "app.commands.handlers.committee_handler._event_state_for_intent",
+        lambda **kwargs: "CLOSED",
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EXPENSE",
+        message="expense water 1200",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("⚠️")
