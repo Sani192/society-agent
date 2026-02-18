@@ -12,7 +12,6 @@ EVENT_STATES = {
     "DRAFT",
     "ACTIVE",
     "LOCKED",
-    "PAYMENT_LOCKED",
     "EVENT_DAY",
     "CLOSED"
 }
