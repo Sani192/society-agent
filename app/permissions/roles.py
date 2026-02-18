@@ -16,6 +16,7 @@ ROLE_ACTIONS = {
         "ADD_PASS",
         "ADD_EXPENSE",
         "ADD_EVENT",
+        "CLOSE_EVENT",
         "SUMMARY",
         "PENDING_PAYMENTS",
         "ONBOARDING_PENDING",
@@ -29,6 +30,7 @@ ROLE_ACTIONS = {
         "SUMMARY",
         "PENDING_PAYMENTS",
         "ADD_SPONSOR",
-        "REFUND_SPONSOR"
+        "REFUND_SPONSOR",
+        "CLOSE_EVENT"
     }
 }
