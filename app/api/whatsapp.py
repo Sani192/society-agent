@@ -32,6 +32,9 @@ from app.modules.reports.common.whatsapp_report_registry import (
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.users.user_query_service import UserQueryService
 from app.modules.onboarding.join_code_service import JoinCodeService
+from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
+from app.modules.payments.payment_request_service import PaymentRequestService
+from app.modules.payments.refund_request_service import RefundRequestService
 from app.commands.handlers.common import get_latest_event, resolve_flat
 from app.commands.parser import parse_pass_counts
 from app.whatsapp.response_templates import format_currency
@@ -79,6 +82,7 @@ router = APIRouter()
 
 WHATSAPP_LIST_MAX_ROWS = 10
 WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
+WHATSAPP_APPROVAL_ROW_LIMIT = 10
 
 
 def _report_page_option_limit(*, total_options: int, page_size: int = WHATSAPP_LIST_MAX_ROWS) -> int:
@@ -128,6 +132,104 @@ def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
         button_text="Open",
         sections=build_main_dashboard_sections(is_committee=is_committee),
     )
+
+
+def _send_approval_selection_list(
+    *,
+    client,
+    sender_id: str,
+    approval_type: str,
+    db,
+    canonical_sender: str,
+    external_user_id: str,
+) -> bool:
+    if not _is_committee_member(
+        db=db,
+        sender_id=canonical_sender,
+        external_user_id=external_user_id,
+    ):
+        client.send_text_message(sender_id, "Access restricted.")
+        return True
+
+    latest_event = get_latest_event(db)
+    if not latest_event:
+        client.send_text_message(sender_id, "No active event found.")
+        return True
+
+    if approval_type == "user":
+        pending_users = AdminOnboardingQueryService.list_pending_users(
+            db=db,
+            society_id=latest_event.society_id,
+        )
+        rows = [
+            {
+                "id": f"approve user {pending.request_code}",
+                "title": pending.request_code[:24],
+                "description": f"Flat {pending.flat_number}"[:72],
+            }
+            for pending in pending_users[:WHATSAPP_APPROVAL_ROW_LIMIT]
+        ]
+        empty_message = "No pending user requests."
+        fallback_template = "approve user REQ-001"
+        header_text = "Approve User"
+
+    elif approval_type == "payment":
+        pending_payments = PaymentRequestService.list_requests(
+            db=db,
+            event_id=latest_event.id,
+            status="requested",
+        )
+        rows = [
+            {
+                "id": f"approve payment {request.request_code}",
+                "title": request.request_code[:24],
+                "description": (
+                    f"{flat.flat_number} · {format_currency(request.amount)}"
+                )[:72],
+            }
+            for request, flat in pending_payments[:WHATSAPP_APPROVAL_ROW_LIMIT]
+        ]
+        empty_message = "No pending payment requests."
+        fallback_template = "approve payment PAY-001"
+        header_text = "Approve Payment"
+
+    else:
+        pending_refunds = RefundRequestService.list_requests(
+            db=db,
+            event_id=latest_event.id,
+            status="requested",
+        )
+        rows = [
+            {
+                "id": f"approve refund {request.request_code}",
+                "title": request.request_code[:24],
+                "description": (
+                    f"{flat.flat_number} · {format_currency(request.amount)}"
+                )[:72],
+            }
+            for request, flat in pending_refunds[:WHATSAPP_APPROVAL_ROW_LIMIT]
+        ]
+        empty_message = "No pending refund requests."
+        fallback_template = "approve refund REF-001"
+        header_text = "Approve Refund"
+
+    if not rows:
+        client.send_text_message(sender_id, empty_message)
+        return True
+
+    try:
+        client.send_list_message(
+            to_phone=sender_id,
+            header_text=header_text,
+            body_text="Select a request to approve",
+            button_text="Approve",
+            sections=[{"title": "Pending Requests", "rows": rows}],
+            footer_text="If list selection is unavailable, use the command template below.",
+        )
+    except Exception:
+        logger.exception("Failed to send approval selection list", extra={"approval_type": approval_type})
+        client.send_text_message(sender_id, fallback_template)
+    return True
 
 
 def _try_handle_ui_message(*, client, message) -> bool:
@@ -346,16 +448,49 @@ def _try_handle_ui_message(*, client, message) -> bool:
             db.close()
 
     if msg == "ui::approve-user":
-        client.send_text_message(message.sender_id, "approve user REQ-001")
-        return True
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            return _send_approval_selection_list(
+                client=client,
+                sender_id=message.sender_id,
+                approval_type="user",
+                db=db,
+                canonical_sender=canonical_sender,
+                external_user_id=message.sender_id,
+            )
+        finally:
+            db.close()
 
     if msg == "ui::approve-payment":
-        client.send_text_message(message.sender_id, "approve payment PAY-001")
-        return True
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            return _send_approval_selection_list(
+                client=client,
+                sender_id=message.sender_id,
+                approval_type="payment",
+                db=db,
+                canonical_sender=canonical_sender,
+                external_user_id=message.sender_id,
+            )
+        finally:
+            db.close()
 
     if msg == "ui::approve-refund":
-        client.send_text_message(message.sender_id, "approve refund REF-001")
-        return True
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            return _send_approval_selection_list(
+                client=client,
+                sender_id=message.sender_id,
+                approval_type="refund",
+                db=db,
+                canonical_sender=canonical_sender,
+                external_user_id=message.sender_id,
+            )
+        finally:
+            db.close()
 
     return False
 
