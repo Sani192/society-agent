@@ -84,6 +84,8 @@ class FoodPassService:
                 raise Exception(decision.message)
             if not override_reason:
                 raise Exception(decision.message)
+            if not performed_by:
+                raise Exception("Override denied: performer required")
             WorkflowEngine.apply_override(
                 db=db,
                 society_id=event.society_id,

@@ -72,7 +72,7 @@ class WorkflowEngine:
 
         state_suffix = " for CLOSED state" if current_state == "CLOSED" else ""
 
-        if not performed_by:
+        if not performed_by or (isinstance(performed_by, str) and not performed_by.strip()):
             logger.warning("Override denied: missing performer | action=%s context=%s", action, context)
             return WorkflowDecision(
                 allowed=False,
