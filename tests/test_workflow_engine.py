@@ -174,3 +174,47 @@ def test_apply_override_adds_audit_log():
     assert audit.action == "OVERRIDE_MARK_PAID"
     assert audit.entity_type == "payment"
     db.add.assert_called_once_with(audit)
+
+
+def test_check_action_draft_denies_override_for_non_committee_member():
+    state_row = SimpleNamespace(current_state="DRAFT")
+    member = SimpleNamespace(is_active=True, role="resident")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=state_row),
+        QueryMock(first_result=member),
+    ]
+
+    result = WorkflowEngine.check_action(
+        db=db,
+        event_id="event-1",
+        action="ADD_PASS",
+        performed_by="member-1",
+        override_reason="Need to add now"
+    )
+
+    assert result.allowed is False
+    assert result.requires_override is False
+    assert "only chairman, secretary, or treasurer" in result.message
+
+
+def test_check_action_locked_denies_override_for_non_committee_member():
+    state_row = SimpleNamespace(current_state="LOCKED")
+    member = SimpleNamespace(is_active=True, role="resident")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=state_row),
+        QueryMock(first_result=member),
+    ]
+
+    result = WorkflowEngine.check_action(
+        db=db,
+        event_id="event-1",
+        action="LOCK_PASSES",
+        performed_by="member-1",
+        override_reason="Need to reopen"
+    )
+
+    assert result.allowed is False
+    assert result.requires_override is False
+    assert "only chairman, secretary, or treasurer" in result.message

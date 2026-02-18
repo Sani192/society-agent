@@ -86,7 +86,7 @@ def handle_public_intent(
             charge_per_adult=charge_per_adult,
             charge_per_child=charge_per_child,
             performed_by=member.id if member else None,
-            override_reason="Via WhatsApp" if member else "Self service via WhatsApp"
+            override_reason="Via WhatsApp" if member else None
         )
 
         return success_response(
