@@ -9,7 +9,7 @@ Created on Sun Jan 25 17:29:05 2026
 import io
 from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate, Spacer
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
@@ -31,10 +31,10 @@ def generate_balance_continuity_pdf(
         report_title="Balance Carry-Forward Report",
         logo_path=logo_path
     )
-
+        
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
+        pagesize=landscape(A4),
         rightMargin=40,
         leftMargin=40,
         topMargin=100,

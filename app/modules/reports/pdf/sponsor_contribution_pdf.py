@@ -31,15 +31,15 @@ def generate_sponsor_contribution_pdf(
         society_name=society_name,
         report_title="Sponsor & Contribution Report",
         logo_path=logo_path
-    )
-
+    )    
+    
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
-        rightMargin=2 * 28,
-        leftMargin=2 * 28,
-        topMargin=4 * 28,
-        bottomMargin=3 * 28,
+        pagesize=landscape(A4),
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=100,
+        bottomMargin=60
     )
     
     styles = getSampleStyleSheet()

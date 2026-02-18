@@ -34,14 +34,14 @@ def generate_flat_payment_pdf(
     )
     
     #page_size = landscape(A4) if len(headers) > 6 else A4
-
+        
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
-        rightMargin=2 * 28,
-        leftMargin=2 * 28,
-        topMargin=4 * 28,
-        bottomMargin=3 * 28,
+        pagesize=landscape(A4),
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=100,
+        bottomMargin=60
     )
 
     styles = getSampleStyleSheet()
