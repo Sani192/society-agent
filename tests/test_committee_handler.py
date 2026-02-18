@@ -605,6 +605,57 @@ def test_committee_refund_sponsor_surfaces_error(monkeypatch):
     )
 
 
+
+
+def test_committee_refund_sponsor_prompts_override_when_required(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="chairman")
+
+    def fake_process_refund(**kwargs):
+        raise Exception("Action 'REFUND_CONTRIBUTION' requires override in state 'CLOSED'")
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        fake_process_refund,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REFUND_SPONSOR",
+        message="refund sponsor SP-001 500 reason extra",
+        event=event,
+        member=member,
+    )
+
+    assert "override reason" in response.lower()
+
+
+def test_committee_refund_sponsor_direct_passes_override_reason(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="chairman")
+
+    called = {}
+
+    def fake_process_refund(**kwargs):
+        called.update(kwargs)
+
+    monkeypatch.setattr(
+        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        fake_process_refund,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="REFUND_SPONSOR",
+        message="refund sponsor SP-001 500 reason extra charge override audit approved",
+        event=event,
+        member=member,
+    )
+
+    assert called["override_reason"] == "audit approved"
+    assert response == "✅ ↩️ *Refund processed*\nSponsor refund processed (SP-001)."
+
+
 def test_committee_approve_refund_already_processed(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(id="member-1", role="treasurer")

@@ -328,6 +328,7 @@ def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
         ("REFUND_SPONSOR", "contribution_code"): "Please share contribution code. Example: SP-001\nExpected next reply: contribution code.\nType `cancel` to stop.",
         ("REFUND_SPONSOR", "amount"): "Please share refund amount. Example: 500\nExpected next reply: numeric amount only.\nType `cancel` to stop.",
         ("REFUND_SPONSOR", "reason"): "Please share refund reason.\nExpected next reply: reason text.\nType `cancel` to stop.",
+        ("REFUND_SPONSOR", "override_reason"): "This refund needs an override reason due to workflow state.\nExpected next reply: override reason text.\nType `cancel` to stop.",
         ("REMIND_FLAT", "flat_number"): "Please share flat number. Example: A-101\nExpected next reply: flat number.\nType `cancel` to stop.",
     }
     return prompts[(state.action, state.step)]
@@ -612,7 +613,7 @@ def handle_committee_intent(
             if state.step == "reason":
                 if not answer:
                     return error_response("Refund reason is required.")
-                clear_committee_action_session(committee_action_session_key)
+                state.data["reason"] = answer
                 try:
                     ContributionRefundService.process_refund(
                         db=db,
@@ -623,7 +624,35 @@ def handle_committee_intent(
                         performed_by=member.id,
                     )
                 except Exception as exc:
+                    if "requires override" in str(exc).lower():
+                        state.step = "override_reason"
+                        save_committee_action_session(committee_action_session_key, state)
+                        return info_response(_prompt_for_pending_action_step(state))
+                    clear_committee_action_session(committee_action_session_key)
                     return error_response(str(exc))
+                clear_committee_action_session(committee_action_session_key)
+                return success_response(
+                    f"Sponsor refund processed ({state.data['contribution_code']}).",
+                    heading="Refund processed",
+                    emoji="↩️",
+                )
+
+            if state.step == "override_reason":
+                if not answer:
+                    return error_response("Override reason is required.")
+                try:
+                    ContributionRefundService.process_refund(
+                        db=db,
+                        event_id=event.id,
+                        contribution_code=state.data["contribution_code"],
+                        amount=int(state.data["amount"]),
+                        reason=state.data["reason"],
+                        performed_by=member.id,
+                        override_reason=answer,
+                    )
+                except Exception as exc:
+                    return error_response(str(exc))
+                clear_committee_action_session(committee_action_session_key)
                 return success_response(
                     f"Sponsor refund processed ({state.data['contribution_code']}).",
                     heading="Refund processed",
@@ -1146,7 +1175,13 @@ def handle_committee_intent(
             return info_response(_prompt_for_pending_action_step(state))
 
         reason_index = parts.index("reason")
-        reason = " ".join(parts[reason_index + 1 :]).strip()
+        override_reason = None
+        if "override" in parts[reason_index + 1 :]:
+            override_index = parts.index("override", reason_index + 1)
+            reason = " ".join(parts[reason_index + 1 : override_index]).strip()
+            override_reason = " ".join(parts[override_index + 1 :]).strip() or None
+        else:
+            reason = " ".join(parts[reason_index + 1 :]).strip()
 
         if not reason:
             state = CommitteeActionSessionState(
@@ -1165,8 +1200,21 @@ def handle_committee_intent(
                 amount=amount,
                 reason=reason,
                 performed_by=member.id,
+                override_reason=override_reason,
             )
         except Exception as exc:
+            if "requires override" in str(exc).lower():
+                state = CommitteeActionSessionState(
+                    action="REFUND_SPONSOR",
+                    step="override_reason",
+                    data={
+                        "contribution_code": contribution_code.upper(),
+                        "amount": str(amount),
+                        "reason": reason,
+                    },
+                )
+                save_committee_action_session(committee_action_session_key, state)
+                return info_response(_prompt_for_pending_action_step(state))
             return error_response(str(exc))
 
         return success_response(
