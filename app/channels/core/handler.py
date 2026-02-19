@@ -14,6 +14,7 @@ from app.modules.users.channel_identity_service import (
     link_member_by_phone,
 )
 from app.utils.guards import ensure_committee_member
+from app.permissions.command_policy import get_event_state, get_intent_state_warning
 from app.utils.logger import logger
 from app.whatsapp.event_creation_session import (
     build_event_creation_session_key,
@@ -172,6 +173,15 @@ def handle_inbound_message(
         )
         if link_response:
             return link_response
+
+        event_state = get_event_state(event)
+        blocked_reason = get_intent_state_warning(
+            intent=intent,
+            event_state=event_state,
+            is_committee=bool(member),
+        ) if intent else None
+        if blocked_reason:
+            return info_response(blocked_reason)
 
         if not intent:
             logger.info(

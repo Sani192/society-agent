@@ -33,6 +33,7 @@ from app.modules.reports.common.whatsapp_report_registry import (
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.utils.logger import logger
 from app.permissions.guard import is_action_allowed
+from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.whatsapp.response_templates import (
     error_response,
     format_currency,
@@ -1133,18 +1134,27 @@ def handle_committee_intent(
         return _build_reminder_preview(db=db, event=event, flat_number=flat_number)
 
     if intent == "COMMANDS":
+        event_state = get_event_state(event)
+        command_map = [
+            ("ADD_EVENT", "add event"),
+            ("ACTIVATE_EVENT", "activate event"),
+            ("LOCK_PASSES", "lock passes"),
+            ("START_EVENT", "start event"),
+            ("CLOSE_EVENT", "close event reason settlement completed"),
+            ("ADD_EXPENSE", "expense water 1200"),
+            ("ADD_SPONSOR", "add sponsor ABC Corp 5000"),
+            ("REFUND_SPONSOR", "refund sponsor SP-001 500 reason duplicate entry"),
+            ("REPORT_OPTIONS", "report options"),
+        ]
+        visible = [
+            cmd
+            for cmd_intent, cmd in command_map
+            if is_member_action_visible(intent=cmd_intent, event_state=event_state, is_committee=True)
+        ]
         return success_response(
             join_lines([
                 "Committee quick actions:",
-                "add event",
-                "activate event",
-                "lock passes",
-                "start event",
-                "close event reason settlement completed",
-                "expense water 1200",
-                "add sponsor ABC Corp 5000",
-                "refund sponsor SP-001 500 reason duplicate entry",
-                "report options",
+                *(visible if visible else ["No command available in current event state."]),
             ]),
             heading="Committee commands",
         )

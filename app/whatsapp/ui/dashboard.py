@@ -66,16 +66,17 @@ def build_society_sections() -> list[dict]:
     ]
 
 
-def build_finance_sections() -> list[dict]:
-    return [
-        {
-            "title": "Finance",
-            "rows": [
-                {"id": "ui::make-payment", "title": "Make Payment", "description": "Pay your outstanding dues"},
-                {"id": "ui::request-refund", "title": "Request Refund", "description": "Start a new refund request"},
-                {"id": "ui::payments", "title": "Payments", "description": "View balance, history, and refund requests"},
-                {"id": "pay", "title": "Pay Dues", "description": "Send: pay <amount>"},
-                {"id": "refund", "title": "Request a Refund", "description": "Send: refund <amount> <reason>"},
-            ],
-        }
+def build_finance_sections(*, include_payment_actions: bool = True) -> list[dict]:
+    rows = [
+        {"id": "ui::payments", "title": "Payments", "description": "View balance, history, and refund requests"},
     ]
+    if include_payment_actions:
+        rows = [
+            {"id": "ui::make-payment", "title": "Make Payment", "description": "Pay your outstanding dues"},
+            {"id": "ui::request-refund", "title": "Request Refund", "description": "Start a new refund request"},
+            *rows,
+            {"id": "pay", "title": "Pay Dues", "description": "Send: pay <amount>"},
+            {"id": "refund", "title": "Request a Refund", "description": "Send: refund <amount> <reason>"},
+        ]
+
+    return [{"title": "Finance", "rows": rows}]
