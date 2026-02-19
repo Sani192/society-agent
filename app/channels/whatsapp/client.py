@@ -241,6 +241,64 @@ class WhatsAppClient:
             )
             raise
 
+    def send_button_message(
+        self,
+        *,
+        to_phone: str,
+        header_text: str,
+        body_text: str,
+        buttons: list[dict],
+        footer_text: str | None = None,
+    ) -> dict:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
+        interactive_payload = {
+            "type": "button",
+            "header": {"type": "text", "text": header_text[:60]},
+            "body": {"text": body_text[:1024]},
+            "action": {"buttons": buttons[:3]},
+        }
+        if footer_text:
+            interactive_payload["footer"] = {"text": footer_text[:60]}
+
+        payload = {
+            "messaging_product": WHATSAPP_MESSAGING_PRODUCT,
+            "to": to_phone,
+            "type": "interactive",
+            "interactive": interactive_payload,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(
+            "Sending WhatsApp interactive button message",
+            extra={"to_phone": to_phone, "url": url, "message_type": "interactive_button"},
+        )
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            payload = _extract_response_payload(
+                response,
+                context={"operation": "send_button_message", "to_phone": to_phone},
+            )
+            logger.info(
+                "Received WhatsApp API response",
+                extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "interactive_button"},
+            )
+            return payload
+        except requests.RequestException:
+            logger.exception(
+                "Failed sending WhatsApp interactive button message",
+                extra={"to_phone": to_phone, "url": url},
+            )
+            raise
+
 
 def get_whatsapp_client() -> WhatsAppClient:
     logger.info("Preparing WhatsApp client")

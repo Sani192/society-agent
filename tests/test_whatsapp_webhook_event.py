@@ -47,12 +47,12 @@ def test_whatsapp_webhook_event_handles_send_text_errors(monkeypatch):
     assert sent_attempts == [("919999000000", "reply")]
 
 
-def test_whatsapp_webhook_event_sends_dashboard_list_for_menu(monkeypatch):
-    list_attempts = []
+def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
+    button_attempts = []
 
     class StubWhatsAppClient:
-        def send_list_message(self, **kwargs):
-            list_attempts.append(kwargs)
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.1"}]}
 
         def send_text_message(self, to_phone: str, body: str):
@@ -76,13 +76,11 @@ def test_whatsapp_webhook_event_sends_dashboard_list_for_menu(monkeypatch):
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    assert len(list_attempts) == 1
-    assert list_attempts[0]["header_text"] == "Society Control Panel"
-    sections = list_attempts[0]["sections"]
-    assert len(sections) == 1
-    assert sections[0]["title"] == "Sections"
-    assert len(sections[0]["rows"]) <= 10
-    assert any(row["id"] == "ui::reports" for row in sections[0]["rows"])
+    assert len(button_attempts) == 2
+    assert button_attempts[0]["header_text"] == "Society Control Panel"
+    first_page_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    second_page_ids = [button["reply"]["id"] for button in button_attempts[1]["buttons"]]
+    assert "ui::reports" in first_page_ids + second_page_ids
 
 
 def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
@@ -208,11 +206,11 @@ def test_whatsapp_webhook_event_add_pass_pending_action_rejects_zero_counts(monk
 
 
 def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monkeypatch):
-    list_attempts = []
+    button_attempts = []
 
     class StubWhatsAppClient:
-        def send_list_message(self, **kwargs):
-            list_attempts.append(kwargs)
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.4"}]}
 
         def send_text_message(self, to_phone: str, body: str):
@@ -236,9 +234,12 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    rows = list_attempts[0]["sections"][0]["rows"]
-    assert any(row["id"] == "ui::administration" for row in rows)
-    assert len(rows) <= 10
+    button_ids = [
+        button["reply"]["id"]
+        for attempt in button_attempts
+        for button in attempt["buttons"]
+    ]
+    assert "ui::administration" in button_ids
 
 
 def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypatch):

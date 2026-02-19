@@ -155,13 +155,32 @@ def _filter_sections_by_state(*, sections: list[dict], event_state: str | None, 
 
 
 def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
-    client.send_list_message(
-        to_phone=sender_id,
-        header_text="Society Control Panel",
-        body_text="Select a section",
-        button_text="Open",
-        sections=build_main_dashboard_sections(is_committee=is_committee),
-    )
+    sections = build_main_dashboard_sections(is_committee=is_committee)
+    rows = [row for section in sections for row in section.get("rows", [])]
+
+    for index in range(0, len(rows), 3):
+        chunk = rows[index:index + 3]
+        page = (index // 3) + 1
+        total_pages = (len(rows) + 2) // 3
+        client.send_button_message(
+            to_phone=sender_id,
+            header_text="Society Control Panel",
+            body_text=(
+                "Select a section"
+                if total_pages == 1
+                else f"Select a section ({page}/{total_pages})"
+            ),
+            buttons=[
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": row["id"],
+                        "title": row["title"][:20],
+                    },
+                }
+                for row in chunk
+            ],
+        )
 
 
 def _send_approval_selection_list(

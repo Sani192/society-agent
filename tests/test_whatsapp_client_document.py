@@ -87,6 +87,45 @@ def test_send_list_message_builds_payload(monkeypatch):
     assert captured["body"]["interactive"]["action"]["sections"][0]["rows"][0]["id"] == "export::financial:ledger"
 
 
+def test_send_button_message_builds_payload(monkeypatch):
+    captured = {}
+
+    class DummyResponse:
+        status_code = 200
+        content = b'{"messages":[{"id":"wamid.4"}]}'
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"messages": [{"id": "wamid.4"}]}
+
+    def fake_post(url, *, headers, json, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        captured["headers"] = headers
+        captured["body"] = json
+        return DummyResponse()
+
+    monkeypatch.setattr("app.channels.whatsapp.client.requests.post", fake_post)
+
+    client = WhatsAppClient(access_token="token", phone_number_id="123")
+    response = client.send_button_message(
+        to_phone="919999000000",
+        header_text="Society Control Panel",
+        body_text="Select a section",
+        buttons=[
+            {"type": "reply", "reply": {"id": "ui::my-account", "title": "My Account"}},
+            {"type": "reply", "reply": {"id": "ui::society", "title": "Society"}},
+        ],
+    )
+
+    assert response["messages"][0]["id"] == "wamid.4"
+    assert captured["body"]["type"] == "interactive"
+    assert captured["body"]["interactive"]["type"] == "button"
+    assert captured["body"]["interactive"]["action"]["buttons"][0]["reply"]["id"] == "ui::my-account"
+
+
 def test_send_text_message_handles_non_json_response(monkeypatch):
     class DummyResponse:
         status_code = 200
