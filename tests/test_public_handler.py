@@ -579,3 +579,22 @@ def test_public_block_report_formats_currency(monkeypatch):
 
     assert "🏢 *Block Contribution Report*" in response
     assert "Block A: ₹2,500" in response
+
+
+
+def test_public_actions_blocked_for_non_committee_when_event_not_active(db_session, seed_event):
+    from app.commands.handlers.public_handler import handle_public_intent
+
+    event = seed_event(status="DRAFT")
+
+    response = handle_public_intent(
+        db=db_session,
+        intent="PAY",
+        phone_number="+910000000000",
+        message="pay 500",
+        event=event,
+        member=None,
+    )
+
+    assert response.startswith("❌")
+    assert "available only when event is active" in response

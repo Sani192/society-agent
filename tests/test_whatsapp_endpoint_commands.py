@@ -186,8 +186,8 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
     sections = []
     sections.extend(build_my_account_sections())
     sections.extend(build_society_sections())
-    sections.extend(build_finance_sections())
-    sections.extend(build_participation_sections())
+    sections.extend(build_finance_sections(include_payment_actions=True))
+    sections.extend(build_participation_sections(include_add_pass=True))
     sections.extend(build_payments_sections())
     sections.extend(build_make_payment_sections(outstanding_amount="500"))
     sections.extend(build_reports_sections(is_committee=True))

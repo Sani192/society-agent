@@ -27,6 +27,7 @@ from app.whatsapp.response_templates import (
 )
 from app.commands.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
 from app.commands.handlers.common import resolve_flat
+from app.permissions.command_policy import get_event_state, member_action_state_warning, is_member_action_visible
 
 
 def _resolve_member_flat(db, *, phone_number, event):
@@ -52,6 +53,11 @@ def handle_public_intent(
     member
 ):
     allow_delegate = member is not None
+    event_state = get_event_state(event)
+
+    blocked_message = member_action_state_warning(intent=intent, event_state=event_state)
+    if blocked_message and not allow_delegate:
+        return error_response(blocked_message)
 
     if intent == "ADD_PASS":
         if not event:
@@ -525,14 +531,20 @@ def handle_public_intent(
         )
 
     if intent == "COMMANDS":
+        quick_actions = []
+        if is_member_action_visible(intent="PAY", event_state=event_state, is_committee=allow_delegate):
+            quick_actions.append("pay 500")
+        if is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=allow_delegate):
+            quick_actions.append("refund 200 guest absent")
+        if is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=allow_delegate):
+            quick_actions.append("add pass veg 2 jain 1 kids 1")
+
         return success_response(
             join_lines([
                 "Type *menu*.",
                 "",
                 "Quick actions:",
-                "pay 500",
-                "refund 200 guest absent",
-                "add pass veg 2 jain 1 kids 1",
+                *(quick_actions if quick_actions else ["No action commands available in current event state."]),
             ]),
             heading="Society Control Panel",
         )

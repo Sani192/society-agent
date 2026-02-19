@@ -25,6 +25,7 @@ from app.channels.whatsapp.constants import (
 from app.config import settings
 from app.db.session import SessionLocal
 from app.whatsapp.router import detect_whatsapp_intent
+from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.reports.common.whatsapp_report_registry import (
     build_whatsapp_report_registry,
     list_exportable_report_options,
@@ -55,6 +56,7 @@ from app.whatsapp.ui import (
     refund_request_prompt,
 )
 from app.utils.guards import ensure_committee_member
+from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
 from app.whatsapp.export_session import (
     ExportSessionState,
@@ -122,6 +124,34 @@ def _is_committee_member(*, db, sender_id: str, external_user_id: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def _get_committee_member(*, db, sender_id: str, external_user_id: str):
+    try:
+        return ensure_committee_member(
+            sender_id,
+            db,
+            channel_type="whatsapp",
+            external_user_id=external_user_id,
+        )
+    except Exception:
+        return None
+
+
+def _filter_sections_by_state(*, sections: list[dict], event_state: str | None, is_committee: bool) -> list[dict]:
+    keyword_to_intent = {keyword: intent for intent, keyword in WHATSAPP_INTENTS.items()}
+    filtered_sections = []
+    for section in sections:
+        rows = []
+        for row in section.get("rows", []):
+            row_id = (row.get("id") or "").strip().lower()
+            intent = keyword_to_intent.get(row_id)
+            if intent and not is_member_action_visible(intent=intent, event_state=event_state, is_committee=is_committee):
+                continue
+            rows.append(row)
+        if rows:
+            filtered_sections.append({**section, "rows": rows})
+    return filtered_sections
 
 
 def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
@@ -253,16 +283,34 @@ def _try_handle_ui_message(*, client, message) -> bool:
             db.close()
 
     if msg == "ui::participation":
-        client.send_list_message(
-            to_phone=message.sender_id,
-            header_text="Participation",
-            body_text="Participation",
-            button_text="Open",
-            sections=build_participation_sections(),
-        )
-        return True
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = get_event_state(get_latest_event(db))
+            can_add_pass = is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee)
+            client.send_list_message(
+                to_phone=message.sender_id,
+                header_text="Participation",
+                body_text="Participation",
+                button_text="Open",
+                sections=build_participation_sections(include_add_pass=can_add_pass),
+            )
+            return True
+        finally:
+            db.close()
 
     if msg == "ui::participation:add-update-pass":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = get_event_state(get_latest_event(db))
+            if not is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee):
+                client.send_text_message(message.sender_id, "Pass updates are available only when event is active.")
+                return True
+        finally:
+            db.close()
         finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
         save_finance_action_session(
             finance_session_key,
@@ -312,7 +360,11 @@ def _try_handle_ui_message(*, client, message) -> bool:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             latest_event = get_latest_event(db)
+            if not is_member_action_visible(intent="PAY", event_state=get_event_state(latest_event), is_committee=is_committee):
+                client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
+                return True
             if not latest_event:
                 client.send_text_message(message.sender_id, "No active event found.")
                 return True
@@ -343,6 +395,16 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::request-refund":
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = get_event_state(get_latest_event(db))
+            if not is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=is_committee):
+                client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
+                return True
+        finally:
+            db.close()
         finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
         save_finance_action_session(
             finance_session_key,
@@ -381,31 +443,45 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::finance":
-        client.send_list_message(
-            to_phone=message.sender_id,
-            header_text="Finance",
-            body_text="Select a section",
-            button_text="Open",
-            sections=build_finance_sections(),
-        )
-        return True
+        db = SessionLocal()
+        try:
+            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = get_event_state(get_latest_event(db))
+            can_use_payment = is_member_action_visible(intent="PAY", event_state=event_state, is_committee=is_committee)
+            client.send_list_message(
+                to_phone=message.sender_id,
+                header_text="Finance",
+                body_text="Select a section",
+                button_text="Open",
+                sections=build_finance_sections(include_payment_actions=can_use_payment),
+            )
+            return True
+        finally:
+            db.close()
 
     if msg == "ui::reports":
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(
+                db=db,
+                sender_id=canonical_sender,
+                external_user_id=message.sender_id,
+            )
+            event_state = get_event_state(get_latest_event(db))
+            sections = build_reports_sections(is_committee=is_committee)
+            sections = _filter_sections_by_state(
+                sections=sections,
+                event_state=event_state,
+                is_committee=is_committee,
+            )
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Reports",
                 body_text="Select a report action",
                 button_text="Open",
-                sections=build_reports_sections(
-                    is_committee=_is_committee_member(
-                        db=db,
-                        sender_id=canonical_sender,
-                        external_user_id=message.sender_id,
-                    )
-                ),
+                sections=sections,
             )
             return True
         finally:
@@ -415,15 +491,22 @@ def _try_handle_ui_message(*, client, message) -> bool:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            if not _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id):
+            member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            if not member:
                 client.send_text_message(message.sender_id, "Access restricted.")
                 return True
+            event_state = get_event_state(get_latest_event(db))
+            sections = _filter_sections_by_state(
+                sections=build_committee_sections(),
+                event_state=event_state,
+                is_committee=True,
+            )
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Administration",
                 body_text="Select a section",
                 button_text="Open",
-                sections=build_committee_sections(),
+                sections=sections,
             )
             return True
         finally:
@@ -433,15 +516,22 @@ def _try_handle_ui_message(*, client, message) -> bool:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            if not _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id):
+            member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            if not member:
                 client.send_text_message(message.sender_id, "Access restricted.")
                 return True
+            event_state = get_event_state(get_latest_event(db))
+            sections = _filter_sections_by_state(
+                sections=build_committee_more_sections(),
+                event_state=event_state,
+                is_committee=True,
+            )
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Administration",
                 body_text="More actions",
                 button_text="Open",
-                sections=build_committee_more_sections(),
+                sections=sections,
             )
             return True
         finally:
