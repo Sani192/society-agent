@@ -154,33 +154,44 @@ def _filter_sections_by_state(*, sections: list[dict], event_state: str | None, 
     return filtered_sections
 
 
-def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
-    sections = build_main_dashboard_sections(is_committee=is_committee)
-    rows = [row for section in sections for row in section.get("rows", [])]
+def _button_row(row_id: str, title: str) -> dict:
+    return {
+        "type": "reply",
+        "reply": {
+            "id": row_id,
+            "title": title[:20],
+        },
+    }
 
-    for index in range(0, len(rows), 3):
-        chunk = rows[index:index + 3]
-        page = (index // 3) + 1
-        total_pages = (len(rows) + 2) // 3
-        client.send_button_message(
-            to_phone=sender_id,
-            header_text="Society Control Panel",
-            body_text=(
-                "Select a section"
-                if total_pages == 1
-                else f"Select a section ({page}/{total_pages})"
-            ),
-            buttons=[
-                {
-                    "type": "reply",
-                    "reply": {
-                        "id": row["id"],
-                        "title": row["title"][:20],
-                    },
-                }
-                for row in chunk
-            ],
-        )
+
+def _send_dashboard_ui(*, client, sender_id: str) -> None:
+    client.send_button_message(
+        to_phone=sender_id,
+        header_text="Society Control Panel",
+        body_text="Select a section",
+        buttons=[
+            _button_row("ui::my-account", "My Account"),
+            _button_row("ui::finance", "Finance"),
+            _button_row("ui::menu:more", "More"),
+        ],
+    )
+
+
+def _send_dashboard_more_ui(*, client, sender_id: str, is_committee: bool) -> None:
+    buttons = [
+        _button_row("ui::society", "Society"),
+        _button_row("ui::reports", "Reports"),
+        _button_row("menu", "Main Menu"),
+    ]
+    if is_committee:
+        buttons[2] = _button_row("ui::administration", "Administration")
+
+    client.send_button_message(
+        to_phone=sender_id,
+        header_text="Society Control Panel",
+        body_text="More sections",
+        buttons=buttons,
+    )
 
 
 def _send_approval_selection_list(
@@ -284,18 +295,26 @@ def _send_approval_selection_list(
 def _try_handle_ui_message(*, client, message) -> bool:
     msg = message.text.strip().lower()
 
-    if msg in {"menu", "ui::menu"}:
+    if msg in {"menu", "ui::menu", "ui::menu:more"}:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+            is_committee = _is_committee_member(
+                db=db,
+                sender_id=canonical_sender,
+                external_user_id=message.sender_id,
+            )
+            if msg == "ui::menu:more":
+                _send_dashboard_more_ui(
+                    client=client,
+                    sender_id=message.sender_id,
+                    is_committee=is_committee,
+                )
+                return True
+
             _send_dashboard_ui(
                 client=client,
                 sender_id=message.sender_id,
-                is_committee=_is_committee_member(
-                    db=db,
-                    sender_id=canonical_sender,
-                    external_user_id=message.sender_id,
-                ),
             )
             return True
         finally:

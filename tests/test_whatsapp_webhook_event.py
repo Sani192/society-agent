@@ -76,11 +76,10 @@ def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    assert len(button_attempts) == 2
+    assert len(button_attempts) == 1
     assert button_attempts[0]["header_text"] == "Society Control Panel"
-    first_page_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    second_page_ids = [button["reply"]["id"] for button in button_attempts[1]["buttons"]]
-    assert "ui::reports" in first_page_ids + second_page_ids
+    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    assert button_ids == ["ui::my-account", "ui::finance", "ui::menu:more"]
 
 
 def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
@@ -220,7 +219,7 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
         channel="whatsapp",
         sender_id="919999000003",
         display_name="Jane",
-        text="menu",
+        text="ui::menu:more",
         metadata={"message_id": "wamid.4", "canonical_sender_id": "919999000003"},
     )
 
@@ -234,12 +233,41 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    button_ids = [
-        button["reply"]["id"]
-        for attempt in button_attempts
-        for button in attempt["buttons"]
-    ]
-    assert "ui::administration" in button_ids
+    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    assert button_ids == ["ui::society", "ui::reports", "ui::administration"]
+
+
+def test_whatsapp_webhook_event_menu_more_for_member_shows_main_menu(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.4a"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000004",
+        display_name="Jane",
+        text="ui::menu:more",
+        metadata={"message_id": "wamid.4a", "canonical_sender_id": "919999000004"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    assert button_ids == ["ui::society", "ui::reports", "menu"]
 
 
 def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypatch):
