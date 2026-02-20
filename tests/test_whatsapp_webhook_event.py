@@ -79,7 +79,7 @@ def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
     assert len(button_attempts) == 1
     assert button_attempts[0]["header_text"] == "Society Control Panel"
     button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    assert button_ids == ["ui::my-account", "ui::finance", "ui::society"]
+    assert button_ids == ["ui::my-account", "ui::finance", "ui::menu:more"]
 
 
 def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
@@ -234,7 +234,7 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
 
     assert response == {"status": "ok"}
     button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    assert button_ids == ["ui::administration", "ui::reports", "ui::finance"]
+    assert button_ids == ["ui::administration", "ui::reports", "ui::menu:more"]
 
 
 def test_whatsapp_webhook_event_menu_more_for_member_shows_all_sections_list(monkeypatch):
@@ -339,7 +339,7 @@ def test_whatsapp_webhook_event_reports_menu_committee_gated_rows(monkeypatch):
     assert "participation report" not in row_ids
 
 
-def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monkeypatch):
+def test_whatsapp_webhook_event_administration_operations_menu_respects_row_limit(monkeypatch):
     list_attempts = []
 
     class StubWhatsAppClient:
@@ -354,7 +354,7 @@ def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monk
         channel="whatsapp",
         sender_id="919999000007",
         display_name="Jane",
-        text="ui::administration:more",
+        text="ui::administration:operations",
         metadata={"message_id": "wamid.7", "canonical_sender_id": "919999000007"},
     )
 
@@ -371,7 +371,7 @@ def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monk
     total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
     assert total_rows <= 10
     row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
-    assert {"ui::approve-user", "ui::approve-payment", "report options"}.issubset(row_ids)
+    assert {"add event", "close event", "refund sponsor", "ui::administration"}.issubset(row_ids)
 
 
 def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(monkeypatch):

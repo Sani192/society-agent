@@ -41,6 +41,9 @@ from app.commands.parser import parse_pass_counts
 from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
+    build_committee_approvals_sections,
+    build_committee_operations_sections,
+    build_committee_reports_sections,
     build_committee_sections,
     build_finance_sections,
     build_main_dashboard_sections,
@@ -153,6 +156,23 @@ def _filter_sections_by_state(*, sections: list[dict], event_state: str | None, 
     return filtered_sections
 
 
+
+
+def _with_navigation(
+    *,
+    sections: list[dict],
+    back_id: str | None = None,
+    include_main_menu: bool = True,
+    include_commands: bool = False,
+) -> list[dict]:
+    nav_rows = []
+    if back_id:
+        nav_rows.append({"id": back_id, "title": "Back", "description": "Go to previous menu"})
+    if include_main_menu:
+        nav_rows.append({"id": "menu", "title": "Main Menu", "description": "Go to main menu"})
+    if include_commands:
+        nav_rows.append({"id": "commands", "title": "All Commands", "description": "Show all text command intents"})
+    return [*sections, {"title": "Navigation", "rows": nav_rows}] if nav_rows else sections
 def _button_row(row_id: str, title: str) -> dict:
     return {
         "type": "reply",
@@ -168,13 +188,13 @@ def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
         buttons = [
             _button_row("ui::administration", "Administration"),
             _button_row("ui::reports", "Reports"),
-            _button_row("ui::finance", "Finance"),
+            _button_row("ui::menu:more", "More"),
         ]
     else:
         buttons = [
             _button_row("ui::my-account", "My Account"),
             _button_row("ui::finance", "Finance"),
-            _button_row("ui::society", "Society"),
+            _button_row("ui::menu:more", "More"),
         ]
 
     client.send_button_message(
@@ -191,7 +211,7 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
         header_text="Society Control Panel",
         body_text="All available sections",
         button_text="Open",
-        sections=build_main_dashboard_sections(is_committee=is_committee),
+        sections=_with_navigation(sections=build_main_dashboard_sections(is_committee=is_committee), back_id="ui::menu", include_commands=True),
     )
 
 
@@ -334,7 +354,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 header_text="Participation",
                 body_text="Participation",
                 button_text="Open",
-                sections=build_participation_sections(include_add_pass=can_add_pass),
+                sections=_with_navigation(sections=build_participation_sections(include_add_pass=can_add_pass), back_id="ui::my-account"),
             )
             return True
         finally:
@@ -365,7 +385,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             header_text="Your Financial Overview",
             body_text="Select an action",
             button_text="Open",
-            sections=build_payments_sections(),
+            sections=_with_navigation(sections=build_payments_sections(), back_id="ui::finance"),
         )
         return True
 
@@ -459,7 +479,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             header_text="My Account",
             body_text="Select an action",
             button_text="Open",
-            sections=build_my_account_sections(),
+            sections=_with_navigation(sections=build_my_account_sections(), back_id="ui::menu", include_commands=True),
         )
         return True
 
@@ -469,7 +489,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             header_text="Society",
             body_text="Select an action",
             button_text="Open",
-            sections=build_society_sections(),
+            sections=_with_navigation(sections=build_society_sections(), back_id="ui::menu", include_commands=True),
         )
         return True
 
@@ -494,7 +514,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 header_text="Finance",
                 body_text="Select an action",
                 button_text="Open",
-                sections=build_finance_sections(include_payment_actions=can_use_payment),
+                sections=_with_navigation(sections=build_finance_sections(include_payment_actions=can_use_payment), back_id="ui::menu", include_commands=True),
             )
             return True
         finally:
@@ -521,13 +541,13 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 header_text="Reports",
                 body_text="Select a report action",
                 button_text="Open",
-                sections=sections,
+                sections=_with_navigation(sections=sections, back_id="ui::menu", include_commands=True),
             )
             return True
         finally:
             db.close()
 
-    if msg in {"ui::administration", "ui::administration:more"}:
+    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:reports"}:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -536,17 +556,39 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 client.send_text_message(message.sender_id, "Access restricted.")
                 return True
             event_state = get_event_state(get_latest_event(db))
+            if msg == "ui::administration:approvals":
+                base_sections = build_committee_approvals_sections()
+                back_id = "ui::administration"
+                body_text = "Approval actions"
+            elif msg == "ui::administration:operations":
+                base_sections = build_committee_operations_sections()
+                back_id = "ui::administration"
+                body_text = "Operational actions"
+            elif msg == "ui::administration:reports":
+                base_sections = build_committee_reports_sections()
+                back_id = "ui::administration"
+                body_text = "Report actions"
+            else:
+                base_sections = build_committee_sections()
+                back_id = "ui::menu"
+                body_text = "Select an area"
+
             sections = _filter_sections_by_state(
-                sections=build_committee_sections(),
+                sections=base_sections,
                 event_state=event_state,
                 is_committee=True,
             )
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Administration",
-                body_text="Select an action",
+                body_text=body_text,
                 button_text="Open",
-                sections=sections,
+                sections=_with_navigation(
+                    sections=sections,
+                    back_id=back_id,
+                    include_main_menu=(msg != "ui::administration:operations"),
+                    include_commands=(msg == "ui::administration"),
+                ),
             )
             return True
         finally:
