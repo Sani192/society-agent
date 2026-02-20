@@ -371,8 +371,43 @@ def test_whatsapp_webhook_event_administration_operations_menu_respects_row_limi
     total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
     assert total_rows <= 10
     row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
-    assert {"add event", "close event", "refund sponsor", "ui::administration"}.issubset(row_ids)
+    assert {"add event", "refund sponsor", "ui::administration:operations:more", "ui::administration"}.issubset(row_ids)
 
+
+
+def test_whatsapp_webhook_event_administration_operations_more_menu_respects_row_limit(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.7b"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000017",
+        display_name="Jane",
+        text="ui::administration:operations:more",
+        metadata={"message_id": "wamid.7b", "canonical_sender_id": "919999000017"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
+    assert total_rows <= 10
+    row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
+    assert {"activate event", "close event", "remind", "ui::administration:operations"}.issubset(row_ids)
 
 def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(monkeypatch):
     list_attempts = []

@@ -34,24 +34,34 @@ def build_committee_approvals_sections() -> list[dict]:
 def build_committee_operations_sections() -> list[dict]:
     return [
         {
-            "title": "Event Lifecycle",
+            "title": "Operations",
             "rows": [
                 {"id": "add event", "title": "Add Event", "description": "Guided setup for a new event"},
+                {"id": "expense", "title": "Add Expense", "description": "Record event expense"},
+                {"id": "add sponsor", "title": "Add Sponsor", "description": "Record sponsor contribution"},
+                {"id": "refund sponsor", "title": "Refund Sponsor", "description": "Reverse sponsor entry"},
+                {
+                    "id": "ui::administration:operations:more",
+                    "title": "More Operations",
+                    "description": "Event lifecycle and reminders",
+                },
+            ],
+        },
+    ]
+
+
+def build_committee_operations_more_sections() -> list[dict]:
+    return [
+        {
+            "title": "Event Lifecycle",
+            "rows": [
                 {"id": "activate event", "title": "Activate Event", "description": "Move event to active"},
                 {"id": "start event", "title": "Start Event", "description": "Mark event as started"},
                 {"id": "lock passes", "title": "Lock Passes", "description": "Stop pass updates"},
                 {"id": "close event", "title": "Close Event", "description": "Finalize current event"},
-            ],
-        },
-        {
-            "title": "Finance & Support",
-            "rows": [
-                {"id": "expense", "title": "Add Expense", "description": "Record event expense"},
-                {"id": "add sponsor", "title": "Add Sponsor", "description": "Record sponsor contribution"},
-                {"id": "refund sponsor", "title": "Refund Sponsor", "description": "Reverse sponsor entry"},
                 {"id": "remind", "title": "Remind Flat", "description": "Send payment reminder"},
             ],
-        },
+        }
     ]
 
 

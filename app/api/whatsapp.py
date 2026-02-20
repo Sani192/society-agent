@@ -42,6 +42,7 @@ from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
     build_committee_approvals_sections,
+    build_committee_operations_more_sections,
     build_committee_operations_sections,
     build_committee_reports_sections,
     build_committee_sections,
@@ -537,7 +538,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         finally:
             db.close()
 
-    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:reports"}:
+    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports"}:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -553,6 +554,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 base_sections = build_committee_operations_sections()
                 back_id = "ui::administration"
                 body_text = "Operational actions"
+            elif msg == "ui::administration:operations:more":
+                base_sections = build_committee_operations_more_sections()
+                back_id = "ui::administration:operations"
+                body_text = "More operational actions"
             elif msg == "ui::administration:reports":
                 base_sections = build_committee_reports_sections()
                 back_id = "ui::administration"
