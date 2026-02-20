@@ -347,7 +347,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = get_event_state(get_latest_event(db))
             can_add_pass = is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -365,7 +364,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = get_event_state(get_latest_event(db))
             if not is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Pass updates are available only when event is active.")
                 return True
@@ -459,7 +457,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = get_event_state(get_latest_event(db))
             if not is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
                 return True
@@ -507,7 +504,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = get_event_state(get_latest_event(db))
             can_use_payment = is_member_action_visible(intent="PAY", event_state=event_state, is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -529,13 +525,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 sender_id=canonical_sender,
                 external_user_id=message.sender_id,
             )
-            event_state = get_event_state(get_latest_event(db))
             sections = build_reports_sections(is_committee=is_committee)
-            sections = _filter_sections_by_state(
-                sections=sections,
-                event_state=event_state,
-                is_committee=is_committee,
-            )
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Reports",
@@ -555,7 +545,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
             if not member:
                 client.send_text_message(message.sender_id, "Access restricted.")
                 return True
-            event_state = get_event_state(get_latest_event(db))
             if msg == "ui::administration:approvals":
                 base_sections = build_committee_approvals_sections()
                 back_id = "ui::administration"
@@ -573,11 +562,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 back_id = "ui::menu"
                 body_text = "Select an area"
 
-            sections = _filter_sections_by_state(
-                sections=base_sections,
-                event_state=event_state,
-                is_committee=True,
-            )
+            sections = base_sections
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Administration",
@@ -586,7 +571,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 sections=_with_navigation(
                     sections=sections,
                     back_id=back_id,
-                    include_main_menu=(msg != "ui::administration:operations"),
+                    include_main_menu=True,
                     include_commands=(msg == "ui::administration"),
                 ),
             )
