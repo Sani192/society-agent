@@ -7,10 +7,10 @@ def build_committee_sections() -> list[dict]:
         {
             "title": "Approvals",
             "rows": [
-                {"id": "pending payments", "title": "Pending Payments", "description": "Members with outstanding dues"},
+                {"id": "pending users", "title": "Pending Users", "description": "Review join approvals"},
                 {"id": "payment requests", "title": "Payment Requests", "description": "Approve payment entries"},
                 {"id": "refund requests", "title": "Refund Requests", "description": "Approve refund entries"},
-                {"id": "pending users", "title": "Pending Users", "description": "Review join approvals"},
+                {"id": "ui::approve-user", "title": "Approve User", "description": "Send: approve user <request_code>"},
             ],
         },
         {
@@ -19,14 +19,14 @@ def build_committee_sections() -> list[dict]:
                 {"id": "add event", "title": "Add Event", "description": "Guided setup for a new event"},
                 {"id": "expense", "title": "Add Expense", "description": "Record event expense"},
                 {"id": "add sponsor", "title": "Add Sponsor", "description": "Record sponsor contribution"},
-                {"id": "refund sponsor", "title": "Refund Sponsor", "description": "Reverse sponsor entry"},
                 {"id": "remind", "title": "Remind Flat", "description": "Send payment reminder"},
             ],
         },
         {
-            "title": "More",
+            "title": "Reports & Templates",
             "rows": [
-                {"id": "ui::administration:more", "title": "More Actions", "description": "Templates and reports"},
+                {"id": "report options", "title": "Report Options", "description": "Export financial reports"},
+                {"id": "ui::approve-payment", "title": "Approve Payment", "description": "Send: approve payment <request_code>"},
             ],
         },
     ]

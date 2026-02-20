@@ -41,7 +41,6 @@ from app.commands.parser import parse_pass_counts
 from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
-    build_committee_more_sections,
     build_committee_sections,
     build_finance_sections,
     build_main_dashboard_sections,
@@ -164,33 +163,35 @@ def _button_row(row_id: str, title: str) -> dict:
     }
 
 
-def _send_dashboard_ui(*, client, sender_id: str) -> None:
+def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
+    if is_committee:
+        buttons = [
+            _button_row("ui::administration", "Administration"),
+            _button_row("ui::reports", "Reports"),
+            _button_row("ui::finance", "Finance"),
+        ]
+    else:
+        buttons = [
+            _button_row("ui::my-account", "My Account"),
+            _button_row("ui::finance", "Finance"),
+            _button_row("ui::society", "Society"),
+        ]
+
     client.send_button_message(
         to_phone=sender_id,
         header_text="Society Control Panel",
-        body_text="Select a section",
-        buttons=[
-            _button_row("ui::my-account", "My Account"),
-            _button_row("ui::finance", "Finance"),
-            _button_row("ui::menu:more", "More"),
-        ],
+        body_text="Select an action",
+        buttons=buttons,
     )
 
 
-def _send_dashboard_more_ui(*, client, sender_id: str, is_committee: bool) -> None:
-    buttons = [
-        _button_row("ui::society", "Society"),
-        _button_row("ui::reports", "Reports"),
-        _button_row("menu", "Main Menu"),
-    ]
-    if is_committee:
-        buttons[2] = _button_row("ui::administration", "Administration")
-
-    client.send_button_message(
+def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) -> None:
+    client.send_list_message(
         to_phone=sender_id,
         header_text="Society Control Panel",
-        body_text="More sections",
-        buttons=buttons,
+        body_text="All available sections",
+        button_text="Open",
+        sections=build_main_dashboard_sections(is_committee=is_committee),
     )
 
 
@@ -305,7 +306,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 external_user_id=message.sender_id,
             )
             if msg == "ui::menu:more":
-                _send_dashboard_more_ui(
+                _send_dashboard_all_sections(
                     client=client,
                     sender_id=message.sender_id,
                     is_committee=is_committee,
@@ -315,6 +316,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             _send_dashboard_ui(
                 client=client,
                 sender_id=message.sender_id,
+                is_committee=is_committee,
             )
             return True
         finally:
@@ -455,7 +457,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         client.send_list_message(
             to_phone=message.sender_id,
             header_text="My Account",
-            body_text="Select a section",
+            body_text="Select an action",
             button_text="Open",
             sections=build_my_account_sections(),
         )
@@ -465,7 +467,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         client.send_list_message(
             to_phone=message.sender_id,
             header_text="Society",
-            body_text="Select a section",
+            body_text="Select an action",
             button_text="Open",
             sections=build_society_sections(),
         )
@@ -490,7 +492,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Finance",
-                body_text="Select a section",
+                body_text="Select an action",
                 button_text="Open",
                 sections=build_finance_sections(include_payment_actions=can_use_payment),
             )
@@ -525,7 +527,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         finally:
             db.close()
 
-    if msg == "ui::administration":
+    if msg in {"ui::administration", "ui::administration:more"}:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -542,7 +544,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Administration",
-                body_text="Select a section",
+                body_text="Select an action",
                 button_text="Open",
                 sections=sections,
             )
@@ -550,30 +552,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
         finally:
             db.close()
 
-    if msg == "ui::administration:more":
-        db = SessionLocal()
-        try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            if not member:
-                client.send_text_message(message.sender_id, "Access restricted.")
-                return True
-            event_state = get_event_state(get_latest_event(db))
-            sections = _filter_sections_by_state(
-                sections=build_committee_more_sections(),
-                event_state=event_state,
-                is_committee=True,
-            )
-            client.send_list_message(
-                to_phone=message.sender_id,
-                header_text="Administration",
-                body_text="More actions",
-                button_text="Open",
-                sections=sections,
-            )
-            return True
-        finally:
-            db.close()
 
     if msg == "ui::approve-user":
         db = SessionLocal()

@@ -79,7 +79,7 @@ def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
     assert len(button_attempts) == 1
     assert button_attempts[0]["header_text"] == "Society Control Panel"
     button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    assert button_ids == ["ui::my-account", "ui::finance", "ui::menu:more"]
+    assert button_ids == ["ui::my-account", "ui::finance", "ui::society"]
 
 
 def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
@@ -219,7 +219,7 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
         channel="whatsapp",
         sender_id="919999000003",
         display_name="Jane",
-        text="ui::menu:more",
+        text="menu",
         metadata={"message_id": "wamid.4", "canonical_sender_id": "919999000003"},
     )
 
@@ -234,15 +234,15 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
 
     assert response == {"status": "ok"}
     button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    assert button_ids == ["ui::society", "ui::reports", "ui::administration"]
+    assert button_ids == ["ui::administration", "ui::reports", "ui::finance"]
 
 
-def test_whatsapp_webhook_event_menu_more_for_member_shows_main_menu(monkeypatch):
-    button_attempts = []
+def test_whatsapp_webhook_event_menu_more_for_member_shows_all_sections_list(monkeypatch):
+    list_attempts = []
 
     class StubWhatsAppClient:
-        def send_button_message(self, **kwargs):
-            button_attempts.append(kwargs)
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.4a"}]}
 
         def send_text_message(self, to_phone: str, body: str):
@@ -266,8 +266,8 @@ def test_whatsapp_webhook_event_menu_more_for_member_shows_main_menu(monkeypatch
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    assert button_ids == ["ui::society", "ui::reports", "menu"]
+    row_ids = [row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]]
+    assert {"ui::my-account", "ui::finance", "ui::society", "ui::reports"}.issubset(set(row_ids))
 
 
 def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypatch):
@@ -371,7 +371,7 @@ def test_whatsapp_webhook_event_administration_more_menu_respects_row_limit(monk
     total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
     assert total_rows <= 10
     row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
-    assert {"ui::approve-user", "ui::approve-payment", "ui::approve-refund"}.issubset(row_ids)
+    assert {"ui::approve-user", "ui::approve-payment", "report options"}.issubset(row_ids)
 
 
 def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(monkeypatch):
