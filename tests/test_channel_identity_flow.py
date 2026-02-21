@@ -170,10 +170,10 @@ def test_whatsapp_unsupported_intent_falls_back_to_reports_menu_hint():
         public_intent_handler=lambda **kwargs: None,
     )
 
-    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert response == "ℹ️ Invalid option. Use: menu, help."
 
 
-def test_whatsapp_no_intent_falls_back_to_commands_hint():
+def test_whatsapp_no_intent_falls_back_to_menu_hint():
     db = MagicMock()
     message = InboundMessage(
         channel="whatsapp",
@@ -196,7 +196,7 @@ def test_whatsapp_no_intent_falls_back_to_commands_hint():
         public_intent_handler=lambda **kwargs: None,
     )
 
-    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert response == "ℹ️ Invalid option. Use: menu, help."
 
 
 def test_whatsapp_pending_committee_action_maps_free_text_to_pending_intent():
@@ -263,7 +263,7 @@ def test_whatsapp_numeric_intent_not_treated_as_export_without_active_session():
         public_intent_handler=lambda **kwargs: None,
     )
 
-    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert response == "ℹ️ Invalid option. Use: menu, help."
     assert captured["allow_numeric"] is False
 
 

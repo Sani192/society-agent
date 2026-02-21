@@ -23,35 +23,35 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         report_code="EVENT_FINANCIAL_SUMMARY",
         report_key="event-summary",
         label="Event Financial Summary",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="FLAT_PAYMENTS",
         report_key="flat-payments",
         label="Flat Payments",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="BLOCK_PAYMENTS",
         report_key="block-payments",
         label="Block Payments",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="SPONSOR_CONTRIBUTIONS",
         report_key="sponsor-contributions",
         label="Sponsor Contributions",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="CONTRIBUTION_REFUNDS",
         report_key="contribution-refunds",
         label="Contribution Refunds",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
@@ -65,14 +65,14 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         report_code="MEMBER_REFUNDS",
         report_key="member-refunds",
         label="Member Refunds",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="LEDGER",
         report_key="ledger",
         label="Ledger",
-        requires_event_id=False,
+        requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="admin",
@@ -219,6 +219,7 @@ def list_exportable_report_options(
                     f"--format {entry.supported_formats[0]}"
                 ),
                 "command_key": command_key,
+                "requires_event_id": entry.requires_event_id,
             }
         )
 

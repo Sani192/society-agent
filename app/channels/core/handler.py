@@ -9,6 +9,7 @@ from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
+from app.db.models import Event
 from app.modules.users.channel_identity_service import (
     link_member_by_code,
     link_member_by_phone,
@@ -26,6 +27,7 @@ from app.whatsapp.committee_action_session import (
 )
 from app.whatsapp.export_session import (
     build_export_session_key,
+    clear_export_session,
     get_export_session,
 )
 from app.whatsapp.response_templates import (
@@ -34,6 +36,22 @@ from app.whatsapp.response_templates import (
     success_response,
 )
 
+
+
+
+def _whatsapp_invalid_option_message(*, is_committee: bool) -> str:
+    base = "Invalid option. Use: menu, help"
+    if is_committee:
+        return base + ", report options."
+    return base + "."
+
+
+
+REPORT_INTENTS_REQUIRING_EVENT_CONTEXT = {
+    "SUMMARY",
+    "BLOCK_REPORT",
+    "PARTICIPATION_REPORT",
+}
 
 def _get_canonical_sender(message: InboundMessage) -> str:
     return message.metadata.get("canonical_sender_id") or message.sender_id
@@ -168,6 +186,25 @@ def handle_inbound_message(
             if get_committee_action_session(committee_session_key):
                 intent = "COMMITTEE_PENDING_ACTION"
 
+        if intent == "MENU" and message.channel == "whatsapp":
+            export_session_key = build_export_session_key(
+                member_id=str(getattr(member, "id", "")) if member else None,
+                sender_id=canonical_sender_id,
+            )
+            clear_export_session(export_session_key)
+
+        if message.channel == "whatsapp" and intent in REPORT_INTENTS_REQUIRING_EVENT_CONTEXT:
+            export_session_key = build_export_session_key(
+                member_id=str(getattr(member, "id", "")) if member else None,
+                sender_id=canonical_sender_id,
+            )
+            report_session = get_export_session(export_session_key)
+            selected_event_id = report_session.event_id if report_session else None
+            if selected_event_id:
+                selected_event = db.query(Event).filter(Event.id == selected_event_id).first()
+                if selected_event:
+                    event = selected_event
+
         link_response = _attempt_telegram_member_link(
             db=db, message=message, intent=intent
         )
@@ -193,9 +230,7 @@ def handle_inbound_message(
                     "I couldn't detect a command. If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram."
                 )
             if message.channel == "whatsapp":
-                return info_response(
-                    "Command not supported. Please use *commands* to view available commands."
-                )
+                return info_response(_whatsapp_invalid_option_message(is_committee=bool(member)))
             return info_response("Sorry, I didn’t understand this command.")
 
         onboarding_response = onboarding_intent_handler(
@@ -236,9 +271,7 @@ def handle_inbound_message(
             extra={"intent": intent, "channel": message.channel, "sender_id": message.sender_id},
         )
         if message.channel == "whatsapp":
-            return info_response(
-                "Command not supported. Please use *commands* to view available commands."
-            )
+            return info_response(_whatsapp_invalid_option_message(is_committee=bool(member)))
         return error_response("Command not supported.")
 
     except Exception:

@@ -46,8 +46,7 @@ def build_my_account_sections() -> list[dict]:
             "title": "My Account",
             "rows": [
                 {"id": "help", "title": "Help", "description": "Get guidance on what to send"},
-                {"id": "commands", "title": "Commands", "description": "Browse all available commands"},
-                {"id": "menu", "title": "Main Menu", "description": "Open dashboard again"},
+                                {"id": "menu", "title": "Main Menu", "description": "Open dashboard again"},
             ],
         }
     ]

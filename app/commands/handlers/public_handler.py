@@ -530,23 +530,4 @@ def handle_public_intent(
             heading="Society Control Panel",
         )
 
-    if intent == "COMMANDS":
-        quick_actions = []
-        if is_member_action_visible(intent="PAY", event_state=event_state, is_committee=allow_delegate):
-            quick_actions.append("pay 500")
-        if is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=allow_delegate):
-            quick_actions.append("refund 200 guest absent")
-        if is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=allow_delegate):
-            quick_actions.append("add pass veg 2 jain 1 kids 1")
-
-        return success_response(
-            join_lines([
-                "Type *menu*.",
-                "",
-                "Quick actions:",
-                *(quick_actions if quick_actions else ["No action commands available in current event state."]),
-            ]),
-            heading="Society Control Panel",
-        )
-
     return None

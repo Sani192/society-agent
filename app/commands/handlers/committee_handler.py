@@ -8,7 +8,7 @@ Created on Tue Feb 04 10:33:10 2026
 
 # app/whatsapp/handlers/committee_handler.py
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
@@ -287,6 +287,60 @@ def _handle_event_creation_wizard_step(*, db, member, message: str, session_key:
         emoji="🧭",
     )
 
+
+
+
+def _recent_event_options(*, db, society_id):
+    cutoff = datetime.utcnow() - timedelta(days=365)
+    events = (
+        db.query(Event)
+        .filter(Event.society_id == society_id, Event.event_date >= cutoff)
+        .order_by(Event.event_date.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(item.id),
+            "name": item.name,
+            "event_date": format_datetime(item.event_date),
+            "status": item.status,
+        }
+        for item in events
+    ]
+
+
+def _format_report_options_with_event(*, options: list[dict], event_options: list[dict], selected_event_id: str | None) -> str:
+    lines = [
+        format_heading("Choose report event + report", "📚"),
+    ]
+
+    if event_options:
+        lines.append("Select event (last 1 year): reply `event <number>`")
+        for index, event_option in enumerate(event_options, start=1):
+            marker = " ✅" if event_option["id"] == selected_event_id else ""
+            lines.append(
+                f"{index}. {event_option['name']} ({event_option['event_date']}) [{event_option['status']}]"
+                f"{marker}"
+            )
+    else:
+        lines.append("No events found in last 1 year.")
+
+    lines.extend([
+        "",
+        "Then choose report: reply `export <number>` (or just number).",
+    ])
+
+    grouped_options: dict[str, list[tuple[int, dict]]] = {}
+    for index, option in enumerate(options, start=1):
+        grouped_options.setdefault(option["category"], []).append((index, option))
+
+    for category, entries in grouped_options.items():
+        lines.append("")
+        lines.append(format_heading(category.title(), "🗂️"))
+        for index, option in entries:
+            lines.append(f"{index}. {option['label']}")
+            lines.append(f"   ↪ Reply: export {index}")
+    return join_lines(lines)
 
 def _report_options(*, role: str):
     return list_exportable_report_options(
@@ -1022,8 +1076,25 @@ def handle_committee_intent(
 
     if intent == "REPORT_OPTIONS":
         report_options = _report_options(role=member.role)
-        save_export_session(session_key, ExportSessionState(options=report_options))
-        return success_response(_format_conversational_options(report_options))
+        event_options = _recent_event_options(db=db, society_id=member.society_id)
+        selected_event_id = str(event.id) if event else None
+        if selected_event_id and event_options and selected_event_id not in {item["id"] for item in event_options}:
+            selected_event_id = None
+        save_export_session(
+            session_key,
+            ExportSessionState(
+                options=report_options,
+                event_id=selected_event_id,
+                event_options=event_options,
+            ),
+        )
+        return success_response(
+            _format_report_options_with_event(
+                options=report_options,
+                event_options=event_options,
+                selected_event_id=selected_event_id,
+            )
+        )
 
 
     if intent == "EXPORT_SELECTION":
@@ -1033,6 +1104,21 @@ def handle_committee_intent(
 
         tokens = (message or "").strip().lower().split()
         normalized_message = (message or "").strip().lower()
+
+        if len(tokens) >= 2 and tokens[0] == "event" and tokens[1].isdigit():
+            selected_event_index = int(tokens[1]) - 1
+            if selected_event_index < 0 or selected_event_index >= len(session.event_options):
+                return error_response("Invalid event selection. Reply with `event <number>` from report options.")
+            session.event_id = session.event_options[selected_event_index]["id"]
+            save_export_session(session_key, session)
+            return success_response(
+                _format_report_options_with_event(
+                    options=session.options,
+                    event_options=session.event_options,
+                    selected_event_id=session.event_id,
+                )
+            )
+
         selected_option = None
         selected_index = None
         selected_command_key = None
@@ -1060,7 +1146,7 @@ def handle_committee_intent(
                 selected_option = session.options[selected_index]
         if not selected_option:
             return error_response(
-                "Invalid report selection. Reply with a valid number from `report options`."
+                "Invalid selection. Use `event <number>` or `export <number>` from report options."
             )
 
         try:
@@ -1132,32 +1218,6 @@ def handle_committee_intent(
         flat_number = parts[1]
 
         return _build_reminder_preview(db=db, event=event, flat_number=flat_number)
-
-    if intent == "COMMANDS":
-        event_state = get_event_state(event)
-        command_map = [
-            ("ADD_EVENT", "add event"),
-            ("ACTIVATE_EVENT", "activate event"),
-            ("LOCK_PASSES", "lock passes"),
-            ("START_EVENT", "start event"),
-            ("CLOSE_EVENT", "close event reason settlement completed"),
-            ("ADD_EXPENSE", "expense water 1200"),
-            ("ADD_SPONSOR", "add sponsor ABC Corp 5000"),
-            ("REFUND_SPONSOR", "refund sponsor SP-001 500 reason duplicate entry"),
-            ("REPORT_OPTIONS", "report options"),
-        ]
-        visible = [
-            cmd
-            for cmd_intent, cmd in command_map
-            if is_member_action_visible(intent=cmd_intent, event_state=event_state, is_committee=True)
-        ]
-        return success_response(
-            join_lines([
-                "Committee quick actions:",
-                *(visible if visible else ["No command available in current event state."]),
-            ]),
-            heading="Committee commands",
-        )
 
     if intent == "APPROVE":
         if not is_action_allowed(member.role, "ALL"):
