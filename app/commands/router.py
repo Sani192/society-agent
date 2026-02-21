@@ -24,7 +24,9 @@ def detect_intent(
         logger.info("Export prefix found but no numeric selection")
         return None
 
-
+    if msg.startswith("event ") and len(tokens) > 1 and tokens[1].isdigit():
+        logger.info("Intent detected by conversational event selection", extra={"intent": "EXPORT_SELECTION"})
+        return "EXPORT_SELECTION"
 
     if msg == "reports":
         logger.info("Legacy reports alias unsupported; use report options")

@@ -46,8 +46,8 @@ def test_detect_intent_format_command_not_supported():
     assert detect_intent("format pdf") is None
 
 
-def test_detect_intent_event_command_not_supported():
-    assert detect_intent("event evt-2") is None
+def test_detect_intent_event_selection_command():
+    assert detect_intent("event 2") == "EXPORT_SELECTION"
 
 
 def test_detect_intent_activate_event_command():

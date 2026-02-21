@@ -710,7 +710,7 @@ def test_committee_report_options_success():
     )
 
     assert response.startswith("✅")
-    assert "Choose a report to export" in response
+    assert "Choose report event + report" in response
     assert "report export --category" not in response
     assert "export <number>" in response
     assert "🗂️ *Financial*" in response

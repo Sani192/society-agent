@@ -502,28 +502,21 @@ def test_public_my_payments_no_requests(monkeypatch):
 
 
 def test_public_help_and_commands():
-    response = handle_public_intent(
+    from app.commands.handlers.public_handler import handle_public_intent
+
+    event = _mk_event()
+
+    help_response = handle_public_intent(
         db=MagicMock(),
         intent="HELP",
-        phone_number=MEMBER_PHONE,
+        phone_number="919999000000",
         message="help",
-        event=None,
-        member=None
+        event=event,
+        member=None,
     )
-    assert response.startswith("✅")
 
-    commands = handle_public_intent(
-        db=MagicMock(),
-        intent="COMMANDS",
-        phone_number=MEMBER_PHONE,
-        message="commands",
-        event=None,
-        member=None
-    )
-    assert "Available Commands" in commands
-    assert "report options" in commands
-    assert "(or reports)" not in commands
-    assert "export <number>" not in commands
+    assert "Society Control Panel" in help_response
+    assert "Type *menu*." in help_response
 
 
 def test_public_summary_formats_currency(monkeypatch):

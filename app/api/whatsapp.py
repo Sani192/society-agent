@@ -164,15 +164,12 @@ def _with_navigation(
     sections: list[dict],
     back_id: str | None = None,
     include_main_menu: bool = True,
-    include_commands: bool = False,
 ) -> list[dict]:
     nav_rows = []
     if back_id:
         nav_rows.append({"id": back_id, "title": "Back", "description": "Go to previous menu"})
     if include_main_menu:
         nav_rows.append({"id": "menu", "title": "Main Menu", "description": "Go to main menu"})
-    if include_commands:
-        nav_rows.append({"id": "commands", "title": "All Commands", "description": "Show all text command intents"})
     return [*sections, {"title": "Navigation", "rows": nav_rows}] if nav_rows else sections
 def _button_row(row_id: str, title: str) -> dict:
     return {
@@ -212,7 +209,7 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
         header_text="Society Control Panel",
         body_text="All available sections",
         button_text="Open",
-        sections=_with_navigation(sections=build_main_dashboard_sections(is_committee=is_committee), back_id="ui::menu", include_commands=True),
+        sections=_with_navigation(sections=build_main_dashboard_sections(is_committee=is_committee), back_id="ui::menu"),
     )
 
 
@@ -477,7 +474,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             header_text="My Account",
             body_text="Select an action",
             button_text="Open",
-            sections=_with_navigation(sections=build_my_account_sections(), back_id="ui::menu", include_commands=True),
+            sections=_with_navigation(sections=build_my_account_sections(), back_id="ui::menu"),
         )
         return True
 
@@ -487,7 +484,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             header_text="Society",
             body_text="Select an action",
             button_text="Open",
-            sections=_with_navigation(sections=build_society_sections(), back_id="ui::menu", include_commands=True),
+            sections=_with_navigation(sections=build_society_sections(), back_id="ui::menu"),
         )
         return True
 
@@ -511,7 +508,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 header_text="Finance",
                 body_text="Select an action",
                 button_text="Open",
-                sections=_with_navigation(sections=build_finance_sections(include_payment_actions=can_use_payment), back_id="ui::menu", include_commands=True),
+                sections=_with_navigation(sections=build_finance_sections(include_payment_actions=can_use_payment), back_id="ui::menu"),
             )
             return True
         finally:
@@ -532,7 +529,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 header_text="Reports",
                 body_text="Select a report action",
                 button_text="Open",
-                sections=_with_navigation(sections=sections, back_id="ui::menu", include_commands=True),
+                sections=_with_navigation(sections=sections, back_id="ui::menu"),
             )
             return True
         finally:
@@ -577,7 +574,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     sections=sections,
                     back_id=back_id,
                     include_main_menu=True,
-                    include_commands=(msg == "ui::administration"),
+                    
                 ),
             )
             return True

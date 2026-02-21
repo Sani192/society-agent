@@ -102,7 +102,6 @@ PUBLIC_CASES = [
     ("SUMMARY", "summary"),
     ("BLOCK_REPORT", "block report"),
     ("HELP", "help"),
-    ("COMMANDS", "commands"),
 ]
 
 
@@ -200,7 +199,7 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
         for row in section["rows"]
     }
 
-    expected_template_only = {"menu", "commands", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund"}
+    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund"}
     template_helper_rows = {
         "ui::approve-user",
         "ui::approve-payment",

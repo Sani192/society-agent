@@ -26,6 +26,7 @@ from app.whatsapp.committee_action_session import (
 )
 from app.whatsapp.export_session import (
     build_export_session_key,
+    clear_export_session,
     get_export_session,
 )
 from app.whatsapp.response_templates import (
@@ -34,6 +35,14 @@ from app.whatsapp.response_templates import (
     success_response,
 )
 
+
+
+
+def _whatsapp_invalid_option_message(*, is_committee: bool) -> str:
+    base = "Invalid option. Use: menu, help"
+    if is_committee:
+        return base + ", report options."
+    return base + "."
 
 def _get_canonical_sender(message: InboundMessage) -> str:
     return message.metadata.get("canonical_sender_id") or message.sender_id
@@ -168,6 +177,13 @@ def handle_inbound_message(
             if get_committee_action_session(committee_session_key):
                 intent = "COMMITTEE_PENDING_ACTION"
 
+        if intent == "MENU" and message.channel == "whatsapp":
+            export_session_key = build_export_session_key(
+                member_id=str(getattr(member, "id", "")) if member else None,
+                sender_id=canonical_sender_id,
+            )
+            clear_export_session(export_session_key)
+
         link_response = _attempt_telegram_member_link(
             db=db, message=message, intent=intent
         )
@@ -193,9 +209,7 @@ def handle_inbound_message(
                     "I couldn't detect a command. If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram."
                 )
             if message.channel == "whatsapp":
-                return info_response(
-                    "Command not supported. Please use *commands* to view available commands."
-                )
+                return info_response(_whatsapp_invalid_option_message(is_committee=bool(member)))
             return info_response("Sorry, I didn’t understand this command.")
 
         onboarding_response = onboarding_intent_handler(
@@ -236,9 +250,7 @@ def handle_inbound_message(
             extra={"intent": intent, "channel": message.channel, "sender_id": message.sender_id},
         )
         if message.channel == "whatsapp":
-            return info_response(
-                "Command not supported. Please use *commands* to view available commands."
-            )
+            return info_response(_whatsapp_invalid_option_message(is_committee=bool(member)))
         return error_response("Command not supported.")
 
     except Exception:

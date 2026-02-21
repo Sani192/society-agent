@@ -67,7 +67,6 @@ INTENTS = {
 
     # ========= HELP (last, lowest risk) =========
     "HELP": "help",
-    "COMMANDS": "commands",
 }
 
 TELEGRAM_ONLY_INTENTS = {

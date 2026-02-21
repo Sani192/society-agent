@@ -21,7 +21,7 @@ def test_handle_message_unknown_intent(monkeypatch):
 
     response = handle_message("999", "unknown")
 
-    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert response == "ℹ️ Invalid option. Use: menu, help, report options."
     db.close.assert_called_once()
 
 
@@ -117,7 +117,7 @@ def test_export_session_list_options_end_to_end(monkeypatch):
     response = handle_message("919001", "report options")
 
     assert response.startswith("✅")
-    assert "Choose a report to export" in response
+    assert "Choose report event + report" in response
     assert "🗂️ *Financial*" in response
 
 
@@ -229,7 +229,7 @@ def test_export_session_invalid_selection_recovery_end_to_end(monkeypatch):
     response = handle_message("919003", "export 99")
 
     assert response.startswith("❌")
-    assert "Invalid report selection" in response
+    assert "Invalid selection" in response
 
 
 def test_export_session_successful_export_dispatch_end_to_end(monkeypatch):
@@ -455,7 +455,7 @@ def test_handle_message_link_member_is_not_supported_for_whatsapp(monkeypatch):
 
     response = handle_message("919999000111", "link member ABC123")
 
-    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert response == "ℹ️ Invalid option. Use: menu, help."
     db.close.assert_called_once()
 
 
@@ -469,7 +469,7 @@ def test_handle_message_verify_phone_is_not_supported_for_whatsapp(monkeypatch):
 
     response = handle_message("919999000112", "verify phone 9999000011")
 
-    assert response == "ℹ️ Command not supported. Please use *commands* to view available commands."
+    assert response == "ℹ️ Invalid option. Use: menu, help."
     db.close.assert_called_once()
 
 

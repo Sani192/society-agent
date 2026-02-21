@@ -11,6 +11,7 @@ class ExportSessionState:
     selected_report: str | None = None
     report_format: str | None = None
     event_id: str | None = None
+    event_options: list[dict] = field(default_factory=list)
 
 
 _EXPORT_SESSIONS: dict[str, ExportSessionState] = {}
