@@ -18,3 +18,7 @@ def test_committee_start_event_only_locked():
 
 def test_committee_report_options_allowed_closed():
     assert get_intent_state_warning(intent="REPORT_OPTIONS", event_state="CLOSED", is_committee=True) is None
+
+
+def test_committee_participation_report_allowed_closed():
+    assert get_intent_state_warning(intent="PARTICIPATION_REPORT", event_state="CLOSED", is_committee=True) is None

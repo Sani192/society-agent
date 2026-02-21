@@ -12,6 +12,7 @@ class ExportSessionState:
     report_format: str | None = None
     event_id: str | None = None
     event_options: list[dict] = field(default_factory=list)
+    pending_intent: str | None = None
 
 
 _EXPORT_SESSIONS: dict[str, ExportSessionState] = {}

@@ -93,6 +93,8 @@ WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
 WHATSAPP_APPROVAL_ROW_LIMIT = 10
 WHATSAPP_REPORT_EVENT_ROW_PREFIX = "report-event::"
 
+REPORT_INTENTS_REQUIRING_EVENT = {"SUMMARY", "BLOCK_REPORT", "PARTICIPATION_REPORT"}
+
 
 def _report_page_option_limit(*, total_options: int, page_size: int = WHATSAPP_LIST_MAX_ROWS) -> int:
     if page_size <= 1:
@@ -978,6 +980,56 @@ async def whatsapp_webhook_event(request: Request):
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
         selected_report_event_id = _parse_report_event_selection(message.text)
 
+        if intent in REPORT_INTENTS_REQUIRING_EVENT:
+            db = SessionLocal()
+            try:
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                member = ensure_committee_member(
+                    canonical_sender,
+                    db,
+                    channel_type="whatsapp",
+                    external_user_id=message.sender_id,
+                )
+                latest_event = get_latest_event(db)
+                if not latest_event:
+                    session_key = build_export_session_key(
+                        member_id=str(member.id),
+                        sender_id=canonical_sender,
+                    )
+                    session = get_export_session(session_key)
+                    save_export_session(
+                        session_key,
+                        ExportSessionState(
+                            options=session.options if session else [],
+                            current_page=session.current_page if session else 0,
+                            event_id=None,
+                            pending_intent=intent,
+                        ),
+                    )
+                    events = _recent_report_events(db=db, society_id=member.society_id)
+                    sections = _build_report_event_sections(events)
+                    list_response = client.send_list_message(
+                        to_phone=message.sender_id,
+                        header_text="Reports",
+                        body_text="This report needs an event. Select event first.",
+                        button_text="Choose Event",
+                        sections=sections,
+                    )
+                    logger.info(
+                        "WhatsApp report event selection required for report intent",
+                        extra={
+                            "sender_id": message.sender_id,
+                            "message_id": message.metadata.get("message_id"),
+                            "response_keys": sorted(list_response.keys()),
+                            "intent": intent,
+                        },
+                    )
+                    continue
+            except Exception:
+                logger.exception("Failed to handle dynamic report intent event requirement")
+            finally:
+                db.close()
+
         if intent == "REPORT_OPTIONS":
             db = SessionLocal()
             try:
@@ -1057,10 +1109,41 @@ async def whatsapp_webhook_event(request: Request):
                     member_id=str(member.id),
                     sender_id=canonical_sender,
                 )
+                existing_session = get_export_session(session_key)
+                pending_intent = existing_session.pending_intent if existing_session else None
                 save_export_session(
                     session_key,
-                    ExportSessionState(options=report_options, current_page=0, event_id=selected_report_event_id),
+                    ExportSessionState(
+                        options=report_options,
+                        current_page=0,
+                        event_id=selected_report_event_id,
+                        pending_intent=pending_intent,
+                    ),
                 )
+
+                if pending_intent:
+                    intent_keyword = WHATSAPP_INTENTS.get(pending_intent, "").strip()
+                    if intent_keyword:
+                        synthetic = InboundMessage(
+                            channel=message.channel,
+                            sender_id=message.sender_id,
+                            display_name=message.display_name,
+                            text=intent_keyword,
+                            metadata=message.metadata,
+                        )
+                        reply_text = handle_inbound_message(synthetic)
+                        send_response = client.send_text_message(message.sender_id, reply_text)
+                        logger.info(
+                            "WhatsApp pending report intent executed after event selection",
+                            extra={
+                                "sender_id": message.sender_id,
+                                "message_id": message.metadata.get("message_id"),
+                                "response_keys": sorted(send_response.keys()),
+                                "pending_intent": pending_intent,
+                            },
+                        )
+                        continue
+
                 include_more_row = len(report_options) > WHATSAPP_LIST_MAX_ROWS
                 sections = _build_reports_list_sections(
                     report_options,
@@ -1103,8 +1186,23 @@ async def whatsapp_webhook_event(request: Request):
                     sender_id=canonical_sender,
                 )
                 session = get_export_session(session_key)
+                if not session:
+                    report_options = list_exportable_report_options(
+                        registry=build_whatsapp_report_registry(
+                            handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+                        ),
+                        role=member.role,
+                    )
+                    latest_event = get_latest_event(db)
+                    session = ExportSessionState(
+                        options=report_options,
+                        current_page=0,
+                        event_id=str(latest_event.id) if latest_event else None,
+                    )
+                    save_export_session(session_key, session)
+
                 selected_command_key = (message.text or "").strip().lower().removeprefix("export::")
-                if session and session.options:
+                if session.options:
                     selected_option = next((opt for opt in session.options if (opt.get("command_key") or "").lower() == selected_command_key), None)
                     if selected_option:
                         registry = build_whatsapp_report_registry(

@@ -9,6 +9,7 @@ from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
+from app.db.models import Event
 from app.modules.users.channel_identity_service import (
     link_member_by_code,
     link_member_by_phone,
@@ -43,6 +44,14 @@ def _whatsapp_invalid_option_message(*, is_committee: bool) -> str:
     if is_committee:
         return base + ", report options."
     return base + "."
+
+
+
+REPORT_INTENTS_REQUIRING_EVENT_CONTEXT = {
+    "SUMMARY",
+    "BLOCK_REPORT",
+    "PARTICIPATION_REPORT",
+}
 
 def _get_canonical_sender(message: InboundMessage) -> str:
     return message.metadata.get("canonical_sender_id") or message.sender_id
@@ -183,6 +192,18 @@ def handle_inbound_message(
                 sender_id=canonical_sender_id,
             )
             clear_export_session(export_session_key)
+
+        if message.channel == "whatsapp" and intent in REPORT_INTENTS_REQUIRING_EVENT_CONTEXT:
+            export_session_key = build_export_session_key(
+                member_id=str(getattr(member, "id", "")) if member else None,
+                sender_id=canonical_sender_id,
+            )
+            report_session = get_export_session(export_session_key)
+            selected_event_id = report_session.event_id if report_session else None
+            if selected_event_id:
+                selected_event = db.query(Event).filter(Event.id == selected_event_id).first()
+                if selected_event:
+                    event = selected_event
 
         link_response = _attempt_telegram_member_link(
             db=db, message=message, intent=intent
