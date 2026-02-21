@@ -31,6 +31,7 @@ from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.reports.common.whatsapp_report_registry import (
     build_whatsapp_report_registry,
     list_exportable_report_options,
+    resolve_report_entry,
 )
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.users.user_query_service import UserQueryService
@@ -987,18 +988,43 @@ async def whatsapp_webhook_event(request: Request):
                     channel_type="whatsapp",
                     external_user_id=message.sender_id,
                 )
-                events = _recent_report_events(db=db, society_id=member.society_id)
-                sections = _build_report_event_sections(events)
+                report_options = list_exportable_report_options(
+                    registry=build_whatsapp_report_registry(
+                        handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+                    ),
+                    role=member.role,
+                )
+
+                latest_event = get_latest_event(db)
+                session_key = build_export_session_key(
+                    member_id=str(member.id),
+                    sender_id=canonical_sender,
+                )
+                save_export_session(
+                    session_key,
+                    ExportSessionState(
+                        options=report_options,
+                        current_page=0,
+                        event_id=str(latest_event.id) if latest_event else None,
+                    ),
+                )
+
+                include_more_row = len(report_options) > WHATSAPP_LIST_MAX_ROWS
+                sections = _build_reports_list_sections(
+                    report_options,
+                    page_index=0,
+                    include_more_row=include_more_row,
+                )
                 list_response = client.send_list_message(
                     to_phone=message.sender_id,
                     header_text="Reports",
-                    body_text="Select event first",
-                    button_text="Choose Event",
+                    body_text="Pick a report category and tap a report.",
+                    button_text="Choose Report",
                     sections=sections,
-                    footer_text="After selecting event, you can tap report name.",
+                    footer_text="If required, event selection will appear next.",
                 )
                 logger.info(
-                    "WhatsApp report event selection list sent",
+                    "WhatsApp reports interactive list sent",
                     extra={
                         "sender_id": message.sender_id,
                         "message_id": message.metadata.get("message_id"),
@@ -1007,7 +1033,7 @@ async def whatsapp_webhook_event(request: Request):
                 )
                 continue
             except Exception:
-                logger.exception("Failed to send report event selection list")
+                logger.exception("Failed to send report options list")
             finally:
                 db.close()
 
@@ -1059,6 +1085,57 @@ async def whatsapp_webhook_event(request: Request):
                 continue
             except Exception:
                 logger.exception("Failed to send report list after event selection")
+            finally:
+                db.close()
+
+        if (message.text or "").strip().lower().startswith("export::") and not requested_more_reports:
+            db = SessionLocal()
+            try:
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                member = ensure_committee_member(
+                    canonical_sender,
+                    db,
+                    channel_type="whatsapp",
+                    external_user_id=message.sender_id,
+                )
+                session_key = build_export_session_key(
+                    member_id=str(member.id),
+                    sender_id=canonical_sender,
+                )
+                session = get_export_session(session_key)
+                selected_command_key = (message.text or "").strip().lower().removeprefix("export::")
+                if session and session.options:
+                    selected_option = next((opt for opt in session.options if (opt.get("command_key") or "").lower() == selected_command_key), None)
+                    if selected_option:
+                        registry = build_whatsapp_report_registry(
+                            handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+                        )
+                        _command_key, entry = resolve_report_entry(
+                            registry=registry,
+                            category=selected_option["category"],
+                            report=selected_option["report_key"],
+                        )
+                        if entry.requires_event_id and not session.event_id:
+                            events = _recent_report_events(db=db, society_id=member.society_id)
+                            sections = _build_report_event_sections(events)
+                            list_response = client.send_list_message(
+                                to_phone=message.sender_id,
+                                header_text="Reports",
+                                body_text="This report needs an event. Select event first.",
+                                button_text="Choose Event",
+                                sections=sections,
+                            )
+                            logger.info(
+                                "WhatsApp report event selection required for export",
+                                extra={
+                                    "sender_id": message.sender_id,
+                                    "message_id": message.metadata.get("message_id"),
+                                    "response_keys": sorted(list_response.keys()),
+                                },
+                            )
+                            continue
+            except Exception:
+                logger.exception("Failed to evaluate report export event requirement")
             finally:
                 db.close()
 
