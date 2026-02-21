@@ -10,6 +10,7 @@ Created on Sun Jan 11 06:32:11 2026
 
 import hashlib
 import hmac
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
@@ -24,6 +25,7 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.db.session import SessionLocal
+from app.db.models import Event
 from app.whatsapp.router import detect_whatsapp_intent
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.reports.common.whatsapp_report_registry import (
@@ -88,6 +90,7 @@ router = APIRouter()
 WHATSAPP_LIST_MAX_ROWS = 10
 WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
 WHATSAPP_APPROVAL_ROW_LIMIT = 10
+WHATSAPP_REPORT_EVENT_ROW_PREFIX = "report-event::"
 
 
 def _report_page_option_limit(*, total_options: int, page_size: int = WHATSAPP_LIST_MAX_ROWS) -> int:
@@ -114,6 +117,47 @@ def _next_report_page(current_page: int, total_pages: int) -> int:
     return (current_page + 1) % total_pages
 
 
+
+
+def _recent_report_events(*, db, society_id) -> list[Event]:
+    if not society_id:
+        return []
+    cutoff = datetime.utcnow() - timedelta(days=365)
+    return (
+        db.query(Event)
+        .filter(Event.society_id == society_id, Event.event_date >= cutoff)
+        .order_by(Event.event_date.desc())
+        .limit(9)
+        .all()
+    )
+
+
+def _build_report_event_sections(events: list[Event]) -> list[dict]:
+    rows = [
+        {
+            "id": f"{WHATSAPP_REPORT_EVENT_ROW_PREFIX}{event.id}",
+            "title": (event.name or "Event")[:24],
+            "description": f"{event.event_date.strftime('%d %b %Y %H:%M')} · {event.status}",
+        }
+        for event in events
+    ]
+    if not rows:
+        rows.append(
+            {
+                "id": "menu",
+                "title": "Main Menu",
+                "description": "No events found.",
+            }
+        )
+    return [{"title": "Select event", "rows": rows}]
+
+
+def _parse_report_event_selection(message_text: str) -> str | None:
+    text = (message_text or "").strip().lower()
+    prefix = WHATSAPP_REPORT_EVENT_ROW_PREFIX
+    if not text.startswith(prefix):
+        return None
+    return text[len(prefix):].strip() or None
 
 
 def _is_committee_member(*, db, sender_id: str, external_user_id: str) -> bool:
@@ -931,6 +975,93 @@ async def whatsapp_webhook_event(request: Request):
 
         intent = detect_whatsapp_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
+        selected_report_event_id = _parse_report_event_selection(message.text)
+
+        if intent == "REPORT_OPTIONS":
+            db = SessionLocal()
+            try:
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                member = ensure_committee_member(
+                    canonical_sender,
+                    db,
+                    channel_type="whatsapp",
+                    external_user_id=message.sender_id,
+                )
+                events = _recent_report_events(db=db, society_id=member.society_id)
+                sections = _build_report_event_sections(events)
+                list_response = client.send_list_message(
+                    to_phone=message.sender_id,
+                    header_text="Reports",
+                    body_text="Select event first",
+                    button_text="Choose Event",
+                    sections=sections,
+                    footer_text="After selecting event, you can tap report name.",
+                )
+                logger.info(
+                    "WhatsApp report event selection list sent",
+                    extra={
+                        "sender_id": message.sender_id,
+                        "message_id": message.metadata.get("message_id"),
+                        "response_keys": sorted(list_response.keys()),
+                    },
+                )
+                continue
+            except Exception:
+                logger.exception("Failed to send report event selection list")
+            finally:
+                db.close()
+
+        if selected_report_event_id:
+            db = SessionLocal()
+            try:
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                member = ensure_committee_member(
+                    canonical_sender,
+                    db,
+                    channel_type="whatsapp",
+                    external_user_id=message.sender_id,
+                )
+                report_options = list_exportable_report_options(
+                    registry=build_whatsapp_report_registry(
+                        handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+                    ),
+                    role=member.role,
+                )
+                session_key = build_export_session_key(
+                    member_id=str(member.id),
+                    sender_id=canonical_sender,
+                )
+                save_export_session(
+                    session_key,
+                    ExportSessionState(options=report_options, current_page=0, event_id=selected_report_event_id),
+                )
+                include_more_row = len(report_options) > WHATSAPP_LIST_MAX_ROWS
+                sections = _build_reports_list_sections(
+                    report_options,
+                    page_index=0,
+                    include_more_row=include_more_row,
+                )
+                list_response = client.send_list_message(
+                    to_phone=message.sender_id,
+                    header_text="Reports",
+                    body_text="Pick a report and tap to export",
+                    button_text="Choose Report",
+                    sections=sections,
+                )
+                logger.info(
+                    "WhatsApp report list sent after event selection",
+                    extra={
+                        "sender_id": message.sender_id,
+                        "message_id": message.metadata.get("message_id"),
+                        "response_keys": sorted(list_response.keys()),
+                    },
+                )
+                continue
+            except Exception:
+                logger.exception("Failed to send report list after event selection")
+            finally:
+                db.close()
+
         if requested_more_reports:
             db = SessionLocal()
             try:
@@ -976,7 +1107,7 @@ async def whatsapp_webhook_event(request: Request):
 
                 save_export_session(
                     session_key,
-                    ExportSessionState(options=report_options, current_page=current_page),
+                    ExportSessionState(options=report_options, current_page=current_page, event_id=session.event_id if session else None),
                 )
 
                 sections = _build_reports_list_sections(

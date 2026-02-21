@@ -760,3 +760,81 @@ def test_whatsapp_webhook_event_invalid_option_sends_main_menu_button(monkeypatc
     assert button_attempts[0]["header_text"] == "Invalid option"
     button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
     assert button_ids == ["menu"]
+
+
+def test_whatsapp_webhook_event_report_options_opens_event_selection_list(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.report.events"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000017",
+        display_name="Jane",
+        text="report options",
+        metadata={"message_id": "wamid.report.events", "canonical_sender_id": "919999000017"},
+    )
+
+    fake_member = type("M", (), {"id": "member-1", "role": "chairman", "society_id": "soc-1"})()
+    fake_event = type("E", (), {"id": "evt-1", "name": "Ganesh Event", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "CLOSED"})()
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: fake_member)
+    monkeypatch.setattr("app.api.whatsapp._recent_report_events", lambda **kwargs: [fake_event])
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    rows = list_attempts[0]["sections"][0]["rows"]
+    assert rows[0]["id"].startswith("report-event::")
+
+
+def test_whatsapp_webhook_event_report_event_selection_opens_report_list(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.report.list"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000018",
+        display_name="Jane",
+        text="report-event::evt-1",
+        metadata={"message_id": "wamid.report.list", "canonical_sender_id": "919999000018"},
+    )
+
+    fake_member = type("M", (), {"id": "member-2", "role": "chairman", "society_id": "soc-1"})()
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: fake_member)
+    monkeypatch.setattr(
+        "app.api.whatsapp.list_exportable_report_options",
+        lambda **kwargs: [{"category": "financial", "command_key": "financial:block-payments", "label": "Block Payments"}],
+    )
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    row_ids = [row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]]
+    assert "export::financial:block-payments" in row_ids
