@@ -94,6 +94,16 @@ WHATSAPP_APPROVAL_ROW_LIMIT = 10
 WHATSAPP_REPORT_EVENT_ROW_PREFIX = "report-event::"
 
 REPORT_INTENTS_REQUIRING_EVENT = {"SUMMARY", "BLOCK_REPORT", "PARTICIPATION_REPORT"}
+REPORT_AUTO_EVENT_STATES = {"ACTIVE", "LOCKED", "EVENT_DAY"}
+
+
+def _default_report_event_id(event) -> str | None:
+    if not event:
+        return None
+    status = (getattr(event, "status", "") or "").upper()
+    if status in REPORT_AUTO_EVENT_STATES:
+        return str(event.id)
+    return None
 
 
 def _report_page_option_limit(*, total_options: int, page_size: int = WHATSAPP_LIST_MAX_ROWS) -> int:
@@ -991,7 +1001,8 @@ async def whatsapp_webhook_event(request: Request):
                     external_user_id=message.sender_id,
                 )
                 latest_event = get_latest_event(db)
-                if not latest_event:
+                default_event_id = _default_report_event_id(latest_event)
+                if not default_event_id:
                     session_key = build_export_session_key(
                         member_id=str(member.id),
                         sender_id=canonical_sender,
@@ -1057,7 +1068,7 @@ async def whatsapp_webhook_event(request: Request):
                     ExportSessionState(
                         options=report_options,
                         current_page=0,
-                        event_id=str(latest_event.id) if latest_event else None,
+                        event_id=_default_report_event_id(latest_event),
                     ),
                 )
 
@@ -1197,7 +1208,7 @@ async def whatsapp_webhook_event(request: Request):
                     session = ExportSessionState(
                         options=report_options,
                         current_page=0,
-                        event_id=str(latest_event.id) if latest_event else None,
+                        event_id=_default_report_event_id(latest_event),
                     )
                     save_export_session(session_key, session)
 
