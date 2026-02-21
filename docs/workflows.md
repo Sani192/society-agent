@@ -15,3 +15,7 @@
    - Public: `menu`, `help`
    - Committee: `menu`, `help`, `report options`
 3. `commands` intent is removed from intent map and handlers.
+
+## 3) Help + invalid-option UX
+- `help` is treated like `menu` in interactive WhatsApp webhook flow.
+- Invalid option replies include a tappable **Main Menu** button (`menu`).

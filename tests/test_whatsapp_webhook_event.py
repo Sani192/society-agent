@@ -30,14 +30,14 @@ def test_whatsapp_webhook_event_handles_send_text_errors(monkeypatch):
         channel="whatsapp",
         sender_id="919999000000",
         display_name="Jane",
-        text="help",
+        text="unknown",
         metadata={"message_id": "wamid.1"},
     )
 
     monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
     monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
     monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
-    monkeypatch.setattr("app.api.whatsapp.detect_whatsapp_intent", lambda message: "HELP")
+    monkeypatch.setattr("app.api.whatsapp.detect_whatsapp_intent", lambda message: None)
     monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: "reply")
     monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
 
@@ -692,3 +692,71 @@ def test_whatsapp_webhook_event_refund_pending_action_accepts_amount_and_reason_
     assert "Expected next reply: amount followed by reason." in text_attempts[0][1]
     assert text_attempts[-1] == ("919999000012", "handled:refund 200 guest absent")
     assert get_finance_action_session("919999000012") is None
+
+
+def test_whatsapp_webhook_event_help_behaves_like_menu(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.help"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000015",
+        display_name="Jane",
+        text="help",
+        metadata={"message_id": "wamid.help", "canonical_sender_id": "919999000015"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "Society Control Panel"
+
+
+def test_whatsapp_webhook_event_invalid_option_sends_main_menu_button(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.invalid"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("invalid option should use buttons")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000016",
+        display_name="Jane",
+        text="nonsense",
+        metadata={"message_id": "wamid.invalid"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.detect_whatsapp_intent", lambda message: None)
+    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: "ℹ️ Invalid option. Use: menu, help.")
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "Invalid option"
+    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    assert button_ids == ["menu"]

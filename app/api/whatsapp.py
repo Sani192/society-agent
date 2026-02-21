@@ -314,7 +314,7 @@ def _send_approval_selection_list(
 def _try_handle_ui_message(*, client, message) -> bool:
     msg = message.text.strip().lower()
 
-    if msg in {"menu", "ui::menu", "ui::menu:more"}:
+    if msg in {"menu", "help", "ui::menu", "ui::menu:more"}:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -931,7 +931,7 @@ async def whatsapp_webhook_event(request: Request):
 
         intent = detect_whatsapp_intent(message.text)
         requested_more_reports = message.text.strip().lower() == WHATSAPP_MORE_REPORTS_ROW_ID
-        if intent == "REPORT_OPTIONS" or requested_more_reports:
+        if requested_more_reports:
             db = SessionLocal()
             try:
                 canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
@@ -1013,7 +1013,15 @@ async def whatsapp_webhook_event(request: Request):
 
         reply_text = handle_inbound_message(message)
         try:
-            send_response = client.send_text_message(message.sender_id, reply_text)
+            if reply_text.startswith("ℹ️ Invalid option."):
+                send_response = client.send_button_message(
+                    to_phone=message.sender_id,
+                    header_text="Invalid option",
+                    body_text=reply_text,
+                    buttons=[_button_row("menu", "Main Menu")],
+                )
+            else:
+                send_response = client.send_text_message(message.sender_id, reply_text)
             logger.info(
                 "WhatsApp text reply sent",
                 extra={
