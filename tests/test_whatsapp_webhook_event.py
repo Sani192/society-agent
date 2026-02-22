@@ -327,7 +327,7 @@ def test_whatsapp_webhook_event_menu_more_for_member_shows_all_sections_list(mon
 
 
 
-def test_whatsapp_webhook_event_menu_without_active_event_returns_fallback_text(monkeypatch):
+def test_whatsapp_webhook_event_menu_without_active_event_shows_onboarding_buttons(monkeypatch):
     button_attempts = []
     text_attempts = []
 
@@ -354,15 +354,19 @@ def test_whatsapp_webhook_event_menu_without_active_event_returns_fallback_text(
     monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.api.whatsapp.get_latest_event", lambda db: None)
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    assert button_attempts == []
-    assert text_attempts == [("919999000031", "No active event found. Please contact committee.")]
+    assert text_attempts == []
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "Society Control Panel"
+    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    assert button_ids == ["ui::my-account", "ui::finance", "ui::menu:more"]
 
 
-def test_whatsapp_webhook_event_menu_more_without_active_event_returns_fallback_text(monkeypatch):
+def test_whatsapp_webhook_event_menu_more_without_active_event_shows_onboarding_sections(monkeypatch):
     list_attempts = []
     text_attempts = []
 
@@ -393,8 +397,10 @@ def test_whatsapp_webhook_event_menu_more_without_active_event_returns_fallback_
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    assert list_attempts == []
-    assert text_attempts == [("919999000032", "No active event found. Please contact committee.")]
+    assert text_attempts == []
+    assert len(list_attempts) == 1
+    row_ids = [row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]]
+    assert {"ui::my-account", "ui::finance", "ui::society", "ui::reports"}.issubset(set(row_ids))
 
 
 def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypatch):
