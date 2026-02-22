@@ -61,7 +61,7 @@ from app.whatsapp.ui import (
     payment_custom_amount_prompt,
     refund_request_prompt,
 )
-from app.utils.guards import ensure_committee_member
+from app.utils.guards import ensure_committee_member, ensure_member_of_society
 from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
 from app.whatsapp.export_session import (
@@ -380,6 +380,33 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 sender_id=canonical_sender,
                 external_user_id=message.sender_id,
             )
+            is_society_member = False
+            if not is_committee:
+                latest_event = get_latest_event(db)
+                if latest_event:
+                    try:
+                        resolve_flat(
+                            db,
+                            phone_number=canonical_sender,
+                            society_id=latest_event.society_id,
+                        )
+                        is_society_member = True
+                    except Exception:
+                        try:
+                            ensure_member_of_society(canonical_sender, db, latest_event.society_id)
+                            is_society_member = True
+                        except Exception:
+                            is_society_member = False
+
+            if not is_committee and not is_society_member:
+                client.send_button_message(
+                    to_phone=message.sender_id,
+                    header_text="Registration Required",
+                    body_text="You are not registered yet. Tap below to join your society.",
+                    buttons=[_button_row("ui::join-society", "Join Society")],
+                )
+                return True
+
             if msg == "ui::menu:more":
                 _send_dashboard_all_sections(
                     client=client,
