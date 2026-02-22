@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class FinanceActionSessionState:
     pending_action: str | None = None
+    event_id: str | None = None
 
 
 _FINANCE_ACTION_SESSIONS: dict[str, FinanceActionSessionState] = {}

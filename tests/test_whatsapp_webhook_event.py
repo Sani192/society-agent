@@ -2,7 +2,7 @@ import asyncio
 
 from app.api.whatsapp import whatsapp_webhook_event
 from app.channels.core.types import InboundMessage
-from app.whatsapp.finance_action_session import get_finance_action_session
+from app.whatsapp.finance_action_session import clear_finance_action_session, get_finance_action_session
 from app.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
 
 
@@ -1227,3 +1227,143 @@ def test_whatsapp_webhook_event_report_intent_uses_active_latest_event_without_s
 
     assert response == {"status": "ok"}
     assert text_attempts[-1] == ("919999000022", "✅ summary with active event")
+
+
+def test_whatsapp_webhook_event_ui_view_balance_requests_event_selection_when_multiple_events(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.finance.event-select"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text response should not be sent")
+
+    class StubDB:
+        def query(self, model):
+            return self
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def distinct(self):
+            return self
+
+        def all(self):
+            return [type("M", (), {"society_id": "soc-1"})()]
+
+        def order_by(self, *args, **kwargs):
+            return self
+
+        def limit(self, *args, **kwargs):
+            return self
+
+        def close(self):
+            return None
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000101",
+        display_name="Jane",
+        text="ui::finance:view-balance",
+        metadata={"message_id": "wamid.finance.balance", "canonical_sender_id": "919999000101"},
+    )
+
+    fake_events = [
+        type("E", (), {"id": "evt-1", "name": "Ganesh", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "CLOSED"})(),
+        type("E", (), {"id": "evt-2", "name": "Navratri", "event_date": __import__("datetime").datetime(2026, 8, 20, 18, 0), "status": "LOCKED"})(),
+    ]
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+    monkeypatch.setattr("app.api.whatsapp.get_latest_event", lambda db: None)
+    monkeypatch.setattr("app.api.whatsapp.resolve_flat", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not resolve flat before event select")))
+    monkeypatch.setattr("app.api.whatsapp.UserQueryService.get_my_balance", lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not load balance before event select")))
+    monkeypatch.setattr("app.api.whatsapp.UserQueryService.get_my_payment_summary", lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not load summary before event select")))
+    monkeypatch.setattr("app.api.whatsapp._recent_member_events", lambda **kwargs: fake_events)
+
+    clear_finance_action_session("919999000101")
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    rows = list_attempts[0]["sections"][0]["rows"]
+    assert rows[0]["id"].startswith("finance-event::")
+    session = get_finance_action_session("919999000101")
+    assert session is not None
+    assert session.pending_action == "VIEW_BALANCE"
+
+
+def test_whatsapp_webhook_event_ui_make_payment_requests_event_selection_when_no_active_event(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.finance.makepay-select"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("no direct text fallback expected")
+
+    class StubDB:
+        def query(self, model):
+            return self
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def distinct(self):
+            return self
+
+        def all(self):
+            return [type("M", (), {"society_id": "soc-1"})()]
+
+        def order_by(self, *args, **kwargs):
+            return self
+
+        def limit(self, *args, **kwargs):
+            return self
+
+        def close(self):
+            return None
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000102",
+        display_name="Jane",
+        text="ui::make-payment",
+        metadata={"message_id": "wamid.finance.makepay", "canonical_sender_id": "919999000102"},
+    )
+
+    fake_events = [
+        type("E", (), {"id": "evt-a", "name": "Past Event A", "event_date": __import__("datetime").datetime(2026, 7, 1, 19, 0), "status": "CLOSED"})(),
+        type("E", (), {"id": "evt-b", "name": "Past Event B", "event_date": __import__("datetime").datetime(2026, 6, 1, 19, 0), "status": "LOCKED"})(),
+    ]
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+    monkeypatch.setattr("app.api.whatsapp._is_registered_member_for_sender", lambda **kwargs: True)
+    monkeypatch.setattr("app.api.whatsapp.get_latest_event", lambda db: None)
+    monkeypatch.setattr("app.api.whatsapp.resolve_flat", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not resolve flat before event select")))
+    monkeypatch.setattr("app.api.whatsapp.UserQueryService.get_my_balance", lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not compute balance before event select")))
+    monkeypatch.setattr("app.api.whatsapp._recent_member_events", lambda **kwargs: fake_events)
+
+    clear_finance_action_session("919999000102")
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    rows = list_attempts[0]["sections"][0]["rows"]
+    assert rows[0]["id"].startswith("finance-event::")
+    session = get_finance_action_session("919999000102")
+    assert session is not None
+    assert session.pending_action == "MAKE_PAYMENT"

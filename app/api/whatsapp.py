@@ -92,6 +92,9 @@ WHATSAPP_LIST_MAX_ROWS = 10
 WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
 WHATSAPP_APPROVAL_ROW_LIMIT = 10
 WHATSAPP_REPORT_EVENT_ROW_PREFIX = "report-event::"
+WHATSAPP_FINANCE_EVENT_ROW_PREFIX = "finance-event::"
+
+FINANCE_EVENT_ACTIONS = {"VIEW_BALANCE", "MAKE_PAYMENT"}
 
 REPORT_INTENTS_REQUIRING_EVENT = {"SUMMARY", "BLOCK_REPORT", "PARTICIPATION_REPORT"}
 REPORT_AUTO_EVENT_STATES = {"ACTIVE", "LOCKED", "EVENT_DAY"}
@@ -172,6 +175,93 @@ def _parse_report_event_selection(message_text: str) -> str | None:
         return None
     return text[len(prefix):].strip() or None
 
+
+
+
+def _recent_member_events(*, db, sender_id: str) -> list[Event]:
+    normalized_sender = normalize_phone(sender_id)
+    if not normalized_sender:
+        return []
+
+    candidate_ids = {normalized_sender}
+    if len(normalized_sender) > 10:
+        candidate_ids.add(normalized_sender[-10:])
+
+    mappings = (
+        db.query(UserFlatMapping.society_id)
+        .filter(
+            UserFlatMapping.user_identifier.in_(tuple(candidate_ids)),
+            UserFlatMapping.is_active.is_(True),
+        )
+        .distinct()
+        .all()
+    )
+    society_ids = [m.society_id for m in mappings if getattr(m, "society_id", None)]
+    if not society_ids:
+        return []
+
+    return (
+        db.query(Event)
+        .filter(Event.society_id.in_(tuple(society_ids)))
+        .order_by(Event.event_date.desc())
+        .limit(9)
+        .all()
+    )
+
+
+def _build_finance_event_sections(events: list[Event]) -> list[dict]:
+    rows = [
+        {
+            "id": f"{WHATSAPP_FINANCE_EVENT_ROW_PREFIX}{event.id}",
+            "title": (event.name or "Event")[:24],
+            "description": f"{event.event_date.strftime('%d %b %Y %H:%M')} · {event.status}",
+        }
+        for event in events
+    ]
+    if not rows:
+        rows.append(
+            {
+                "id": "menu",
+                "title": "Main Menu",
+                "description": "No events found.",
+            }
+        )
+    return [{"title": "Select event", "rows": rows}]
+
+
+def _parse_finance_event_selection(message_text: str) -> str | None:
+    text = (message_text or "").strip().lower()
+    if not text.startswith(WHATSAPP_FINANCE_EVENT_ROW_PREFIX):
+        return None
+    return text[len(WHATSAPP_FINANCE_EVENT_ROW_PREFIX):].strip() or None
+
+
+def _select_event_for_finance_action(*, db, sender_id: str, action: str) -> tuple[Event | None, bool]:
+    latest_event = get_latest_event(db)
+    if latest_event and str((latest_event.status or "").upper()) in REPORT_AUTO_EVENT_STATES:
+        return latest_event, True
+
+    events = _recent_member_events(db=db, sender_id=sender_id)
+    if len(events) == 1:
+        return events[0], True
+    return None, False
+
+
+def _request_finance_event_selection(*, client, message, db, canonical_sender: str, action: str) -> bool:
+    finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+    save_finance_action_session(
+        finance_session_key,
+        FinanceActionSessionState(pending_action=action, event_id=None),
+    )
+    events = _recent_member_events(db=db, sender_id=canonical_sender)
+    client.send_list_message(
+        to_phone=message.sender_id,
+        header_text="Select Event",
+        body_text="This action needs an event. Choose one to continue.",
+        button_text="Choose Event",
+        sections=_build_finance_event_sections(events),
+    )
+    return True
 
 def _is_committee_member(*, db, sender_id: str, external_user_id: str) -> bool:
     try:
@@ -562,13 +652,28 @@ def _try_handle_ui_message(*, client, message) -> bool:
         db = SessionLocal()
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            latest_event = get_latest_event(db)
-            if not latest_event:
-                client.send_text_message(message.sender_id, "No active event found.")
-                return True
-            flat = resolve_flat(db, phone_number=canonical_sender, society_id=latest_event.society_id)
-            balance = UserQueryService.get_my_balance(db=db, event_id=latest_event.id, flat_id=flat.id)
-            summary = UserQueryService.get_my_payment_summary(db=db, event_id=latest_event.id, flat_id=flat.id)
+            finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+            finance_session = get_finance_action_session(finance_session_key)
+            selected_event = None
+            if finance_session and finance_session.pending_action == "VIEW_BALANCE" and finance_session.event_id:
+                selected_event = db.query(Event).filter(Event.id == finance_session.event_id).first()
+            if not selected_event:
+                selected_event, _ = _select_event_for_finance_action(
+                    db=db,
+                    sender_id=canonical_sender,
+                    action="VIEW_BALANCE",
+                )
+            if not selected_event:
+                return _request_finance_event_selection(
+                    client=client,
+                    message=message,
+                    db=db,
+                    canonical_sender=canonical_sender,
+                    action="VIEW_BALANCE",
+                )
+            flat = resolve_flat(db, phone_number=canonical_sender, society_id=selected_event.society_id)
+            balance = UserQueryService.get_my_balance(db=db, event_id=selected_event.id, flat_id=flat.id)
+            summary = UserQueryService.get_my_payment_summary(db=db, event_id=selected_event.id, flat_id=flat.id)
             client.send_text_message(
                 message.sender_id,
                 format_financial_overview(
@@ -578,6 +683,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     outstanding=format_currency(balance["balance"]),
                 ),
             )
+            if finance_session and finance_session.pending_action == "VIEW_BALANCE":
+                clear_finance_action_session(finance_session_key)
             return True
         except Exception:
             logger.exception("Failed to build financial overview")
@@ -590,15 +697,30 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            latest_event = get_latest_event(db)
-            if not is_member_action_visible(intent="PAY", event_state=get_event_state(latest_event), is_committee=is_committee):
+            finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
+            finance_session = get_finance_action_session(finance_session_key)
+            selected_event = None
+            if finance_session and finance_session.pending_action == "MAKE_PAYMENT" and finance_session.event_id:
+                selected_event = db.query(Event).filter(Event.id == finance_session.event_id).first()
+            if not selected_event:
+                selected_event, _ = _select_event_for_finance_action(
+                    db=db,
+                    sender_id=canonical_sender,
+                    action="MAKE_PAYMENT",
+                )
+            if selected_event and not is_member_action_visible(intent="PAY", event_state=get_event_state(selected_event), is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
                 return True
-            if not latest_event:
-                client.send_text_message(message.sender_id, "No active event found.")
-                return True
-            flat = resolve_flat(db, phone_number=canonical_sender, society_id=latest_event.society_id)
-            balance = UserQueryService.get_my_balance(db=db, event_id=latest_event.id, flat_id=flat.id)
+            if not selected_event:
+                return _request_finance_event_selection(
+                    client=client,
+                    message=message,
+                    db=db,
+                    canonical_sender=canonical_sender,
+                    action="MAKE_PAYMENT",
+                )
+            flat = resolve_flat(db, phone_number=canonical_sender, society_id=selected_event.society_id)
+            balance = UserQueryService.get_my_balance(db=db, event_id=selected_event.id, flat_id=flat.id)
             outstanding = max(balance["balance"], 0)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -607,6 +729,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 button_text="Choose",
                 sections=build_make_payment_sections(outstanding_amount=str(int(outstanding) if float(outstanding).is_integer() else outstanding)),
             )
+            if finance_session and finance_session.pending_action == "MAKE_PAYMENT":
+                clear_finance_action_session(finance_session_key)
             return True
         except Exception:
             logger.exception("Failed to build make payment menu")
@@ -1005,6 +1129,38 @@ async def whatsapp_webhook_event(request: Request):
         finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
         finance_session = get_finance_action_session(finance_session_key)
         normalized_text = (message.text or "").strip().lower()
+        selected_finance_event_id = _parse_finance_event_selection(message.text)
+
+        if finance_session and selected_finance_event_id and finance_session.pending_action in FINANCE_EVENT_ACTIONS:
+            db = SessionLocal()
+            try:
+                canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+                selected_event = db.query(Event).filter(Event.id == selected_finance_event_id).first()
+                if not selected_event:
+                    client.send_text_message(message.sender_id, "Invalid event selection. Please try again.")
+                    continue
+                save_finance_action_session(
+                    finance_session_key,
+                    FinanceActionSessionState(
+                        pending_action=finance_session.pending_action,
+                        event_id=str(selected_event.id),
+                    ),
+                )
+                synthetic_ui_message = InboundMessage(
+                    channel=message.channel,
+                    sender_id=message.sender_id,
+                    display_name=message.display_name,
+                    text=(
+                        "ui::finance:view-balance"
+                        if finance_session.pending_action == "VIEW_BALANCE"
+                        else "ui::make-payment"
+                    ),
+                    metadata={**message.metadata, "canonical_sender_id": canonical_sender},
+                )
+                _try_handle_ui_message(client=client, message=synthetic_ui_message)
+                continue
+            finally:
+                db.close()
 
         if finance_session and normalized_text == "cancel":
             clear_finance_action_session(finance_session_key)
