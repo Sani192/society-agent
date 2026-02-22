@@ -292,7 +292,7 @@ def test_whatsapp_numeric_intent_treated_as_export_with_active_session_for_sende
         message,
         session_factory=lambda: db,
         committee_member_resolver=lambda *args, **kwargs: type("M", (), {"id": "member-1"})(),
-        latest_event_getter=lambda db: None,
+        latest_event_getter=lambda db: type("E", (), {"status": "ACTIVE"})(),
         intent_detector=fake_detector,
         onboarding_intent_handler=lambda **kwargs: None,
         committee_intent_handler=lambda **kwargs: "ok",

@@ -22,8 +22,12 @@ def test_detect_intent_reports_alias_not_supported():
     assert detect_intent("reports") is None
 
 
-def test_detect_intent_conversational_export_selection():
-    assert detect_intent("export 2") == "EXPORT_SELECTION"
+def test_detect_intent_conversational_export_selection_when_allowed():
+    assert detect_intent("export 2", allow_numeric_export_selection=True) == "EXPORT_SELECTION"
+
+
+def test_detect_intent_conversational_export_selection_when_not_allowed():
+    assert detect_intent("export 2", allow_numeric_export_selection=False) is None
 
 
 def test_detect_intent_numeric_only_export_selection_when_allowed():
@@ -46,8 +50,12 @@ def test_detect_intent_format_command_not_supported():
     assert detect_intent("format pdf") is None
 
 
-def test_detect_intent_event_selection_command():
-    assert detect_intent("event 2") == "EXPORT_SELECTION"
+def test_detect_intent_event_selection_command_when_allowed():
+    assert detect_intent("event 2", allow_numeric_export_selection=True) == "EXPORT_SELECTION"
+
+
+def test_detect_intent_event_selection_command_when_not_allowed():
+    assert detect_intent("event 2", allow_numeric_export_selection=False) is None
 
 
 def test_detect_intent_activate_event_command():

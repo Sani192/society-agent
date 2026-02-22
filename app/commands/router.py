@@ -59,13 +59,18 @@ def detect_intent(
         return "EXPORT_SELECTION"
 
     if msg.startswith("export "):
-        if len(tokens) > 1 and tokens[1].isdigit():
+        if len(tokens) > 1 and tokens[1].isdigit() and allow_numeric_export_selection:
             logger.info("Intent detected by conversational export selection", extra={"intent": "EXPORT_SELECTION"})
             return "EXPORT_SELECTION"
         logger.info("Export prefix found but no numeric selection")
         return None
 
-    if msg.startswith("event ") and len(tokens) > 1 and tokens[1].isdigit():
+    if (
+        msg.startswith("event ")
+        and len(tokens) > 1
+        and tokens[1].isdigit()
+        and allow_numeric_export_selection
+    ):
         logger.info("Intent detected by conversational event selection", extra={"intent": "EXPORT_SELECTION"})
         return "EXPORT_SELECTION"
 
