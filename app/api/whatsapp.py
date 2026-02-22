@@ -380,11 +380,65 @@ def _send_approval_selection_list(
 def _try_handle_ui_message(*, client, message) -> bool:
     msg = message.text.strip().lower()
 
+    canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
+    membership_gated_ui_ids = {
+        "ui::menu",
+        "ui::menu:more",
+        "ui::my-account",
+        "ui::society",
+        "ui::finance",
+        "ui::payments",
+        "ui::participation",
+        "ui::reports",
+        "ui::administration",
+        "ui::administration:approvals",
+        "ui::administration:operations",
+        "ui::administration:operations:more",
+        "ui::administration:reports",
+    }
+    if msg in membership_gated_ui_ids or msg in {"menu", "help"}:
+        db = SessionLocal()
+        try:
+            try:
+                latest_event = get_latest_event(db)
+                is_committee = _is_committee_member(
+                    db=db,
+                    sender_id=canonical_sender,
+                    external_user_id=message.sender_id,
+                )
+                is_society_member = False
+                if latest_event and not is_committee:
+                    try:
+                        resolve_flat(
+                            db,
+                            phone_number=canonical_sender,
+                            society_id=latest_event.society_id,
+                        )
+                        is_society_member = True
+                    except Exception:
+                        try:
+                            ensure_member_of_society(canonical_sender, db, latest_event.society_id)
+                            is_society_member = True
+                        except Exception:
+                            is_society_member = False
+
+                if latest_event and not is_committee and not is_society_member:
+                    client.send_button_message(
+                        to_phone=message.sender_id,
+                        header_text="Registration Required",
+                        body_text="You are not registered yet. Tap below to join your society.",
+                        buttons=[_button_row("ui::join-society", "Join Society")],
+                    )
+                    return True
+            except Exception:
+                logger.exception("Failed pre-check for WhatsApp UI registration gate")
+        finally:
+            db.close()
+
     if msg in {"menu", "help", "ui::menu", "ui::menu:more"}:
         db = SessionLocal()
         try:
             latest_event = get_latest_event(db)
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(
                 db=db,
                 sender_id=canonical_sender,
@@ -407,15 +461,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
                         is_society_member = False
 
             requires_event_context = msg == "ui::menu:more"
-            if latest_event and not is_committee and not is_society_member:
-                client.send_button_message(
-                    to_phone=message.sender_id,
-                    header_text="Registration Required",
-                    body_text="You are not registered yet. Tap below to join your society.",
-                    buttons=[_button_row("ui::join-society", "Join Society")],
-                )
-                return True
-
             if requires_event_context and not latest_event:
                 _send_dashboard_all_sections(
                     client=client,
