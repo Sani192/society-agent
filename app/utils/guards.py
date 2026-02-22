@@ -12,7 +12,6 @@ from app.config import settings
 from app.db.models import CommitteeMember
 from app.modules.users.channel_identity_service import resolve_committee_member_by_identity
 from app.db.session import SessionLocal
-from app.utils.logger import logger
 from app.modules.users.user_flat_service import UserFlatService
 import re
 

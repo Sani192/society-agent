@@ -10,9 +10,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.db.base import Base
-from app.db.models import Flat, ReminderConfig, Society
-from app.db.session import SessionLocal, engine
+from app.db.base import Base  # noqa: E402
+from app.db.models import Flat, ReminderConfig, Society  # noqa: E402
+from app.db.session import SessionLocal, engine  # noqa: E402
 
 
 def reset_schema() -> None:

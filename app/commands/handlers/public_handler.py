@@ -27,7 +27,7 @@ from app.whatsapp.response_templates import (
 )
 from app.commands.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
 from app.commands.handlers.common import resolve_flat
-from app.permissions.command_policy import get_event_state, member_action_state_warning, is_member_action_visible
+from app.permissions.command_policy import get_event_state, member_action_state_warning
 
 
 def _resolve_member_flat(db, *, phone_number, event):

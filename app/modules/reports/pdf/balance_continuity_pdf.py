@@ -41,7 +41,7 @@ def generate_balance_continuity_pdf(
         bottomMargin=60
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
     
     # Report Meta

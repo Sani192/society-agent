@@ -48,7 +48,7 @@ class PublicEventSummaryReport:
 
         participants = db.query(EventFoodPass).filter(
             EventFoodPass.event_id == event_id,
-            EventFoodPass.is_participating == True
+            EventFoodPass.is_participating
         ).count()
 
         sponsors = (

@@ -10,7 +10,6 @@ Created on Sun Jan 18 10:45:47 2026
 
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.db.models import PendingUser, Flat, UserFlatMapping, AuditLog
 from app.modules.users.user_flat_service import UserFlatService

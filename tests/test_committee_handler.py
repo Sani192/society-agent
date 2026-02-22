@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 
 from app.whatsapp.handlers.committee_handler import handle_committee_intent
 from app.whatsapp.committee_action_session import clear_committee_action_session
-from tests.constants import COMMITTEE_PHONE
 from tests.utils import QueryMock
 
 

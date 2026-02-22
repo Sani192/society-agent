@@ -9,14 +9,12 @@ Created on Fri Jan 23 17:33:32 2026
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
-from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from datetime import datetime
 import os
 
 
@@ -148,7 +146,6 @@ class BasePDF:
 # =============================================================================
         
     def report_meta(self, elements, meta: dict):
-        from reportlab.platypus import Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet
 
         styles = getSampleStyleSheet()

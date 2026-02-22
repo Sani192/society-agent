@@ -10,7 +10,6 @@ Created on Mon Jan 19 21:45:37 2026
 
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
 from app.db.models import Payment, Flat
 from app.utils.logging_helpers import build_log_context, log_service_call

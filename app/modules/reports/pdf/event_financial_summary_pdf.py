@@ -8,7 +8,7 @@ Created on Sat Jan 24 20:34:34 2026
 
 import io
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -42,7 +42,7 @@ def generate_event_financial_summary_pdf(
         bottomMargin=60
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
 
     # Report meta

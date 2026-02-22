@@ -18,11 +18,6 @@ from app.db.models import (
     WorkflowState
 )
 
-try:
-    ensure_admin(phone_number)
-except Exception as e:
-    logger.exception("Unhandled error in WhatsApp handler")
-    return error("Something went wrong. Please contact admin.")
 
 db = SessionLocal()
 

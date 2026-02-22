@@ -95,7 +95,7 @@ class PaymentService:
             .filter(
                 EventFoodPass.event_id == event_id,
                 EventFoodPass.flat_id == flat_id,
-                EventFoodPass.is_participating == True
+                EventFoodPass.is_participating
             )
             .first()
         )

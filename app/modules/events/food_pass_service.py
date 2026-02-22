@@ -17,7 +17,6 @@ from app.db.models import (
     Flat,
     EventFoodPass,
     Payment,
-    WorkflowState,
     AuditLog
 )
 from app.workflows.engine import WorkflowEngine

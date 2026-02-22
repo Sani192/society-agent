@@ -9,7 +9,7 @@ Created on Sun Feb  8 18:39:18 2026
 import io
 from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate, Spacer
-from reportlab.lib.pagesizes import landscape, A4
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
@@ -42,7 +42,7 @@ def generate_ledger_pdf(
         bottomMargin=3 * 28,
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
 
     # Report Meta

@@ -15,12 +15,6 @@ import os
 DB_NAME = os.getenv("POSTGRES_DB", "society_db")
 BACKUP_DIR = "backups"
 
-try:
-    ensure_admin(phone_number)
-except Exception as e:
-    logger.exception("Unhandled error in WhatsApp handler")
-    return error("Something went wrong. Please contact admin.")
-
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
