@@ -6,16 +6,63 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg2://society_user:society_pass@localhost:5432/society_db
+      REDIS_URL: redis://localhost:6379/0
+      QUEUE_URL: amqp://guest:guest@localhost:5672/
+      OBJECT_STORE_ENDPOINT: http://localhost:9000
+      OBJECT_STORE_ACCESS_KEY: minioadmin
+      OBJECT_STORE_SECRET_KEY: minioadmin
+      OBJECT_STORE_BUCKET: society-agent-ci
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Start containerized test dependencies
+        run: docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} up -d
+
+      - name: Wait for dependency healthchecks
+        run: docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} ps
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Reset and seed deterministic DB state
+        run: python scripts/ci/reset_test_state.py
+
       - name: Run workflow smoke suite
-        run: pytest -m smoke -q
+        run: pytest -m smoke -q --junitxml=artifacts/junit/smoke.xml
+
+      - name: Run integration and endpoint suite
+        run: pytest -m "integration or endpoint" -q --junitxml=artifacts/junit/integration-endpoint.xml
+
       - name: Run API contract tests
-        run: pytest -q tests/test_api_contract_integration.py tests/test_contract_schema_ci.py
+        run: pytest -q tests/test_api_contract_integration.py tests/test_contract_schema_ci.py --junitxml=artifacts/junit/contracts.xml
+
+      - name: Collect dependency logs on failure
+        if: failure()
+        run: |
+          mkdir -p artifacts/logs
+          docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} logs --no-color > artifacts/logs/dependency-services.log
+
+      - name: Upload failure artifacts (logs/traces/screenshots)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-failure-artifacts-${{ github.run_id }}
+          path: |
+            artifacts/
+            test-results/
+            playwright-report/
+            **/*.png
+            **/*.trace
+
+      - name: Teardown ephemeral dependencies
+        if: always()
+        run: docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} down -v
