@@ -25,7 +25,7 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.db.session import SessionLocal
-from app.db.models import Event
+from app.db.models import Event, UserFlatMapping
 from app.whatsapp.router import detect_whatsapp_intent
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.reports.common.whatsapp_report_registry import (
@@ -61,7 +61,7 @@ from app.whatsapp.ui import (
     payment_custom_amount_prompt,
     refund_request_prompt,
 )
-from app.utils.guards import ensure_committee_member, ensure_member_of_society
+from app.utils.guards import ensure_committee_member, ensure_member_of_society, normalize_phone
 from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
 from app.whatsapp.export_session import (
@@ -196,6 +196,26 @@ def _get_committee_member(*, db, sender_id: str, external_user_id: str):
         )
     except Exception:
         return None
+
+
+def _is_registered_member_for_sender(*, db, sender_id: str) -> bool:
+    normalized_sender = normalize_phone(sender_id)
+    if not normalized_sender:
+        return False
+
+    candidate_ids = {normalized_sender}
+    if len(normalized_sender) > 10:
+        candidate_ids.add(normalized_sender[-10:])
+
+    return (
+        db.query(UserFlatMapping.id)
+        .filter(
+            UserFlatMapping.user_identifier.in_(tuple(candidate_ids)),
+            UserFlatMapping.is_active.is_(True),
+        )
+        .first()
+        is not None
+    )
 
 
 def _filter_sections_by_state(*, sections: list[dict], event_state: str | None, is_committee: bool) -> list[dict]:
@@ -407,7 +427,12 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     external_user_id=message.sender_id,
                 )
                 is_society_member = False
-                if latest_event and not is_committee:
+                if not is_committee:
+                    is_society_member = _is_registered_member_for_sender(
+                        db=db,
+                        sender_id=canonical_sender,
+                    )
+                if latest_event and not is_committee and not is_society_member:
                     try:
                         resolve_flat(
                             db,
@@ -422,7 +447,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                         except Exception:
                             is_society_member = False
 
-                if latest_event and not is_committee and not is_society_member:
+                if not is_committee and not is_society_member:
                     client.send_button_message(
                         to_phone=message.sender_id,
                         header_text="Registration Required",
