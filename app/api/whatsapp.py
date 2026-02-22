@@ -374,6 +374,11 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg in {"menu", "help", "ui::menu", "ui::menu:more"}:
         db = SessionLocal()
         try:
+            latest_event = get_latest_event(db)
+            if not latest_event:
+                client.send_text_message(message.sender_id, "No active event found. Please contact committee.")
+                return True
+
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(
                 db=db,
@@ -382,21 +387,19 @@ def _try_handle_ui_message(*, client, message) -> bool:
             )
             is_society_member = False
             if not is_committee:
-                latest_event = get_latest_event(db)
-                if latest_event:
+                try:
+                    resolve_flat(
+                        db,
+                        phone_number=canonical_sender,
+                        society_id=latest_event.society_id,
+                    )
+                    is_society_member = True
+                except Exception:
                     try:
-                        resolve_flat(
-                            db,
-                            phone_number=canonical_sender,
-                            society_id=latest_event.society_id,
-                        )
+                        ensure_member_of_society(canonical_sender, db, latest_event.society_id)
                         is_society_member = True
                     except Exception:
-                        try:
-                            ensure_member_of_society(canonical_sender, db, latest_event.society_id)
-                            is_society_member = True
-                        except Exception:
-                            is_society_member = False
+                        is_society_member = False
 
             if not is_committee and not is_society_member:
                 client.send_button_message(

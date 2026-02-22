@@ -326,6 +326,77 @@ def test_whatsapp_webhook_event_menu_more_for_member_shows_all_sections_list(mon
     assert {"ui::my-account", "ui::finance", "ui::society", "ui::reports"}.issubset(set(row_ids))
 
 
+
+def test_whatsapp_webhook_event_menu_without_active_event_returns_fallback_text(monkeypatch):
+    button_attempts = []
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.menu.noevent.button"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.menu.noevent.text"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000031",
+        display_name="Jane",
+        text="menu",
+        metadata={"message_id": "wamid.menu.noevent", "canonical_sender_id": "919999000031"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.get_latest_event", lambda db: None)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert button_attempts == []
+    assert text_attempts == [("919999000031", "No active event found. Please contact committee.")]
+
+
+def test_whatsapp_webhook_event_menu_more_without_active_event_returns_fallback_text(monkeypatch):
+    list_attempts = []
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.menu.more.noevent.list"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.menu.more.noevent.text"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000032",
+        display_name="Jane",
+        text="ui::menu:more",
+        metadata={"message_id": "wamid.menu.more.noevent", "canonical_sender_id": "919999000032"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.get_latest_event", lambda db: None)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert list_attempts == []
+    assert text_attempts == [("919999000032", "No active event found. Please contact committee.")]
+
+
 def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypatch):
     list_attempts = []
 
