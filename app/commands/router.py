@@ -1,5 +1,46 @@
+import re
+
 from app.utils.logger import logger
 from app.whatsapp.intents import INTENTS
+
+
+HIGH_RISK_GENERIC_INTENTS = {"PAY", "REFUND", "SUMMARY", "HELP"}
+_DISALLOWED_PREFIX_STARTERS = {
+    "a",
+    "an",
+    "about",
+    "can",
+    "could",
+    "for",
+    "i",
+    "me",
+    "my",
+    "please",
+    "the",
+    "to",
+    "we",
+    "with",
+    "would",
+    "you",
+}
+
+
+def _is_controlled_prefix_form(message: str, keyword: str) -> bool:
+    if not message.startswith(keyword + " "):
+        return False
+
+    remainder = message[len(keyword) :].strip()
+    if not remainder:
+        return False
+
+    if re.search(r"[.!?]", remainder):
+        return False
+
+    first_token = remainder.split()[0]
+    if first_token in _DISALLOWED_PREFIX_STARTERS:
+        return False
+
+    return True
 
 
 def detect_intent(
@@ -51,13 +92,14 @@ def detect_intent(
             return intent
 
     for intent, keyword in intent_map.items():
+        if intent in HIGH_RISK_GENERIC_INTENTS:
+            if _is_controlled_prefix_form(msg, keyword):
+                logger.info("Intent detected by controlled prefix", extra={"intent": intent})
+                return intent
+            continue
+
         if msg.startswith(keyword + " "):
             logger.info("Intent detected by startswith", extra={"intent": intent})
-            return intent
-
-    for intent, keyword in intent_map.items():
-        if f" {keyword} " in f" {msg} ":
-            logger.info("Intent detected by word-boundary", extra={"intent": intent})
             return intent
 
     logger.info("No intent detected")
