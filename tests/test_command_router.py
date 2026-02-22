@@ -60,3 +60,26 @@ def test_detect_intent_lock_passes_command():
 
 def test_detect_intent_start_event_command():
     assert detect_intent("start event") == "START_EVENT"
+
+
+def test_detect_intent_pay_sentence_like_text_not_mapped():
+    assert detect_intent("can you help me pay this invoice?") is None
+
+
+def test_detect_intent_refund_sentence_like_text_not_mapped():
+    assert detect_intent("i need a refund for this ticket") is None
+
+
+def test_detect_intent_summary_sentence_like_text_not_mapped():
+    assert detect_intent("can you share a summary of yesterday") is None
+
+
+def test_detect_intent_help_sentence_like_text_not_mapped():
+    assert detect_intent("please help me with this") is None
+
+
+def test_detect_intent_high_risk_generic_intents_keep_controlled_prefixes():
+    assert detect_intent("pay 500") == "PAY"
+    assert detect_intent("refund 200 reason guest absent") == "REFUND"
+    assert detect_intent("summary now") == "SUMMARY"
+    assert detect_intent("help menu") == "HELP"
