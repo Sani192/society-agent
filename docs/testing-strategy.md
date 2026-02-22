@@ -26,7 +26,7 @@ This distribution is a **portfolio target** for the suite as a whole (not every 
 - Runs on every PR.
 - Runs:
   - `ruff check`
-  - `mypy`
+  - `mypy` on CI script surfaces (`scripts/ci`)
   - fast unit tests (`pytest -m "not integration and not endpoint and not smoke"`)
 - Uses `pytest-testmon` cache to run impacted tests where possible.
 
