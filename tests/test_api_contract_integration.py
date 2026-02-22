@@ -13,6 +13,7 @@ from app.api.health import health_check
 from app.api.telegram import telegram_webhook_event
 from app.api.whatsapp import whatsapp_webhook_event, whatsapp_webhook_verify
 
+pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
 class StubRequest:
     def __init__(self, payload: dict, raw: bytes | None = None, signature: str | None = None):
