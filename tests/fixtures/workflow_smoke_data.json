@@ -1,0 +1,94 @@
+{
+  "ids": {
+    "society_id": "00000000-0000-0000-0000-000000000001",
+    "chairman_id": "00000000-0000-0000-0000-000000000002",
+    "flat_id": "00000000-0000-0000-0000-000000000003",
+    "event_id": "00000000-0000-0000-0000-000000000004"
+  },
+  "workflows": {
+    "member_link_code_login": {
+      "link_code": "LOGIN1",
+      "channel_type": "telegram",
+      "sender_id": "tg-user-100",
+      "phone_number": "+91 98765 43210",
+      "username": "chairman_user",
+      "expected": {
+        "member_name": "Chairman Smoke",
+        "identity_count": 1,
+        "code_consumed": true
+      }
+    },
+    "create_event": {
+      "name": "Smoke Event",
+      "event_date": "2026-03-10T12:00:00",
+      "food_types": ["veg", "jain"],
+      "charge_per_adult": 200,
+      "charge_per_child": 100,
+      "expected": {
+        "event_status": "DRAFT",
+        "workflow_state": "DRAFT",
+        "allowed_next": ["ACTIVE"],
+        "audit_action": "CREATE_EVENT"
+      }
+    },
+    "event_publish_path": {
+      "close_reason": "Completed without incidents",
+      "expected": {
+        "event_status": "CLOSED",
+        "workflow_state": "CLOSED",
+        "allowed_next": [],
+        "audit_actions": [
+          "ACTIVATE_EVENT",
+          "LOCK_PASSES",
+          "START_EVENT",
+          "CLOSE_EVENT"
+        ]
+      }
+    },
+    "payment_request_approval": {
+      "request_amount": 400,
+      "payment_mode": "upi",
+      "requested_by": "resident-001",
+      "expected": {
+        "request_status": "approved",
+        "payment_status": "paid",
+        "paid_amount": 400,
+        "audit_actions": [
+          "REQUEST_PAYMENT",
+          "APPROVE_PAYMENT_REQUEST",
+          "MARK_PAID"
+        ]
+      }
+    },
+    "refund_request_approval": {
+      "refund_amount": 150,
+      "reason": "Passes reduced",
+      "requested_by": "resident-001",
+      "expected": {
+        "request_status": "approved",
+        "refund_status": "refunded",
+        "payment_status": "refunded",
+        "audit_actions": [
+          "REQUEST_REFUND",
+          "APPROVE_REFUND_REQUEST",
+          "PROCESS_REFUND"
+        ]
+      }
+    },
+    "contribution_refund": {
+      "contribution_type": "sponsor",
+      "source_name": "Local Sponsor",
+      "amount": 1000,
+      "refund_amount": 250,
+      "refund_reason": "Sponsorship adjustment",
+      "expected": {
+        "contribution_code": "SP-001",
+        "refund_status": "refunded",
+        "audit_actions": [
+          "ADD_CONTRIBUTION",
+          "REFUND_CONTRIBUTION"
+        ]
+      }
+    }
+  }
+}
