@@ -228,6 +228,15 @@ def _with_navigation(
     if include_main_menu:
         nav_rows.append({"id": "menu", "title": "Main Menu", "description": "Go to main menu"})
     return [*sections, {"title": "Navigation", "rows": nav_rows}] if nav_rows else sections
+
+
+def _get_current_event_state(db) -> str | None:
+    try:
+        return get_event_state(get_latest_event(db))
+    except Exception:
+        return None
+
+
 def _button_row(row_id: str, title: str) -> dict:
     return {
         "type": "reply",
@@ -375,10 +384,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
         db = SessionLocal()
         try:
             latest_event = get_latest_event(db)
-            if not latest_event:
-                client.send_text_message(message.sender_id, "No active event found. Please contact committee.")
-                return True
-
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(
                 db=db,
@@ -386,7 +391,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 external_user_id=message.sender_id,
             )
             is_society_member = False
-            if not is_committee:
+            if latest_event and not is_committee:
                 try:
                     resolve_flat(
                         db,
@@ -401,12 +406,21 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     except Exception:
                         is_society_member = False
 
-            if not is_committee and not is_society_member:
+            requires_event_context = msg == "ui::menu:more"
+            if latest_event and not is_committee and not is_society_member:
                 client.send_button_message(
                     to_phone=message.sender_id,
                     header_text="Registration Required",
                     body_text="You are not registered yet. Tap below to join your society.",
                     buttons=[_button_row("ui::join-society", "Join Society")],
+                )
+                return True
+
+            if requires_event_context and not latest_event:
+                _send_dashboard_all_sections(
+                    client=client,
+                    sender_id=message.sender_id,
+                    is_committee=False,
                 )
                 return True
 
@@ -432,6 +446,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = _get_current_event_state(db)
             can_add_pass = is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -449,6 +464,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = _get_current_event_state(db)
             if not is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Pass updates are available only when event is active.")
                 return True
@@ -542,6 +558,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = _get_current_event_state(db)
             if not is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
                 return True
@@ -589,6 +606,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            event_state = _get_current_event_state(db)
             can_use_payment = is_member_action_visible(intent="PAY", event_state=event_state, is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
