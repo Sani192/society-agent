@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """Reset schema and seed deterministic baseline records for CI integration runs."""
 
+from pathlib import Path
+import sys
+
 from sqlalchemy import text
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from app.db.base import Base
 from app.db.models import Flat, ReminderConfig, Society
