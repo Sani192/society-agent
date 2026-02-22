@@ -19,3 +19,5 @@ jobs:
           pip install -r requirements.txt
       - name: Run full pytest suite
         run: pytest -q
+      - name: Run API contract drift checks
+        run: pytest -q tests/test_contract_schema_ci.py

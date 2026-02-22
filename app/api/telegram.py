@@ -3,7 +3,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
+
+from app.api.contracts import (
+    ErrorResponse,
+    TelegramWebhookPayload,
+    WebhookStatusResponse,
+)
 
 from app.channels.core.handler import handle_inbound_message
 from app.channels.telegram.adapter import parse_webhook_payload
@@ -12,6 +18,18 @@ from app.config import settings
 from app.utils.logger import logger
 
 router = APIRouter()
+
+
+def _verify_webhook_secret(secret: str | None) -> None:
+    expected_secret = settings.TELEGRAM_WEBHOOK_SECRET
+    if not expected_secret:
+        return
+    if secret != expected_secret:
+        logger.warning("Telegram webhook secret validation failed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden",
+        )
 
 
 def _ensure_channel_enabled() -> None:
@@ -23,13 +41,38 @@ def _ensure_channel_enabled() -> None:
         )
 
 
-@router.post("/telegram")
-async def telegram_webhook_event(request: Request):
+@router.post(
+    "/telegram",
+    response_model=WebhookStatusResponse,
+    responses={403: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["update_id"],
+                        "properties": {
+                            "update_id": {"type": "integer"},
+                        },
+                        "additionalProperties": True,
+                    }
+                }
+            },
+        }
+    },
+)
+async def telegram_webhook_event(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+) -> WebhookStatusResponse:
     _ensure_channel_enabled()
     logger.info("Received Telegram webhook event")
-    payload = await request.json()
+    _verify_webhook_secret(x_telegram_bot_api_secret_token)
 
-    inbound_messages = parse_webhook_payload(payload)
+    payload = TelegramWebhookPayload.model_validate(await request.json())
+    inbound_messages = parse_webhook_payload(payload.model_dump(exclude_none=True))
     if not inbound_messages:
         logger.info("Telegram webhook received with no inbound messages")
         return {"status": "ignored"}

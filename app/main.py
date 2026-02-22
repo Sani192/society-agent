@@ -20,6 +20,7 @@ from app.config import settings
 from app.modules.reminders.reminder_scheduler import start_scheduler
 
 
+from app.api.contracts import API_SCHEMA_VERSION
 from app.api.health import router as health_router
 from app.api.whatsapp import router as whatsapp_router
 from app.api.telegram import router as telegram_router
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Society Event Management Agent",
+    version=API_SCHEMA_VERSION,
     lifespan=lifespan
 )
 

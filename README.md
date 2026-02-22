@@ -48,6 +48,11 @@ Copy `.env.example` to `.env` at the repo root (the app loads it automatically) 
 ### WhatsApp (optional)
 - `WHATSAPP_MODE` (e.g. `SIMULATOR`)
 
+### Telegram (optional)
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_API_BASE_URL` (defaults to `https://api.telegram.org`)
+- `TELEGRAM_WEBHOOK_SECRET` (recommended; validates `X-Telegram-Bot-Api-Secret-Token`)
+
 Example `.env` (based on `.env.example`):
 
 ```bash
@@ -138,6 +143,64 @@ The API will be available at: `http://localhost:8000`
 
 Swagger UI is available at: `http://localhost:8000/docs`
 This system helps the society managing committee manage festival events, food passes, payments, sponsorships, expenses, and reports.
-This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+This system helps the society managing committee manage:
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+This system helps the society managing committee manage:
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 - Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
