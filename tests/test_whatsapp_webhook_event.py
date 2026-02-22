@@ -136,6 +136,52 @@ def test_whatsapp_webhook_event_unknown_number_menu_prompts_to_join(monkeypatch)
     assert "ui::finance" not in button_ids
 
 
+def test_whatsapp_webhook_event_unknown_number_ui_section_prompts_to_join(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.1z"}]}
+
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text should not be sent")
+
+    class StubDB:
+        def close(self):
+            return None
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000012",
+        display_name="Unknown",
+        text="ui::finance",
+        metadata={"message_id": "wamid.2z", "canonical_sender_id": "919999000012"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+    monkeypatch.setattr("app.api.whatsapp.get_latest_event", lambda db: type("Event", (), {"society_id": 1})())
+    monkeypatch.setattr("app.api.whatsapp.resolve_flat", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no flat")))
+    monkeypatch.setattr("app.api.whatsapp.ensure_member_of_society", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("not member")))
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "Registration Required"
+    assert button_attempts[0]["body_text"] == "You are not registered yet. Tap below to join your society."
+    button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
+    assert button_ids == ["ui::join-society"]
+
+
 def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
     text_attempts = []
 
