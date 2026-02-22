@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
+from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
+
 from app.channels.core.handler import handle_inbound_message
 from app.channels.core.types import InboundMessage
 from app.channels.whatsapp.adapter import parse_webhook_payload
@@ -1027,11 +1029,14 @@ def _build_reports_list_sections(
     return sections
 
 
-@router.get("/whatsapp")
+@router.get(
+    "/whatsapp",
+    responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
 def whatsapp_webhook_verify(
-    hub_mode: str | None = Query(default=None, alias="hub.mode"),
-    hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
-    hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
+    hub_mode: str = Query(..., alias="hub.mode"),
+    hub_challenge: str = Query(..., alias="hub.challenge"),
+    hub_verify_token: str = Query(..., alias="hub.verify_token"),
 ):
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook verification request")
@@ -1052,16 +1057,37 @@ def whatsapp_webhook_verify(
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
-@router.post("/whatsapp")
-async def whatsapp_webhook_event(request: Request):
+@router.post(
+    "/whatsapp",
+    response_model=WebhookStatusResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "object": {"type": "string"},
+                            "entry": {"type": "array", "items": {"type": "object"}},
+                        },
+                        "additionalProperties": True,
+                    }
+                }
+            },
+        }
+    },
+)
+async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook event")
     raw_body = await request.body()
     signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
     _verify_signature(raw_body, signature)
 
-    payload = await request.json()
-    inbound_messages = parse_webhook_payload(payload)
+    payload = WhatsAppWebhookPayload.model_validate(await request.json())
+    inbound_messages = parse_webhook_payload(payload.model_dump(exclude_none=True))
     if not inbound_messages:
         logger.info("WhatsApp webhook received with no inbound messages")
         return {"status": "ignored"}

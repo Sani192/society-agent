@@ -10,11 +10,13 @@ Created on Sun Jan 11 06:31:26 2026
 
 from fastapi import APIRouter
 
+from app.api.contracts import HealthResponse
+
 router = APIRouter()
 
 
-@router.get("/health")
-def health_check():
+@router.get("/health", response_model=HealthResponse)
+def health_check() -> HealthResponse:
     return {
         "status": "ok",
         "message": "Society Agent running locally"

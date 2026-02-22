@@ -9,6 +9,7 @@ from dataclasses import dataclass
 # Environment variable keys
 TELEGRAM_BOT_TOKEN_ENV_KEY = "TELEGRAM_BOT_TOKEN"
 TELEGRAM_API_BASE_URL_ENV_KEY = "TELEGRAM_API_BASE_URL"
+TELEGRAM_WEBHOOK_SECRET_ENV_KEY = "TELEGRAM_WEBHOOK_SECRET"
 
 # API defaults
 DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -36,5 +37,9 @@ TELEGRAM_ENV_CONFIGS: tuple[TelegramEnvConfig, ...] = (
         attr_name="TELEGRAM_API_BASE_URL",
         env_key=TELEGRAM_API_BASE_URL_ENV_KEY,
         default=DEFAULT_TELEGRAM_API_BASE_URL,
+    ),
+    TelegramEnvConfig(
+        attr_name="TELEGRAM_WEBHOOK_SECRET",
+        env_key=TELEGRAM_WEBHOOK_SECRET_ENV_KEY,
     ),
 )
