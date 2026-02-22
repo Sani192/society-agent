@@ -1,12 +1,13 @@
 # Testing Strategy
 
-This document defines the minimum testing policy for the repository.
+This document defines the minimum testing and CI reliability policy for the repository.
 
 ## Goals
 
 - Catch regressions early at the lowest reasonable test layer.
 - Keep feedback fast for day-to-day development.
 - Reserve expensive full-flow testing for only the most critical paths.
+- Track pass/fail health and flaky behavior as first-class reliability signals.
 
 ## Test Pyramid and Target Distribution
 
@@ -18,67 +19,57 @@ All new and existing automated tests should align with this target split:
 
 This distribution is a **portfolio target** for the suite as a whole (not every PR).
 
-## Layer 1: Unit Tests (70%)
+## CI Stages
 
-Use unit tests for pure logic and edge cases.
+### Stage 1 (minutes): lint + type checks + fast unit tests
 
-### Scope
+- Runs on every PR.
+- Runs:
+  - `ruff check`
+  - `mypy`
+  - fast unit tests (`pytest -m "not integration and not endpoint and not smoke"`)
+- Uses `pytest-testmon` cache to run impacted tests where possible.
 
-- Stateless utility functions and pure business logic.
-- Validation and normalization logic.
-- Permission/rule evaluation in isolation.
-- Error and boundary conditions.
+### Stage 2: integration + endpoint tests
 
-### Requirements
+- Runs after Stage 1 on every PR.
+- Runs `pytest -m "integration or endpoint"`.
+- Uses `pytest-testmon` for impact selection and `pytest-rerunfailures` to surface flaky candidates.
 
-- No network, database, queue, or cache dependencies.
-- Must run quickly and deterministically.
-- Cover happy path + representative edge cases.
+### Stage 3: E2E policy
 
-## Layer 2: Integration Tests (20%)
+- **PRs:** always run critical smoke (`pytest -m smoke`) even if impact selection reduces earlier suites.
+- **Nightly + release branches:** run full E2E regression (`pytest tests/e2e`) and contract drift checks.
 
-Use integration tests to validate module-to-module boundaries.
+## Test Impact Selection Policy
 
-### Scope
+- Default to impact-aware execution through `pytest-testmon` in Stage 1 and Stage 2.
+- If no historical test impact cache is available, suites fall back to broader execution.
+- Impact selection is an optimization only; it must never suppress critical smoke coverage.
 
-- Application modules interacting with persistence and infrastructure layers.
-- DB session/model interactions.
-- Queue/cache interactions.
-- External adapter boundaries.
+## Reliability Standards and Dashboards
 
-### Environment rules
-
-- Prefer containerized dependencies (e.g., database/cache/queue) when feasible.
-- External third-party services must be mocked or replaced with controlled test doubles.
-- Focus on contract behavior between modules, not full user journey UX.
-
-## Layer 3: E2E Smoke Tests (10%)
-
-Use E2E tests only for critical user journeys.
-
-### Scope
-
-- A minimal set of high-value flows that prove the system can boot and execute core outcomes.
-- Examples: main command/menu flow, critical submission/report flow, and one auth/permission-gated path.
-
-### Requirements
-
-- Keep suite intentionally small and stable.
-- Run against production-like wiring where practical.
-- Verify broad outcomes, not exhaustive branch coverage.
+- Every pipeline publishes JUnit XML and a generated reliability dashboard artifact.
+- The dashboard summarizes:
+  - total/passed/failed/skipped counts
+  - suite pass rates
+  - flaky test candidates (rerun/flaky signals from JUnit)
+- Flaky thresholds are enforced in CI:
+  - PR smoke: zero known flaky candidates allowed
+  - Nightly/release regression: small temporary budget (configured threshold)
 
 ## Pull Request Minimum Required Checks
 
 Every pull request must pass **all** of the following checks:
 
-1. Unit test suite
-2. Integration test suite
-3. Smoke E2E suite
+1. Stage 1 (lint, type checks, fast unit)
+2. Stage 2 (integration + endpoint)
+3. Stage 3 (critical smoke E2E)
 
-If any of these required checks fail, the PR must be marked failing and **merge is blocked** until all required checks are green.
+If any required check fails, PR merge is blocked.
 
 ## CI / Branch Protection Policy
 
-- Configure CI to publish separate statuses for unit, integration, and smoke E2E jobs.
-- Configure branch protection so these three statuses are required before merge.
+- Configure branch protection to require all three PR stages.
 - Do not bypass required checks except via explicit repository admin emergency procedure.
+- Reliability dashboard artifacts should be retained to support pass/fail trend review and flaky cleanup work.
