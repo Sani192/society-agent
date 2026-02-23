@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -43,3 +44,18 @@ class QueryMock:
 @pytest.fixture
 def db_session():
     return MagicMock()
+
+
+@pytest.fixture
+def seed_event():
+    def _factory(**overrides):
+        defaults = {
+            "id": "event-test",
+            "society_id": "soc-test",
+            "name": "Test Event",
+            "status": "ACTIVE",
+        }
+        defaults.update(overrides)
+        return SimpleNamespace(**defaults)
+
+    return _factory

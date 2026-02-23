@@ -56,12 +56,15 @@ def get_intent_state_warning(*, intent: str, event_state: str | None, is_committ
 
     if is_committee:
         allowed_states = COMMITTEE_INTENT_ALLOWED_STATES.get(intent)
-        if not allowed_states:
+        if not allowed_states or event_state is None:
             return None
         if event_state in allowed_states:
             return None
         allowed = ", ".join(sorted(allowed_states))
         return f"This command is available only when event state is: {allowed}."
+
+    if event_state is None:
+        return None
 
     if intent in NON_COMMITTEE_ACTIVE_ONLY_INTENTS and event_state not in ACTIVE_EVENT_STATES:
         return STATE_WARNINGS.get(intent, "This command is available only when event is active.")
