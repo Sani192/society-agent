@@ -11,6 +11,8 @@ from app.whatsapp.ui.finance import build_make_payment_sections, build_payments_
 from app.whatsapp.ui.participation import build_participation_sections
 from app.whatsapp.ui.reports import build_reports_sections
 
+pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
+
 
 def _setup_common_mocks(monkeypatch, member=None):
     def fake_session_local():
@@ -19,7 +21,7 @@ def _setup_common_mocks(monkeypatch, member=None):
     monkeypatch.setattr("app.whatsapp.handler.SessionLocal", fake_session_local)
     monkeypatch.setattr(
         "app.whatsapp.handler.get_latest_event",
-        lambda db: SimpleNamespace(id="event-1", society_id="soc-1")
+        lambda db: SimpleNamespace(id="event-1", society_id="soc-1", status="ACTIVE")
     )
 
     if member is None:
@@ -44,7 +46,7 @@ COMMITTEE_CASES = [
     ("REFUND_REQUESTS", "refund requests"),
     ("PARTICIPATION_REPORT", "participation report"),
     ("REPORT_OPTIONS", "report options"),
-    ("EXPORT_SELECTION", "export 1"),
+    ("EXPORT_SELECTION", "export::report-1"),
     ("REMIND_FLAT", "remind A-101"),
     ("APPROVE", "approve user REQ-001"),
     ("APPROVE_PAYMENT", "approve payment PAY-001"),
@@ -199,7 +201,7 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
         for row in section["rows"]
     }
 
-    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund"}
+    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund", "add event", "activate event", "lock passes", "start event", "close event", "add sponsor", "refund sponsor", "expense", "remind"}
     template_helper_rows = {
         "ui::approve-user",
         "ui::approve-payment",

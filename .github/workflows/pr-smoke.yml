@@ -43,6 +43,9 @@ jobs:
       - name: Type checks (repo-wide with baseline guard)
         run: python scripts/ci/mypy_regression_guard.py app scripts
 
+      - name: Enforce integration/endpoint marker policy
+        run: python scripts/ci/check_test_markers.py
+
       - name: Run fast unit tests with impact selection
         run: |
           mkdir -p artifacts/junit
@@ -107,6 +110,16 @@ XML
 
       - name: Run integration + endpoint tests (impact selected)
         run: pytest --testmon --reruns 1 -q -m "integration or endpoint" --junitxml=artifacts/junit/stage2-integration-endpoint.xml
+
+      - name: Ensure Stage 2 JUnit artifact exists
+        if: always()
+        run: |
+          mkdir -p artifacts/junit
+          if [ ! -f artifacts/junit/stage2-integration-endpoint.xml ]; then
+            cat > artifacts/junit/stage2-integration-endpoint.xml <<'XML'
+<testsuite name="stage2-integration-endpoint" tests="0" failures="0" errors="0" skipped="0"></testsuite>
+XML
+          fi
 
       - name: Collect dependency logs on failure
         if: failure()

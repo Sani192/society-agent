@@ -53,6 +53,22 @@ This distribution is a **portfolio target** for the suite as a whole (not every 
 - PRs fail when **new** type errors are introduced.
 - When errors are fixed, baseline should be reduced accordingly in the same PR.
 
+
+## Marker Assignment Policy
+
+Markers are mandatory for tests that validate API/webhook entry points or multi-module integration behavior.
+
+- Add `pytestmark = [pytest.mark.integration]` for tests that cross module boundaries, exercise adapters, or run behavior that is not pure unit logic.
+- Add `pytestmark = [pytest.mark.integration, pytest.mark.endpoint]` for tests that validate handler/webhook endpoint contracts (request parsing, auth/signature checks, response contracts).
+- Files in `tests/test_*.py` with names containing `endpoint`, `integration`, or `webhook` are required to include a module-level `pytestmark` declaration with at least one of these markers.
+- CI enforces this through `python scripts/ci/check_test_markers.py`.
+
+Examples:
+
+- `tests/test_whatsapp_endpoint_commands.py` → `pytestmark = [pytest.mark.integration, pytest.mark.endpoint]`
+- `tests/test_whatsapp_webhook_event.py` → `pytestmark = [pytest.mark.integration, pytest.mark.endpoint]`
+- `tests/test_telegram_integration.py` → `pytestmark = [pytest.mark.integration, pytest.mark.endpoint]`
+
 ## Reliability Standards and Dashboards
 
 - Every pipeline publishes JUnit XML and a generated reliability dashboard artifact.
