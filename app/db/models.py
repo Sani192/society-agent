@@ -79,7 +79,6 @@ class CommitteeMemberChannelIdentity(Base):
 
     channel_type = Column(String(50), nullable=False, index=True)
     external_user_id = Column(String(255), nullable=True, index=True)
-    phone_number = Column(String(20), nullable=True, index=True)
     username = Column(String(255), nullable=True, index=True)
 
     is_verified = Column(Boolean, nullable=False, default=True)

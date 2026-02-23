@@ -6,12 +6,13 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_
 
+import re
+
 from app.db.models import (
     CommitteeMember,
     CommitteeMemberChannelIdentity,
     CommitteeMemberLinkCode,
 )
-import re
 
 
 LINK_CODE_LENGTH = 6
@@ -47,7 +48,7 @@ def resolve_committee_member_by_identity(
             CommitteeMemberChannelIdentity.channel_type == channel_type,
             or_(
                 CommitteeMemberChannelIdentity.external_user_id == str(sender_id),
-                CommitteeMemberChannelIdentity.phone_number == normalized_phone,
+                CommitteeMember.phone_number == normalized_phone,
                 CommitteeMemberChannelIdentity.username == username,
             ),
         )
@@ -78,7 +79,6 @@ def resolve_committee_member_by_identity(
                         committee_member_id=legacy_member.id,
                         channel_type=channel_type,
                         external_user_id=str(sender_id),
-                        phone_number=normalized_phone,
                         username=username,
                         is_verified=True,
                     )
@@ -133,7 +133,6 @@ def link_member_by_code(
     if not link_code:
         return None
 
-    normalized_phone = _normalize_phone(phone_number)
     identity = (
         db.query(CommitteeMemberChannelIdentity)
         .filter(
@@ -147,7 +146,6 @@ def link_member_by_code(
             committee_member_id=link_code.committee_member_id,
             channel_type=channel_type,
             external_user_id=str(sender_id),
-            phone_number=normalized_phone,
             username=username,
             is_verified=True,
         )
@@ -193,7 +191,6 @@ def link_member_by_phone(
                 committee_member_id=member.id,
                 channel_type=channel_type,
                 external_user_id=str(sender_id),
-                phone_number=normalized_phone,
                 username=username,
                 is_verified=True,
             )
