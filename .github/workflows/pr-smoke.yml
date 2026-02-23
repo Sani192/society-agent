@@ -85,6 +85,58 @@ jobs:
       - name: Start containerized test dependencies
         run: docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} up -d
 
+      - name: Wait for dependency health checks
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          COMPOSE_ARGS="-f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }}"
+          SERVICES=(postgres redis rabbitmq minio)
+          TIMEOUT_SECONDS=180
+          POLL_SECONDS=5
+          START_TIME=$(date +%s)
+
+          while true; do
+            echo "Current dependency status:"
+            docker compose ${COMPOSE_ARGS} ps || true
+
+            all_healthy=true
+            for service in "${SERVICES[@]}"; do
+              container_id=$(docker compose ${COMPOSE_ARGS} ps -q "${service}")
+              if [ -z "${container_id}" ]; then
+                echo "Service ${service} is not running."
+                all_healthy=false
+                continue
+              fi
+
+              health_status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}" 2>/dev/null || echo "unknown")
+              echo "${service}: ${health_status}"
+              if [ "${health_status}" != "healthy" ]; then
+                all_healthy=false
+              fi
+            done
+
+            if [ "${all_healthy}" = true ]; then
+              echo "All dependencies are healthy."
+              break
+            fi
+
+            elapsed=$(( $(date +%s) - START_TIME ))
+            if [ "${elapsed}" -ge "${TIMEOUT_SECONDS}" ]; then
+              echo "Timed out waiting for dependencies to become healthy after ${TIMEOUT_SECONDS}s."
+              docker compose ${COMPOSE_ARGS} ps | tee artifacts/logs/dependency-health-ps.txt
+              for service in "${SERVICES[@]}"; do
+                container_id=$(docker compose ${COMPOSE_ARGS} ps -q "${service}")
+                if [ -n "${container_id}" ]; then
+                  docker inspect "${container_id}" > "artifacts/logs/dependency-health-${service}.json"
+                fi
+              done
+              docker compose ${COMPOSE_ARGS} logs --no-color > artifacts/logs/dependency-services.log
+              exit 1
+            fi
+
+            sleep "${POLL_SECONDS}"
+          done
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -122,6 +174,13 @@ jobs:
         run: |
           mkdir -p artifacts/logs
           docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} logs --no-color > artifacts/logs/dependency-services.log
+          docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} ps > artifacts/logs/dependency-health-ps.txt
+          for service in postgres redis rabbitmq minio; do
+            container_id=$(docker compose -f ci/docker-compose.test-deps.yml -p pr-${{ github.run_id }} ps -q "${service}")
+            if [ -n "${container_id}" ]; then
+              docker inspect "${container_id}" > "artifacts/logs/dependency-health-${service}.json"
+            fi
+          done
 
       - name: Upload Stage 2 artifacts
         if: always()
@@ -154,6 +213,58 @@ jobs:
       - name: Start containerized test dependencies
         run: docker compose -f ci/docker-compose.test-deps.yml -p smoke-${{ github.run_id }} up -d
 
+      - name: Wait for dependency health checks
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          COMPOSE_ARGS="-f ci/docker-compose.test-deps.yml -p smoke-${{ github.run_id }}"
+          SERVICES=(postgres redis rabbitmq minio)
+          TIMEOUT_SECONDS=180
+          POLL_SECONDS=5
+          START_TIME=$(date +%s)
+
+          while true; do
+            echo "Current dependency status:"
+            docker compose ${COMPOSE_ARGS} ps || true
+
+            all_healthy=true
+            for service in "${SERVICES[@]}"; do
+              container_id=$(docker compose ${COMPOSE_ARGS} ps -q "${service}")
+              if [ -z "${container_id}" ]; then
+                echo "Service ${service} is not running."
+                all_healthy=false
+                continue
+              fi
+
+              health_status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}" 2>/dev/null || echo "unknown")
+              echo "${service}: ${health_status}"
+              if [ "${health_status}" != "healthy" ]; then
+                all_healthy=false
+              fi
+            done
+
+            if [ "${all_healthy}" = true ]; then
+              echo "All dependencies are healthy."
+              break
+            fi
+
+            elapsed=$(( $(date +%s) - START_TIME ))
+            if [ "${elapsed}" -ge "${TIMEOUT_SECONDS}" ]; then
+              echo "Timed out waiting for dependencies to become healthy after ${TIMEOUT_SECONDS}s."
+              docker compose ${COMPOSE_ARGS} ps | tee artifacts/logs/dependency-health-ps.txt
+              for service in "${SERVICES[@]}"; do
+                container_id=$(docker compose ${COMPOSE_ARGS} ps -q "${service}")
+                if [ -n "${container_id}" ]; then
+                  docker inspect "${container_id}" > "artifacts/logs/dependency-health-${service}.json"
+                fi
+              done
+              docker compose ${COMPOSE_ARGS} logs --no-color > artifacts/logs/dependency-services.log
+              exit 1
+            fi
+
+            sleep "${POLL_SECONDS}"
+          done
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -178,6 +289,19 @@ jobs:
             printf '%s\n' '<testsuite name="stage3-smoke" tests="0" failures="0" errors="0" skipped="0"></testsuite>' > artifacts/junit/stage3-smoke.xml
           fi
 
+      - name: Collect dependency logs on failure
+        if: failure()
+        run: |
+          mkdir -p artifacts/logs
+          docker compose -f ci/docker-compose.test-deps.yml -p smoke-${{ github.run_id }} logs --no-color > artifacts/logs/dependency-services.log
+          docker compose -f ci/docker-compose.test-deps.yml -p smoke-${{ github.run_id }} ps > artifacts/logs/dependency-health-ps.txt
+          for service in postgres redis rabbitmq minio; do
+            container_id=$(docker compose -f ci/docker-compose.test-deps.yml -p smoke-${{ github.run_id }} ps -q "${service}")
+            if [ -n "${container_id}" ]; then
+              docker inspect "${container_id}" > "artifacts/logs/dependency-health-${service}.json"
+            fi
+          done
+
       - name: Upload Stage 3 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -185,12 +309,7 @@ jobs:
           name: stage3-artifacts-${{ github.run_id }}
           path: |
             artifacts/junit/stage3-smoke.xml
-
-      - name: Collect dependency logs on failure
-        if: failure()
-        run: |
-          mkdir -p artifacts/logs
-          docker compose -f ci/docker-compose.test-deps.yml -p smoke-${{ github.run_id }} logs --no-color > artifacts/logs/dependency-services.log
+            artifacts/logs/
 
       - name: Teardown ephemeral dependencies
         if: always()
