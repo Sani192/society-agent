@@ -42,7 +42,7 @@ def generate_sponsor_contribution_pdf(
         bottomMargin=60
     )
     
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
 
     # Report Meta

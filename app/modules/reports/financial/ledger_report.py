@@ -8,7 +8,6 @@ Created on Sun Feb  8 17:23:45 2026
 
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.db.models import (
     Payment,

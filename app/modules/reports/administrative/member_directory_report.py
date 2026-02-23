@@ -34,7 +34,7 @@ class MemberDirectoryReport:
             .join(Flat, Flat.id == UserFlatMapping.flat_id)
             .filter(
                 UserFlatMapping.society_id == society_id,
-                UserFlatMapping.is_active == True
+                UserFlatMapping.is_active
             )
             .all()
         )

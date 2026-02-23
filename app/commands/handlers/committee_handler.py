@@ -33,7 +33,6 @@ from app.modules.reports.common.whatsapp_report_registry import (
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.utils.logger import logger
 from app.permissions.guard import is_action_allowed
-from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.whatsapp.response_templates import (
     error_response,
     format_currency,

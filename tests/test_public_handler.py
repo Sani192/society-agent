@@ -504,7 +504,7 @@ def test_public_my_payments_no_requests(monkeypatch):
 def test_public_help_and_commands():
     from app.commands.handlers.public_handler import handle_public_intent
 
-    event = _mk_event()
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
 
     help_response = handle_public_intent(
         db=MagicMock(),

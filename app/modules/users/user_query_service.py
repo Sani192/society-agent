@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.db.models import (
-    Event,
     EventFoodPass,
     Payment,
     Refund

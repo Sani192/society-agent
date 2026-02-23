@@ -10,7 +10,6 @@ Created on Sun Jan 11 05:44:25 2026
 
 import logging
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.db.models import (
     Event,

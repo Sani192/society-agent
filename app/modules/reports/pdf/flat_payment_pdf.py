@@ -8,7 +8,7 @@ Created on Fri Jan 23 17:35:10 2026
 
 import io
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -44,7 +44,7 @@ def generate_flat_payment_pdf(
         bottomMargin=60
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
 
     # Report Meta

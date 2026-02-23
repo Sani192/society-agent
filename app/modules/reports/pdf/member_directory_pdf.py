@@ -40,7 +40,7 @@ def generate_member_directory_pdf(
         bottomMargin=3 * 28,
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
 
     # Report Meta

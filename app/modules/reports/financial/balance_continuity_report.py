@@ -10,7 +10,6 @@ import logging
 from sqlalchemy.orm import Session
 from app.db.models import (
     Event,
-    SocietyBalance,
     Payment,
     EventExpense,
     Refund,

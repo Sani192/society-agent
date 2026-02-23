@@ -40,7 +40,7 @@ def generate_onboarding_status_pdf(
         bottomMargin=60
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
     
     # Report Meta

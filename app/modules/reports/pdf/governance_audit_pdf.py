@@ -40,7 +40,7 @@ def generate_governance_audit_pdf(
         bottomMargin=60
     )
 
-    styles = getSampleStyleSheet()
+    getSampleStyleSheet()
     elements = []
     
     # Report Meta
