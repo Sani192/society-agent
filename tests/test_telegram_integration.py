@@ -1,7 +1,11 @@
 import asyncio
 
+import pytest
+
 from app.api.telegram import telegram_webhook_event
 from app.channels.telegram.adapter import parse_webhook_payload
+
+pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
 
 class StubRequest:
