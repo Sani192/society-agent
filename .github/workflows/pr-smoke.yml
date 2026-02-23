@@ -40,8 +40,8 @@ jobs:
       - name: Lint
         run: ruff check app tests scripts
 
-      - name: Type checks (strict CI scripts)
-        run: mypy scripts/ci/reliability_dashboard.py scripts/ci/reset_test_state.py --ignore-missing-imports --follow-imports=skip
+      - name: Type checks (repo-wide with baseline guard)
+        run: python scripts/ci/mypy_regression_guard.py app scripts
 
       - name: Run fast unit tests with impact selection
         run: |

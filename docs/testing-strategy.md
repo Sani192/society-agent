@@ -26,7 +26,7 @@ This distribution is a **portfolio target** for the suite as a whole (not every 
 - Runs on every PR.
 - Runs:
   - `ruff check`
-  - `mypy` on CI script surfaces (`scripts/ci`)
+  - repo-wide `mypy` regression guard (`app`, `scripts`) against committed baseline
   - fast unit tests (`pytest -m "not integration and not endpoint and not smoke"`)
 - Uses `pytest-testmon` cache to run impacted tests where possible.
 
@@ -46,6 +46,12 @@ This distribution is a **portfolio target** for the suite as a whole (not every 
 - Default to impact-aware execution through `pytest-testmon` in Stage 1 and Stage 2.
 - If no historical test impact cache is available, suites fall back to broader execution.
 - Impact selection is an optimization only; it must never suppress critical smoke coverage.
+
+## Type Safety Baseline Policy
+
+- CI runs repo-wide mypy and compares findings with `ci/mypy-baseline.txt`.
+- PRs fail when **new** type errors are introduced.
+- When errors are fixed, baseline should be reduced accordingly in the same PR.
 
 ## Reliability Standards and Dashboards
 
