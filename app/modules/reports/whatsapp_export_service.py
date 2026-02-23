@@ -57,6 +57,9 @@ class WhatsAppReportExportService:
     @staticmethod
     def _resolve_event(db, *, fallback_event, requested_event_id):
         if requested_event_id:
+            fallback_event_id = getattr(fallback_event, "id", None)
+            if fallback_event_id and str(fallback_event_id) == str(requested_event_id):
+                return fallback_event
             return db.query(Event).filter(Event.id == requested_event_id).first()
         return fallback_event
 
@@ -435,7 +438,8 @@ class WhatsAppReportExportService:
 
         ensure_report_access(role=member.role, report_code=entry.report_code)
 
-        if entry.requires_event_id and not event_id:
+        resolved_event_id = event_id or getattr(event, "id", None)
+        if entry.requires_event_id and not resolved_event_id:
             raise ValueError("event_id is required for this report")
 
         result = entry.handler(
@@ -443,7 +447,7 @@ class WhatsAppReportExportService:
             member=member,
             event=event,
             normalized_format=normalized_format,
-            event_id=event_id,
+            event_id=resolved_event_id,
         )
 
         record_report_access(
