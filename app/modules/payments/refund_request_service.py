@@ -229,7 +229,7 @@ class RefundRequestService:
     def approve_request(
         db: Session,
         *,
-        request: RefundRequest,
+        request,
         performed_by
     ):
         context = build_log_context(
@@ -292,7 +292,7 @@ class RefundRequestService:
     def reject_request(
         db: Session,
         *,
-        request: RefundRequest,
+        request,
         performed_by,
         rejection_reason=None
     ):
