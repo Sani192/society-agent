@@ -304,11 +304,10 @@ def handle_public_intent(
         if error_reply:
             return error_reply
 
-        mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
         requests = PaymentRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by_mapping_ids=[mapping.id for mapping in mappings]
+            flat_id=flat.id
         )
 
         if not requests:
@@ -340,11 +339,10 @@ def handle_public_intent(
         if error_reply:
             return error_reply
 
-        mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
         requests = RefundRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by_mapping_ids=[mapping.id for mapping in mappings]
+            flat_id=flat.id
         )
 
         if not requests:
@@ -401,11 +399,10 @@ def handle_public_intent(
         payment_paid = payment.paid_amount if payment else 0
         payment_expected = payment.expected_amount if payment else balance["expected"]
 
-        mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
         requests = PaymentRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by_mapping_ids=[mapping.id for mapping in mappings]
+            flat_id=flat.id
         )
 
         header = join_lines([

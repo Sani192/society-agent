@@ -323,7 +323,8 @@ class PaymentRequestService:
         *,
         event_id,
         status=None,
-        requested_by_mapping_ids=None
+        requested_by_mapping_ids=None,
+        flat_id=None
     ):
         query = (
             db.query(PaymentRequest, Flat)
@@ -338,6 +339,9 @@ class PaymentRequestService:
 
         if requested_by_mapping_ids:
             query = query.filter(PaymentRequest.requested_by_mapping_id.in_(requested_by_mapping_ids))
+
+        if flat_id:
+            query = query.filter(PaymentRequest.flat_id == flat_id)
 
         return (
             query

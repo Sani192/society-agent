@@ -325,7 +325,8 @@ class RefundRequestService:
         *,
         event_id,
         status=None,
-        requested_by_mapping_ids=None
+        requested_by_mapping_ids=None,
+        flat_id=None
     ):
         query = (
             db.query(RefundRequest, Flat)
@@ -340,6 +341,9 @@ class RefundRequestService:
 
         if requested_by_mapping_ids:
             query = query.filter(RefundRequest.requested_by_mapping_id.in_(requested_by_mapping_ids))
+
+        if flat_id:
+            query = query.filter(RefundRequest.flat_id == flat_id)
 
         return (
             query
