@@ -104,6 +104,7 @@ def _seed_base_entities(db):
     )
     chairman = CommitteeMember(
         id=UUID(IDS["chairman_id"]),
+        society_id=society.id,
         name="Chairman Smoke",
         role="chairman",
         is_active=True,
@@ -111,6 +112,7 @@ def _seed_base_entities(db):
     )
     flat = Flat(
         id=UUID(IDS["flat_id"]),
+        society_id=society.id,
         flat_number="A-101",
         block="A",
         owner_name="Resident Smoke",
@@ -125,6 +127,7 @@ def _seed_base_entities(db):
     db.flush()
 
     mapping = UserFlatMapping(
+        society_id=society.id,
         flat_id=flat.id,
         member_identity_id=identity.id,
         role="owner",
@@ -213,6 +216,7 @@ def test_create_event_workflow_e2e(smoke_db):
         name=cfg["name"],
         event_date=datetime.fromisoformat(cfg["event_date"]),
         food_types=cfg["food_types"],
+        society_id=society.id,
         created_by=chairman.id,
         charge_per_adult=cfg["charge_per_adult"],
         charge_per_child=cfg["charge_per_child"],
@@ -239,6 +243,7 @@ def test_event_publish_path_workflow_e2e(smoke_db):
         name="Lifecycle Event",
         event_date=datetime(2026, 3, 12, 11, 0, 0),
         food_types=["veg"],
+        society_id=society.id,
         created_by=chairman.id,
         charge_per_adult=200,
         charge_per_child=100,
@@ -271,6 +276,7 @@ def test_payment_request_approval_workflow_e2e(smoke_db):
         name="Payments Event",
         event_date=datetime(2026, 3, 13, 12, 0, 0),
         food_types=["veg", "jain"],
+        society_id=society.id,
         created_by=chairman.id,
         charge_per_adult=250,
         charge_per_child=100,
@@ -329,6 +335,7 @@ def test_refund_request_approval_workflow_e2e(smoke_db):
         name="Refunds Event",
         event_date=datetime(2026, 3, 14, 12, 0, 0),
         food_types=["veg"],
+        society_id=society.id,
         created_by=chairman.id,
         charge_per_adult=250,
         charge_per_child=100,
@@ -387,6 +394,7 @@ def test_contribution_refund_workflow_e2e(smoke_db):
         name="Contribution Event",
         event_date=datetime(2026, 3, 15, 12, 0, 0),
         food_types=["veg"],
+        society_id=society.id,
         created_by=chairman.id,
         charge_per_adult=200,
         charge_per_child=100,
