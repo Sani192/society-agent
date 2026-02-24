@@ -128,7 +128,7 @@ class OnboardingService:
             society_id=society.id,
             request_code=request_code,
             user_identifier=user_identifier,
-            flat_number=flat_number
+            flat_id=flat.id
         )
 
         db.add(pending)

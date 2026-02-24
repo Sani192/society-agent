@@ -42,7 +42,7 @@ class AdminApprovalService:
         flat = (
             db.query(Flat)
             .filter(
-                Flat.flat_number == pending.flat_number,
+                Flat.id == pending.flat_id,
                 Flat.society_id == pending.society_id
             )
             .first()

@@ -422,9 +422,9 @@ def _send_approval_selection_list(
             {
                 "id": f"approve user {pending.request_code}",
                 "title": pending.request_code[:24],
-                "description": f"Flat {pending.flat_number}"[:72],
+                "description": f"Flat {flat.flat_number}"[:72],
             }
-            for pending in pending_users[:WHATSAPP_APPROVAL_ROW_LIMIT]
+            for pending, flat in pending_users[:WHATSAPP_APPROVAL_ROW_LIMIT]
         ]
         empty_message = "No pending user requests."
         fallback_template = "approve user REQ-001"

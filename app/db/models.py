@@ -414,7 +414,7 @@ class PendingUser(Base):
     # e.g. REQ-001
 
     user_identifier = Column(String, nullable=False, index=True)
-    flat_number = Column(String, nullable=False)
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
     status = Column(String, default="pending")
     # pending / approved / rejected
