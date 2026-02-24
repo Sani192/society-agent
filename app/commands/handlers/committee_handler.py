@@ -486,7 +486,6 @@ def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_n
         ContributionService.add_contribution(
             db=db,
             event_id=event.id,
-            society_id=event.society_id,
             contribution_type="in_kind",
             source_name=normalized_name,
             flat_id=flat_id,
@@ -505,7 +504,6 @@ def _add_sponsor_contribution(*, db, event, member, sponsor_type: str, sponsor_n
     ContributionService.add_contribution(
         db=db,
         event_id=event.id,
-        society_id=event.society_id,
         contribution_type="sponsor",
         source_name=normalized_name,
         flat_id=flat_id,
@@ -1240,7 +1238,6 @@ def handle_committee_intent(
 
         AdminApprovalService.approve_user(
             db=db,
-            society_id=event.society_id,
             request_code=request_code,
             performed_by=member.id,
         )

@@ -12,7 +12,7 @@ from datetime import date
 import logging
 from sqlalchemy.orm import Session
 
-from app.db.models import Payment, Flat, PaymentReminder
+from app.db.models import Event, Payment, Flat, PaymentReminder
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit
 
 logger = logging.getLogger(__name__)
@@ -24,21 +24,28 @@ class ReminderService:
     def generate_pending_payment_reminders(
         db: Session,
         *,
-        society_id,
         event_id
     ):
-        context = build_log_context(
-            society_id=society_id,
-            event_id=event_id
-        )
+        context = build_log_context(event_id=event_id)
         log_entry(logger, "ReminderService.generate_pending_payment_reminders", context)
         today = date.today()
+
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Invalid event")
+
+        authoritative_society_id = event.society_id
+
+        context = build_log_context(
+            society_id=authoritative_society_id,
+            event_id=event_id
+        )
 
         pending_payments = (
             db.query(Payment)
             .join(Flat)
             .filter(
-                Flat.society_id == society_id,
+                Flat.society_id == authoritative_society_id,
                 Payment.event_id == event_id,
                 Payment.expected_amount > Payment.paid_amount
             )
@@ -74,7 +81,7 @@ class ReminderService:
                 continue
 
             reminder = PaymentReminder(
-                society_id=society_id,
+                society_id=authoritative_society_id,
                 event_id=event_id,
                 flat_id=payment.flat_id,
                 pending_amount=payment.expected_amount - payment.paid_amount,

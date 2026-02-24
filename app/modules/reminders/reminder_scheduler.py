@@ -37,7 +37,6 @@ def run_payment_reminders(society_id):
 
         generated = ReminderService.generate_pending_payment_reminders(
             db=db,
-            society_id=society_id,
             event_id=event.id
         )
 

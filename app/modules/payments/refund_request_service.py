@@ -63,6 +63,17 @@ class RefundRequestService:
             )
             raise Exception("Invalid event or flat")
 
+        if flat.society_id != event.society_id:
+            logger.warning(
+                "Validation failed for refund request: flat/event society mismatch | context=%s",
+                {
+                    **context,
+                    "event_society_id": event.society_id,
+                    "flat_society_id": flat.society_id,
+                },
+            )
+            raise Exception("Flat does not belong to the event society")
+
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
