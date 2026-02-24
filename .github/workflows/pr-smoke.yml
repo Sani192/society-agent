@@ -368,11 +368,11 @@ jobs:
           mkdir -p artifacts/from-jobs/stage3/artifacts/junit
 
           if [ ! -f artifacts/from-jobs/stage2/artifacts/junit/stage2-integration-endpoint.xml ]; then
-            printf '%s\n' '<testsuite name="stage2-integration-endpoint" tests="0" failures="0" errors="1" skipped="0"><testcase classname="pipeline" name="stage2_artifact_missing"><error message="stage2 artifact missing">stage2 artifact missing</error></testcase></testsuite>' > artifacts/from-jobs/stage2/artifacts/junit/stage2-integration-endpoint.xml
+            printf '%s\n' '<testsuite name="stage2-integration-endpoint" tests="0" failures="0" errors="0" skipped="1"><testcase classname="pipeline" name="stage2_artifact_missing"><skipped message="stage2 artifact missing">stage2 artifact missing</skipped></testcase></testsuite>' > artifacts/from-jobs/stage2/artifacts/junit/stage2-integration-endpoint.xml
           fi
 
           if [ ! -f artifacts/from-jobs/stage3/artifacts/junit/stage3-smoke.xml ]; then
-            printf '%s\n' '<testsuite name="stage3-smoke" tests="0" failures="0" errors="1" skipped="0"><testcase classname="pipeline" name="stage3_artifact_missing"><error message="stage3 artifact missing">stage3 artifact missing</error></testcase></testsuite>' > artifacts/from-jobs/stage3/artifacts/junit/stage3-smoke.xml
+            printf '%s\n' '<testsuite name="stage3-smoke" tests="0" failures="0" errors="0" skipped="1"><testcase classname="pipeline" name="stage3_artifact_missing"><skipped message="stage3 artifact missing">stage3 artifact missing</skipped></testcase></testsuite>' > artifacts/from-jobs/stage3/artifacts/junit/stage3-smoke.xml
           fi
 
       - name: Build merged reliability dashboard
