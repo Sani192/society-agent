@@ -23,7 +23,6 @@ class ContributionService:
         db: Session,
         *,
         event_id,
-        society_id,
         contribution_type,
         source_name,
         amount=None,
@@ -42,7 +41,6 @@ class ContributionService:
         """
         context = build_log_context(
             event_id=event_id,
-            society_id=society_id,
             performed_by=performed_by
         )
         logger.info(
@@ -56,6 +54,12 @@ class ContributionService:
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+        authoritative_society_id = event.society_id
+        context = build_log_context(
+            event_id=event_id,
+            society_id=authoritative_society_id,
+            performed_by=performed_by
+        )
         logger.info("Validated event for contribution | context=%s", context)
 
         decision = WorkflowEngine.check_action(
@@ -91,7 +95,7 @@ class ContributionService:
         
         contribution = EventContribution(
             event_id=event_id,
-            society_id=society_id,
+            society_id=authoritative_society_id,
             contribution_code=contribution_code,
             contribution_type=contribution_type,
             source_name=source_name,
@@ -119,7 +123,7 @@ class ContributionService:
             logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
         
         db.add(AuditLog(
-            society_id=society_id,
+            society_id=authoritative_society_id,
             entity_type="event_contribution",
             entity_id=contribution.id,
             action="ADD_CONTRIBUTION",
