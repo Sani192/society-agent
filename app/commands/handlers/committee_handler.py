@@ -1301,11 +1301,11 @@ def handle_committee_intent(
             )
 
         lines = [format_heading("Pending Join Requests", "⏳")]
-        for p in pending:
+        for pending_user, flat in pending:
             lines.append(
-                f"Request: *{p.request_code}*\n"
-                f"Flat: {p.flat_number}\n"
-                f"Requested At: {format_datetime(p.created_at)}\n"
+                f"Request: *{pending_user.request_code}*\n"
+                f"Flat: {flat.flat_number}\n"
+                f"Requested At: {format_datetime(pending_user.created_at)}\n"
                 f"---"
             )
 

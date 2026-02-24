@@ -8,7 +8,7 @@ Created on Sun Jan 25 17:07:09 2026
 
 import logging
 from sqlalchemy.orm import Session
-from app.db.models import PendingUser
+from app.db.models import PendingUser, Flat
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -27,10 +27,11 @@ class OnboardingStatusReport:
             db.query(
                 PendingUser.request_code,
                 PendingUser.user_identifier,
-                PendingUser.flat_number,
+                Flat.flat_number,
                 PendingUser.status,
                 PendingUser.created_at
             )
+            .join(Flat, Flat.id == PendingUser.flat_id)
             .filter(PendingUser.society_id == society_id)
             .all()
         )

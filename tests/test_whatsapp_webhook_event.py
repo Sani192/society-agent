@@ -660,7 +660,8 @@ def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(mon
         def send_text_message(self, to_phone: str, body: str):
             raise AssertionError("text fallback should not be sent")
 
-    pending_user = type("PendingUser", (), {"request_code": "REQ-009", "flat_number": "A-303"})()
+    pending_user = type("PendingUser", (), {"request_code": "REQ-009"})()
+    flat = type("Flat", (), {"flat_number": "A-303"})()
     inbound = InboundMessage(
         channel="whatsapp",
         sender_id="919999000071",
@@ -682,7 +683,7 @@ def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(mon
     )
     monkeypatch.setattr(
         "app.api.whatsapp.AdminOnboardingQueryService.list_pending_users",
-        lambda db, society_id: [pending_user],
+        lambda db, society_id: [(pending_user, flat)],
     )
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))

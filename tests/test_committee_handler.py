@@ -449,10 +449,12 @@ def test_committee_pending_users(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(id="member-1", role="chairman")
     pending = [
-        SimpleNamespace(
-            request_code="REQ-001",
-            flat_number="A-101",
-            created_at=SimpleNamespace(strftime=lambda fmt: "01 Jan 2026 10:00"),
+        (
+            SimpleNamespace(
+                request_code="REQ-001",
+                created_at=SimpleNamespace(strftime=lambda fmt: "01 Jan 2026 10:00"),
+            ),
+            SimpleNamespace(flat_number="A-101"),
         )
     ]
 

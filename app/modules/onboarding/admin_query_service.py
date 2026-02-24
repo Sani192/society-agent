@@ -9,7 +9,7 @@ Created on Sun Jan 18 10:55:32 2026
 # app/modules/onboarding/admin_query_service.py
 
 from sqlalchemy.orm import Session
-from app.db.models import PendingUser
+from app.db.models import PendingUser, Flat
 
 
 class AdminOnboardingQueryService:
@@ -17,7 +17,8 @@ class AdminOnboardingQueryService:
     @staticmethod
     def list_pending_users(db: Session, *, society_id):
         return (
-            db.query(PendingUser)
+            db.query(PendingUser, Flat)
+            .join(Flat, Flat.id == PendingUser.flat_id)
             .filter(
                 PendingUser.society_id == society_id,
                 PendingUser.status == "pending"
