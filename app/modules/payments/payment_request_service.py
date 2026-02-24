@@ -17,8 +17,7 @@ from app.db.models import (
     Flat,
     PaymentRequest,
     EventFoodPass,
-    AuditLog,
-    UserFlatMapping
+    AuditLog
 )
 from app.modules.payments.payment_service import PaymentService
 from app.workflows.engine import WorkflowEngine
@@ -324,13 +323,11 @@ class PaymentRequestService:
         *,
         event_id,
         status=None,
-        requested_by=None,
         requested_by_mapping_ids=None
     ):
         query = (
-            db.query(PaymentRequest, Flat, UserFlatMapping)
+            db.query(PaymentRequest, Flat)
             .join(Flat, PaymentRequest.flat_id == Flat.id)
-            .join(UserFlatMapping, PaymentRequest.requested_by_mapping_id == UserFlatMapping.id)
             .filter(PaymentRequest.event_id == event_id)
         )
 
@@ -342,12 +339,8 @@ class PaymentRequestService:
         if requested_by_mapping_ids:
             query = query.filter(PaymentRequest.requested_by_mapping_id.in_(requested_by_mapping_ids))
 
-        if requested_by:
-            query = query.filter(UserFlatMapping.user_identifier == requested_by)
-
-        rows = (
+        return (
             query
             .order_by(PaymentRequest.requested_at.desc())
             .all()
         )
-        return [(request, flat) for request, flat, _ in rows]

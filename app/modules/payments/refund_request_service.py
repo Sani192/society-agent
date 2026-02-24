@@ -17,8 +17,7 @@ from app.db.models import (
     Flat,
     RefundRequest,
     Payment,
-    AuditLog,
-    UserFlatMapping
+    AuditLog
 )
 from app.modules.payments.refund_service import RefundService
 from app.workflows.engine import WorkflowEngine
@@ -326,13 +325,11 @@ class RefundRequestService:
         *,
         event_id,
         status=None,
-        requested_by=None,
         requested_by_mapping_ids=None
     ):
         query = (
-            db.query(RefundRequest, Flat, UserFlatMapping)
+            db.query(RefundRequest, Flat)
             .join(Flat, RefundRequest.flat_id == Flat.id)
-            .join(UserFlatMapping, RefundRequest.requested_by_mapping_id == UserFlatMapping.id)
             .filter(RefundRequest.event_id == event_id)
         )
 
@@ -344,12 +341,8 @@ class RefundRequestService:
         if requested_by_mapping_ids:
             query = query.filter(RefundRequest.requested_by_mapping_id.in_(requested_by_mapping_ids))
 
-        if requested_by:
-            query = query.filter(UserFlatMapping.user_identifier == requested_by)
-
-        rows = (
+        return (
             query
             .order_by(RefundRequest.requested_at.desc())
             .all()
         )
-        return [(request, flat) for request, flat, _ in rows]
