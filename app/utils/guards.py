@@ -13,24 +13,13 @@ from app.db.models import CommitteeMember
 from app.modules.users.channel_identity_service import resolve_committee_member_by_identity
 from app.db.session import SessionLocal
 from app.modules.users.user_flat_service import UserFlatService
-import re
+from app.utils.identity import normalize_identifier
 
 def normalize_phone(phone: str) -> str | None:
     if not phone:
         return None
 
-    # keep digits only
-    digits = re.sub(r"\D", "", phone)
-
-    # handle India country code
-    # if digits.startswith("91") and len(digits) == 12:
-    #    digits = digits[2:]
-
-    # final validation
-    # if len(digits) != 10:
-    #    return None
-
-    return digits
+    return normalize_identifier(phone)
 
 
 def ensure_admin(phone_number: str):

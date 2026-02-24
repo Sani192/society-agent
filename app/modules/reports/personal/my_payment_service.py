@@ -15,7 +15,8 @@ from sqlalchemy import func
 from app.db.models import (
     UserFlatMapping,
     Payment,
-    Refund
+    Refund,
+    MemberIdentity
 )
 from app.utils.logging_helpers import build_log_context, log_service_call
 
@@ -40,9 +41,10 @@ class MyPaymentReport:
         # 1️ Resolve user's flat
         mapping = (
             db.query(UserFlatMapping)
+            .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
             .filter(
                 UserFlatMapping.society_id == society_id,
-                UserFlatMapping.user_identifier == user_identifier,
+                MemberIdentity.normalized_identifier == user_identifier,
                 UserFlatMapping.is_active.is_(True)
             )
             .first()

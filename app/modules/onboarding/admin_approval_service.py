@@ -6,8 +6,6 @@ Created on Sun Jan 18 10:46:44 2026
 @author: anonymous
 """
 
-# app/modules/onboarding/admin_approval_service.py
-
 import logging
 from sqlalchemy.orm import Session
 
@@ -56,7 +54,7 @@ class AdminApprovalService:
             db=db,
             society_id=pending.society_id,
             flat_id=flat.id,
-            user_identifier=pending.user_identifier,
+            member_identity_id=pending.member_identity_id,
             performed_by=performed_by
         )
         logger.info("Assigned user to flat for approval | context=%s", context)

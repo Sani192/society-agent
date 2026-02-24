@@ -6,13 +6,13 @@ Created on Sun Jan 18 10:45:47 2026
 @author: anonymous
 """
 
-# app/modules/onboarding/onboarding_service.py
-
 import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import PendingUser, Flat, UserFlatMapping, AuditLog
+from app.modules.users.member_identity_service import MemberIdentityService
 from app.modules.users.user_flat_service import UserFlatService
+from app.utils.identity import normalize_identifier
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -30,22 +30,23 @@ class OnboardingService:
         flat_number
     ):
         context = build_log_context(society_id=society.id)
+        normalized_identifier = normalize_identifier(user_identifier) or user_identifier
+        identity = MemberIdentityService.resolve_or_create(db, user_identifier=normalized_identifier)
         logger.info(
             "Starting onboarding | user=%s flat_number=%s context=%s",
-            user_identifier,
+            normalized_identifier,
             flat_number,
             context
         )
         onboarding = (society.config_json or {}).get("onboarding")
         if not onboarding:
             raise Exception("Onboarding is not enabled for this society.")
-        
-        # 1️ BLOCK: already approved user
+
         existing_mapping = (
             db.query(UserFlatMapping)
             .filter(
                 UserFlatMapping.society_id == society.id,
-                UserFlatMapping.user_identifier == user_identifier,
+                UserFlatMapping.member_identity_id == identity.id,
                 UserFlatMapping.is_active.is_(True)
             )
             .first()
@@ -54,8 +55,7 @@ class OnboardingService:
         if existing_mapping:
             raise Exception("You are already registered with this society.")
         logger.info("No existing active mapping found | context=%s", context)
-        
-        # 2 Validate flat
+
         flat = (
             db.query(Flat)
             .filter(
@@ -71,14 +71,13 @@ class OnboardingService:
         logger.info("Validated flat for onboarding | flat_id=%s context=%s", flat.id, context)
 
         approval_required = onboarding.get("approval_required", True)
-        
-        # 3 Auto-approve
+
         if not approval_required:
             UserFlatService.assign_user_to_flat(
                 db=db,
                 society_id=society.id,
                 flat_id=flat.id,
-                user_identifier=user_identifier,
+                member_identity_id=identity.id,
                 performed_by=None
             )
             db.add(AuditLog(
@@ -86,20 +85,18 @@ class OnboardingService:
                 entity_type="onboarding",
                 entity_id=flat.id,
                 action="AUTO_APPROVE_ONBOARDING",
-                reason=f"Auto-approved onboarding for {user_identifier}",
+                reason=f"Auto-approved onboarding for {normalized_identifier}",
                 performed_by=None
             ))
             db.commit()
             logger.info("Auto-approved onboarding | context=%s", context)
             return "APPROVED"
 
-
-        # 4 Check if user already has a pending request
         existing = (
             db.query(PendingUser)
             .filter(
                 PendingUser.society_id == society.id,
-                PendingUser.user_identifier == user_identifier,
+                PendingUser.member_identity_id == identity.id,
                 PendingUser.status == "pending"
             )
             .first()
@@ -113,7 +110,6 @@ class OnboardingService:
             )
             return existing.request_code
 
-        # 5 Generate next human-friendly request code
         count = (
             db.query(PendingUser)
             .filter(PendingUser.society_id == society.id)
@@ -123,11 +119,10 @@ class OnboardingService:
         request_code = f"REQ-{count + 1:03d}"
         logger.info("Generated onboarding request code | request_code=%s context=%s", request_code, context)
 
-        # 6 Create pending request
         pending = PendingUser(
             society_id=society.id,
             request_code=request_code,
-            user_identifier=user_identifier,
+            member_identity_id=identity.id,
             flat_id=flat.id
         )
 

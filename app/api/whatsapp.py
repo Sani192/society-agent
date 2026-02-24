@@ -191,8 +191,9 @@ def _recent_member_events(*, db, sender_id: str) -> list[Event]:
 
     mappings = (
         db.query(UserFlatMapping.society_id)
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
         .filter(
-            UserFlatMapping.user_identifier.in_(tuple(candidate_ids)),
+            MemberIdentity.normalized_identifier.in_(tuple(candidate_ids)),
             UserFlatMapping.is_active.is_(True),
         )
         .distinct()
@@ -301,8 +302,9 @@ def _is_registered_member_for_sender(*, db, sender_id: str) -> bool:
 
     return (
         db.query(UserFlatMapping.id)
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
         .filter(
-            UserFlatMapping.user_identifier.in_(tuple(candidate_ids)),
+            MemberIdentity.normalized_identifier.in_(tuple(candidate_ids)),
             UserFlatMapping.is_active.is_(True),
         )
         .first()
