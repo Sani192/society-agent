@@ -7,6 +7,7 @@ Created on Sat Jan 17 10:54:04 2026
 """
 
 import logging
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import UserFlatMapping, AuditLog, MemberIdentity
@@ -59,24 +60,29 @@ class UserFlatService:
             flat_id=flat_id,
             member_identity_id=identity.id,
         )
-        db.add(mapping)
-        db.flush()
+        try:
+            db.add(mapping)
+            db.flush()
 
-        logger.info("Created user-flat mapping | mapping_id=%s context=%s", mapping.id, context)
-        db.add(
-            AuditLog(
-                society_id=society_id,
-                entity_type="user_flat_mapping",
-                entity_id=mapping.id,
-                action="ASSIGN_USER_FLAT",
-                reason=f"Mapped {identity.normalized_identifier} to flat {flat_id}",
-                performed_by=performed_by,
+            logger.info("Created user-flat mapping | mapping_id=%s context=%s", mapping.id, context)
+            db.add(
+                AuditLog(
+                    society_id=society_id,
+                    entity_type="user_flat_mapping",
+                    entity_id=mapping.id,
+                    action="ASSIGN_USER_FLAT",
+                    reason=f"Mapped {identity.normalized_identifier} to flat {flat_id}",
+                    performed_by=performed_by,
+                )
             )
-        )
-        logger.info("Captured user-flat audit log | context=%s", context)
-        db.commit()
-        logger.info("Committed user-flat assignment | context=%s", context)
-        return mapping
+            logger.info("Captured user-flat audit log | context=%s", context)
+            db.commit()
+            logger.info("Committed user-flat assignment | context=%s", context)
+            return mapping
+        except IntegrityError as exc:
+            db.rollback()
+            logger.warning("User-flat assignment unique conflict | context=%s error=%s", context, exc)
+            raise Exception("You are already registered with this society.") from exc
 
     @staticmethod
     @log_service_call(logger, "UserFlatService.get_flats_for_user")

@@ -7,6 +7,7 @@ Created on Sun Jan 18 10:45:47 2026
 """
 
 import logging
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import PendingUser, Flat, UserFlatMapping, AuditLog
@@ -56,18 +57,21 @@ class OnboardingService:
             raise Exception("You are already registered with this society.")
         logger.info("No existing active mapping found | context=%s", context)
 
-        flat = (
+        flat_matches = (
             db.query(Flat)
             .filter(
                 Flat.flat_number == flat_number,
                 Flat.society_id == society.id,
                 Flat.is_active.is_(True)
             )
-            .first()
+            .all()
         )
 
-        if not flat:
+        if not flat_matches:
             raise Exception("Invalid flat number.")
+        if len(flat_matches) > 1:
+            raise Exception("Flat data conflict detected. Please contact committee.")
+        flat = flat_matches[0]
         logger.info("Validated flat for onboarding | flat_id=%s context=%s", flat.id, context)
 
         approval_required = onboarding.get("approval_required", True)
@@ -137,7 +141,12 @@ class OnboardingService:
             reason=f"Join request {request_code} for flat {flat_number}",
             performed_by=None
         ))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            logger.warning("Onboarding request conflict | context=%s error=%s", context, exc)
+            raise Exception("An onboarding request already exists for this user.") from exc
         logger.info("Committed onboarding request | request_code=%s context=%s", request_code, context)
 
         return request_code

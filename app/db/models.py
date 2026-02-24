@@ -130,7 +130,7 @@ class Flat(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        # One flat number must be unique within a society
+        UniqueConstraint("society_id", "flat_number", name="uq_flats_society_flat_number"),
         {"schema": None},
     )
 
