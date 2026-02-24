@@ -4,8 +4,6 @@ import random
 import string
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import or_
-
 import re
 
 from app.db.models import (
@@ -35,56 +33,35 @@ def resolve_committee_member_by_identity(
     db,
     channel_type: str,
     sender_id: str,
-    phone_number: str | None = None,
     username: str | None = None,
 ):
-    normalized_phone = _normalize_phone(phone_number or sender_id)
-
-    identity = (
+    query = (
         db.query(CommitteeMemberChannelIdentity)
         .join(CommitteeMember, CommitteeMember.id == CommitteeMemberChannelIdentity.committee_member_id)
         .filter(
             CommitteeMember.is_active.is_(True),
             CommitteeMemberChannelIdentity.channel_type == channel_type,
-            or_(
-                CommitteeMemberChannelIdentity.external_user_id == str(sender_id),
-                CommitteeMember.phone_number == normalized_phone,
-                CommitteeMemberChannelIdentity.username == username,
-            ),
+            CommitteeMemberChannelIdentity.external_user_id == str(sender_id),
         )
-        .first()
     )
+
+    identity = query.first()
     if identity:
         return identity.committee_member
 
-    if normalized_phone:
-        legacy_member = (
-            db.query(CommitteeMember)
-            .filter(CommitteeMember.phone_number == normalized_phone, CommitteeMember.is_active.is_(True))
+    if username:
+        username_identity = (
+            db.query(CommitteeMemberChannelIdentity)
+            .join(CommitteeMember, CommitteeMember.id == CommitteeMemberChannelIdentity.committee_member_id)
+            .filter(
+                CommitteeMember.is_active.is_(True),
+                CommitteeMemberChannelIdentity.channel_type == channel_type,
+                CommitteeMemberChannelIdentity.username == username,
+            )
             .first()
         )
-        if legacy_member:
-            existing = (
-                db.query(CommitteeMemberChannelIdentity)
-                .filter(
-                    CommitteeMemberChannelIdentity.committee_member_id == legacy_member.id,
-                    CommitteeMemberChannelIdentity.channel_type == channel_type,
-                    CommitteeMemberChannelIdentity.external_user_id == str(sender_id),
-                )
-                .first()
-            )
-            if not existing:
-                db.add(
-                    CommitteeMemberChannelIdentity(
-                        committee_member_id=legacy_member.id,
-                        channel_type=channel_type,
-                        external_user_id=str(sender_id),
-                        username=username,
-                        is_verified=True,
-                    )
-                )
-                db.commit()
-            return legacy_member
+        if username_identity:
+            return username_identity.committee_member
 
     return None
 
@@ -115,7 +92,6 @@ def link_member_by_code(
     channel_type: str,
     sender_id: str,
     code: str,
-    phone_number: str | None = None,
     username: str | None = None,
 ):
     now = datetime.now(timezone.utc)

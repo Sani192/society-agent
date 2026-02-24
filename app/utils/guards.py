@@ -68,7 +68,6 @@ def ensure_committee_member(
         db=db,
         channel_type=channel_type,
         sender_id=sender_id,
-        phone_number=phone_number,
         username=username,
     )
 
