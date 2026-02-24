@@ -5,12 +5,6 @@ import sys
 
 from sqlalchemy import text
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from app.db.session import engine
-
 
 def _has_table(conn, table_name: str) -> bool:
     row = conn.execute(
@@ -21,6 +15,12 @@ def _has_table(conn, table_name: str) -> bool:
 
 
 def run():
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+
+    from app.db.session import engine
+
     with engine.begin() as conn:
         conn.execute(text(
             """

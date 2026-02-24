@@ -27,7 +27,7 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.db.session import SessionLocal
-from app.db.models import Event, UserFlatMapping
+from app.db.models import Event, MemberIdentity, UserFlatMapping
 from app.whatsapp.router import detect_whatsapp_intent
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.reports.common.whatsapp_report_registry import (
