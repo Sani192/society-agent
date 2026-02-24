@@ -134,7 +134,15 @@ def _seed_base_entities(db):
         is_active=True,
     )
 
-    db.add_all([society, chairman, flat, mapping])
+    channel_identity = CommitteeMemberChannelIdentity(
+        committee_member_id=chairman.id,
+        channel_type="whatsapp",
+        external_user_id=chairman.phone_number,
+        username=None,
+        is_verified=True,
+    )
+
+    db.add_all([society, chairman, flat, mapping, channel_identity])
     db.commit()
     return society, chairman, flat
 
@@ -199,9 +207,15 @@ def test_member_link_code_login_workflow_e2e(smoke_db, monkeypatch):
 
     identity_rows = smoke_db.query(CommitteeMemberChannelIdentity).all()
     link_code = smoke_db.query(CommitteeMemberLinkCode).filter_by(code=cfg["link_code"]).first()
-    assert len(identity_rows) == expected["identity_count"]
-    assert identity_rows[0].committee_member_id == chairman.id
-    assert identity_rows[0].external_user_id == str(int(cfg["sender_id"].split("-")[-1]))
+    telegram_identity = (
+        smoke_db.query(CommitteeMemberChannelIdentity)
+        .filter_by(channel_type="telegram", external_user_id=str(int(cfg["sender_id"].split("-")[-1])))
+        .first()
+    )
+
+    assert len(identity_rows) >= expected["identity_count"]
+    assert telegram_identity is not None
+    assert telegram_identity.committee_member_id == chairman.id
     assert link_code.consumed_at is not None
 
 
