@@ -27,6 +27,7 @@ from app.whatsapp.response_templates import (
 )
 from app.commands.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
 from app.commands.handlers.common import resolve_flat
+from app.utils.guards import ensure_member_of_society
 from app.permissions.command_policy import get_event_state, member_action_state_warning
 
 
@@ -42,6 +43,22 @@ def _resolve_member_flat(db, *, phone_number, event):
 
     return flat, None
 
+
+
+
+def _resolve_requester_mappings(db, *, phone_number, event):
+    return ensure_member_of_society(
+        phone_number=phone_number,
+        db=db,
+        society_id=event.society_id
+    )
+
+
+def _pick_requester_mapping_id(mappings, flat_id):
+    for mapping in mappings:
+        if mapping.flat_id == flat_id:
+            return mapping.id
+    return mappings[0].id
 
 def handle_public_intent(
     *,
@@ -122,13 +139,14 @@ def handle_public_intent(
             return error_response("Please specify amount. Example: pay 500")
 
         if not member:
+            mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
             request = PaymentRequestService.request_payment(
                 db=db,
                 event_id=event.id,
                 flat_id=flat.id,
                 amount=amount,
                 payment_mode="upi",
-                requested_by=phone_number
+                requested_by_mapping_id=_pick_requester_mapping_id(mappings, flat.id)
             )
             return success_response(
                 join_lines([
@@ -188,13 +206,14 @@ def handle_public_intent(
 
         if not member:
             try:
+                mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
                 request = RefundRequestService.request_refund(
                     db=db,
                     event_id=event.id,
                     flat_id=flat.id,
                     amount=amount,
                     reason=reason,
-                    requested_by=phone_number
+                    requested_by_mapping_id=_pick_requester_mapping_id(mappings, flat.id)
                 )
             except Exception as exc:
                 return error_response(str(exc))
@@ -285,10 +304,11 @@ def handle_public_intent(
         if error_reply:
             return error_reply
 
+        mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
         requests = PaymentRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by=phone_number
+            requested_by_mapping_ids=[mapping.id for mapping in mappings]
         )
 
         if not requests:
@@ -320,10 +340,11 @@ def handle_public_intent(
         if error_reply:
             return error_reply
 
+        mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
         requests = RefundRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by=phone_number
+            requested_by_mapping_ids=[mapping.id for mapping in mappings]
         )
 
         if not requests:
@@ -380,10 +401,11 @@ def handle_public_intent(
         payment_paid = payment.paid_amount if payment else 0
         payment_expected = payment.expected_amount if payment else balance["expected"]
 
+        mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
         requests = PaymentRequestService.list_requests(
             db=db,
             event_id=event.id,
-            requested_by=phone_number
+            requested_by_mapping_ids=[mapping.id for mapping in mappings]
         )
 
         header = join_lines([

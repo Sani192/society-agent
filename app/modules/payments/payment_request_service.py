@@ -17,7 +17,8 @@ from app.db.models import (
     Flat,
     PaymentRequest,
     EventFoodPass,
-    AuditLog
+    AuditLog,
+    UserFlatMapping
 )
 from app.modules.payments.payment_service import PaymentService
 from app.workflows.engine import WorkflowEngine
@@ -36,13 +37,13 @@ class PaymentRequestService:
         flat_id,
         amount,
         payment_mode,
-        requested_by,
+        requested_by_mapping_id,
         override_reason=None
     ):
         context = build_log_context(
             event_id=event_id,
             flat_id=flat_id,
-            performed_by=requested_by
+            performed_by=requested_by_mapping_id
         )
         log_entry(logger, "PaymentRequestService.request_payment", context)
         if amount <= 0:
@@ -66,7 +67,7 @@ class PaymentRequestService:
             db=db,
             event_id=event_id,
             action="REQUEST_PAYMENT",
-            performed_by=requested_by,
+            performed_by=requested_by_mapping_id,
             override_reason=override_reason
         )
 
@@ -133,7 +134,7 @@ class PaymentRequestService:
             amount=amount,
             payment_mode=payment_mode,
             status="requested",
-            requested_by=requested_by
+            requested_by_mapping_id=requested_by_mapping_id
         )
 
         logger.info(
@@ -156,7 +157,7 @@ class PaymentRequestService:
                 entity_id=request.id,
                 action="REQUEST_PAYMENT",
                 reason=override_reason,
-                performed_by=requested_by
+                performed_by=requested_by_mapping_id
             )
 
         db.add(AuditLog(
@@ -167,7 +168,7 @@ class PaymentRequestService:
             reason=(
                 f"OVERRIDE: {override_reason}"
                 if is_override
-                else f"Request {request.request_code} for ₹{amount} by {requested_by}"
+                else f"Request {request.request_code} for ₹{amount} by mapping {requested_by_mapping_id}"
             ),
             performed_by=None
         ))
@@ -258,7 +259,7 @@ class PaymentRequestService:
             reason=(
                 "Approved "
                 f"{request.request_code} for ₹{request.amount} "
-                f"requested by {request.requested_by}"
+                f"requested by mapping {request.requested_by_mapping_id}"
             ),
             performed_by=performed_by
         ))
@@ -292,7 +293,7 @@ class PaymentRequestService:
 
         reason = (
             f"Rejected {request.request_code} for ₹{request.amount} "
-            f"requested by {request.requested_by}"
+            f"requested by mapping {request.requested_by_mapping_id}"
         )
         if rejection_reason:
             reason = f"{reason} | {rejection_reason}"
@@ -323,11 +324,13 @@ class PaymentRequestService:
         *,
         event_id,
         status=None,
-        requested_by=None
+        requested_by=None,
+        requested_by_mapping_ids=None
     ):
         query = (
-            db.query(PaymentRequest, Flat)
+            db.query(PaymentRequest, Flat, UserFlatMapping)
             .join(Flat, PaymentRequest.flat_id == Flat.id)
+            .join(UserFlatMapping, PaymentRequest.requested_by_mapping_id == UserFlatMapping.id)
             .filter(PaymentRequest.event_id == event_id)
         )
 
@@ -336,11 +339,15 @@ class PaymentRequestService:
         else:
             query = query.filter(PaymentRequest.status != "approved")
 
-        if requested_by:
-            query = query.filter(PaymentRequest.requested_by == requested_by)
+        if requested_by_mapping_ids:
+            query = query.filter(PaymentRequest.requested_by_mapping_id.in_(requested_by_mapping_ids))
 
-        return (
+        if requested_by:
+            query = query.filter(UserFlatMapping.user_identifier == requested_by)
+
+        rows = (
             query
             .order_by(PaymentRequest.requested_at.desc())
             .all()
         )
+        return [(request, flat) for request, flat, _ in rows]
