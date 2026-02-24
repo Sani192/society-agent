@@ -17,7 +17,8 @@ from app.db.models import (
     Flat,
     RefundRequest,
     Payment,
-    AuditLog
+    AuditLog,
+    UserFlatMapping
 )
 from app.modules.payments.refund_service import RefundService
 from app.workflows.engine import WorkflowEngine
@@ -124,6 +125,10 @@ class RefundRequestService:
         )
         request_code = f"REF-{count + 1:03d}"
 
+        mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
+        if not mapping:
+            raise Exception("Invalid requester mapping")
+
         request = RefundRequest(
             event_id=event_id,
             society_id=event.society_id,
@@ -132,7 +137,8 @@ class RefundRequestService:
             amount=amount,
             reason=reason,
             status="requested",
-            requested_by_mapping_id=requested_by_mapping_id
+            requested_by_mapping_id=requested_by_mapping_id,
+            member_identity_id=mapping.member_identity_id
         )
 
         logger.info(
@@ -223,7 +229,7 @@ class RefundRequestService:
     def approve_request(
         db: Session,
         *,
-        request: RefundRequest,
+        request,
         performed_by
     ):
         context = build_log_context(
@@ -286,7 +292,7 @@ class RefundRequestService:
     def reject_request(
         db: Session,
         *,
-        request: RefundRequest,
+        request,
         performed_by,
         rejection_reason=None
     ):

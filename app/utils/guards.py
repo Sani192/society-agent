@@ -11,26 +11,15 @@ Created on Sun Jan 11 07:28:42 2026
 from app.config import settings
 from app.db.models import CommitteeMember
 from app.modules.users.channel_identity_service import resolve_committee_member_by_identity
-from app.db.session import SessionLocal
+from sqlalchemy.orm import Session
 from app.modules.users.user_flat_service import UserFlatService
-import re
+from app.utils.identity import normalize_identifier
 
 def normalize_phone(phone: str) -> str | None:
     if not phone:
         return None
 
-    # keep digits only
-    digits = re.sub(r"\D", "", phone)
-
-    # handle India country code
-    # if digits.startswith("91") and len(digits) == 12:
-    #    digits = digits[2:]
-
-    # final validation
-    # if len(digits) != 10:
-    #    return None
-
-    return digits
+    return normalize_identifier(phone)
 
 
 def ensure_admin(phone_number: str):
@@ -47,7 +36,7 @@ def ensure_reason(reason: str):
         
 def ensure_member_of_society(
     phone_number: str,
-    db: SessionLocal,
+    db: Session,
     society_id
 ):
     normalized = normalize_phone(phone_number)
@@ -68,7 +57,7 @@ def ensure_member_of_society(
 
 def ensure_committee_member(
     phone_number: str,
-    db: SessionLocal,
+    db: Session,
     *,
     channel_type: str = "whatsapp",
     external_user_id: str | None = None,

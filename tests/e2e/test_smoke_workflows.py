@@ -32,6 +32,7 @@ from app.db.models import (
     Refund,
     RefundRequest,
     Society,
+    MemberIdentity,
     UserFlatMapping,
     WorkflowState,
 )
@@ -117,10 +118,18 @@ def _seed_base_entities(db):
         owner_name="Resident Smoke",
         is_active=True,
     )
+    identity = MemberIdentity(
+        normalized_identifier=chairman.phone_number,
+        normalized_phone=chairman.phone_number,
+        metadata_json={"seeded": True},
+    )
+    db.add(identity)
+    db.flush()
+
     mapping = UserFlatMapping(
         society_id=society.id,
         flat_id=flat.id,
-        user_identifier=chairman.phone_number,
+        member_identity_id=identity.id,
         role="owner",
         is_active=True,
     )

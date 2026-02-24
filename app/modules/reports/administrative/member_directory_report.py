@@ -8,7 +8,7 @@ Created on Sun Jan 25 17:05:44 2026
 
 import logging
 from sqlalchemy.orm import Session
-from app.db.models import UserFlatMapping, Flat
+from app.db.models import UserFlatMapping, Flat, MemberIdentity
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -25,13 +25,14 @@ class MemberDirectoryReport:
         context = build_log_context(society_id=society_id)
         records = (
             db.query(
-                UserFlatMapping.user_identifier,
+                MemberIdentity.normalized_identifier,
                 UserFlatMapping.role,
                 Flat.flat_number,
                 Flat.block,
                 UserFlatMapping.created_at
             )
             .join(Flat, Flat.id == UserFlatMapping.flat_id)
+            .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
             .filter(
                 UserFlatMapping.society_id == society_id,
                 UserFlatMapping.is_active

@@ -27,7 +27,7 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.db.session import SessionLocal
-from app.db.models import Event, UserFlatMapping
+from app.db.models import Event, MemberIdentity, UserFlatMapping
 from app.whatsapp.router import detect_whatsapp_intent
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.reports.common.whatsapp_report_registry import (
@@ -191,8 +191,9 @@ def _recent_member_events(*, db, sender_id: str) -> list[Event]:
 
     mappings = (
         db.query(UserFlatMapping.society_id)
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
         .filter(
-            UserFlatMapping.user_identifier.in_(tuple(candidate_ids)),
+            MemberIdentity.normalized_identifier.in_(tuple(candidate_ids)),
             UserFlatMapping.is_active.is_(True),
         )
         .distinct()
@@ -301,8 +302,9 @@ def _is_registered_member_for_sender(*, db, sender_id: str) -> bool:
 
     return (
         db.query(UserFlatMapping.id)
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
         .filter(
-            UserFlatMapping.user_identifier.in_(tuple(candidate_ids)),
+            MemberIdentity.normalized_identifier.in_(tuple(candidate_ids)),
             UserFlatMapping.is_active.is_(True),
         )
         .first()
@@ -1079,7 +1081,7 @@ def whatsapp_webhook_verify(
         }
     },
 )
-async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
+async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook event")
     raw_body = await request.body()
@@ -1355,7 +1357,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                     ),
-                    role=member.role,
+                    role=str(member.role) if member.role is not None else None,
                 )
 
                 latest_event = get_latest_event(db)
@@ -1414,7 +1416,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                     ),
-                    role=member.role,
+                    role=str(member.role) if member.role is not None else None,
                 )
                 session_key = build_export_session_key(
                     member_id=str(member.id),
@@ -1502,7 +1504,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                         registry=build_whatsapp_report_registry(
                             handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                         ),
-                        role=member.role,
+                        role=str(member.role) if member.role is not None else None,
                     )
                     latest_event = get_latest_event(db)
                     session = ExportSessionState(
@@ -1562,7 +1564,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                     ),
-                    role=member.role,
+                    role=str(member.role) if member.role is not None else None,
                 )
 
                 session_key = build_export_session_key(

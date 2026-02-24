@@ -17,7 +17,8 @@ from app.db.models import (
     Flat,
     PaymentRequest,
     EventFoodPass,
-    AuditLog
+    AuditLog,
+    UserFlatMapping
 )
 from app.modules.payments.payment_service import PaymentService
 from app.workflows.engine import WorkflowEngine
@@ -125,6 +126,10 @@ class PaymentRequestService:
         )
         request_code = f"PAY-{count + 1:03d}"
 
+        mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
+        if not mapping:
+            raise Exception("Invalid requester mapping")
+
         request = PaymentRequest(
             event_id=event_id,
             society_id=event.society_id,
@@ -133,7 +138,8 @@ class PaymentRequestService:
             amount=amount,
             payment_mode=payment_mode,
             status="requested",
-            requested_by_mapping_id=requested_by_mapping_id
+            requested_by_mapping_id=requested_by_mapping_id,
+            member_identity_id=mapping.member_identity_id
         )
 
         logger.info(
@@ -221,7 +227,7 @@ class PaymentRequestService:
     def approve_request(
         db: Session,
         *,
-        request: PaymentRequest,
+        request,
         performed_by
     ):
         context = build_log_context(
@@ -284,7 +290,7 @@ class PaymentRequestService:
     def reject_request(
         db: Session,
         *,
-        request: PaymentRequest,
+        request,
         performed_by,
         rejection_reason=None
     ):

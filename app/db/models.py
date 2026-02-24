@@ -231,6 +231,12 @@ class PaymentRequest(Base):
         nullable=False,
         index=True
     )
+    member_identity_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("member_identities.id"),
+        nullable=False,
+        index=True,
+    )
     requested_at = Column(DateTime(timezone=True), server_default=func.now())
     approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
     approved_at = Column(DateTime(timezone=True))
@@ -255,6 +261,12 @@ class RefundRequest(Base):
         ForeignKey("user_flat_mappings.id"),
         nullable=False,
         index=True
+    )
+    member_identity_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("member_identities.id"),
+        nullable=False,
+        index=True,
     )
     requested_at = Column(DateTime(timezone=True), server_default=func.now())
     approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
@@ -351,6 +363,18 @@ class AuditLog(Base):
     performed_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class MemberIdentity(Base):
+    __tablename__ = "member_identities"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    normalized_identifier = Column(String, nullable=False, unique=True, index=True)
+    normalized_phone = Column(String, nullable=True, index=True)
+    whatsapp_user_id = Column(String, nullable=True, unique=True, index=True)
+    telegram_user_id = Column(String, nullable=True, unique=True, index=True)
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class UserFlatMapping(Base):
     __tablename__ = "user_flat_mappings"
 
@@ -358,11 +382,12 @@ class UserFlatMapping(Base):
     society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
     flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
-    # External user identity (platform-agnostic)
-    # WhatsApp: phone number
-    # Telegram: user_id
-    # Web: user_id
-    user_identifier = Column(String, nullable=False, index=True)
+    member_identity_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("member_identities.id"),
+        nullable=False,
+        index=True,
+    )
 
     role = Column(String, default="member")  
     # member / owner / tenant (future-proof)
@@ -423,7 +448,12 @@ class PendingUser(Base):
     request_code = Column(String, nullable=False, index=True)
     # e.g. REQ-001
 
-    user_identifier = Column(String, nullable=False, index=True)
+    member_identity_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("member_identities.id"),
+        nullable=False,
+        index=True,
+    )
     flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
     status = Column(String, default="pending")
