@@ -225,7 +225,12 @@ class PaymentRequest(Base):
 
     status = Column(String(50), nullable=False)  # requested / approved / rejected
 
-    requested_by = Column(String, nullable=False)
+    requested_by_mapping_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("user_flat_mappings.id"),
+        nullable=False,
+        index=True
+    )
     requested_at = Column(DateTime(timezone=True), server_default=func.now())
     approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
     approved_at = Column(DateTime(timezone=True))
@@ -245,7 +250,12 @@ class RefundRequest(Base):
 
     status = Column(String(50), nullable=False)  # requested / approved / rejected
 
-    requested_by = Column(String, nullable=False)
+    requested_by_mapping_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("user_flat_mappings.id"),
+        nullable=False,
+        index=True
+    )
     requested_at = Column(DateTime(timezone=True), server_default=func.now())
     approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
     approved_at = Column(DateTime(timezone=True))

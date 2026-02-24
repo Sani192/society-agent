@@ -287,13 +287,20 @@ def test_payment_request_approval_workflow_e2e(smoke_db):
     )
     smoke_db.commit()
 
+    requester_mapping = (
+        smoke_db.query(UserFlatMapping)
+        .filter_by(society_id=society.id, flat_id=flat.id, is_active=True)
+        .first()
+    )
+    assert requester_mapping is not None
+
     request = PaymentRequestService.request_payment(
         smoke_db,
         event_id=event.id,
         flat_id=flat.id,
         amount=cfg["request_amount"],
         payment_mode=cfg["payment_mode"],
-        requested_by=cfg["requested_by"],
+        requested_by_mapping_id=requester_mapping.id,
     )
     payment = PaymentRequestService.approve_request(smoke_db, request=request, performed_by=chairman.id)
 
@@ -338,13 +345,20 @@ def test_refund_request_approval_workflow_e2e(smoke_db):
     )
     smoke_db.commit()
 
+    requester_mapping = (
+        smoke_db.query(UserFlatMapping)
+        .filter_by(society_id=society.id, flat_id=flat.id, is_active=True)
+        .first()
+    )
+    assert requester_mapping is not None
+
     request = RefundRequestService.request_refund(
         smoke_db,
         event_id=event.id,
         flat_id=flat.id,
         amount=cfg["refund_amount"],
         reason=cfg["reason"],
-        requested_by=cfg["requested_by"],
+        requested_by_mapping_id=requester_mapping.id,
     )
     refund = RefundRequestService.approve_request(smoke_db, request=request, performed_by=chairman.id)
 

@@ -36,13 +36,13 @@ class RefundRequestService:
         flat_id,
         amount,
         reason,
-        requested_by,
+        requested_by_mapping_id,
         override_reason=None
     ):
         context = build_log_context(
             event_id=event_id,
             flat_id=flat_id,
-            performed_by=requested_by
+            performed_by=requested_by_mapping_id
         )
         log_entry(logger, "RefundRequestService.request_refund", context)
         if amount <= 0:
@@ -66,7 +66,7 @@ class RefundRequestService:
             db=db,
             event_id=event_id,
             action="REQUEST_REFUND",
-            performed_by=requested_by,
+            performed_by=requested_by_mapping_id,
             override_reason=override_reason
         )
 
@@ -132,7 +132,7 @@ class RefundRequestService:
             amount=amount,
             reason=reason,
             status="requested",
-            requested_by=requested_by
+            requested_by_mapping_id=requested_by_mapping_id
         )
 
         logger.info(
@@ -155,7 +155,7 @@ class RefundRequestService:
                 entity_id=request.id,
                 action="REQUEST_REFUND",
                 reason=override_reason,
-                performed_by=requested_by
+                performed_by=requested_by_mapping_id
             )
 
         db.add(AuditLog(
@@ -168,7 +168,7 @@ class RefundRequestService:
                 if is_override
                 else (
                     f"Request {request.request_code} for ₹{amount} "
-                    f"by {requested_by}"
+                    f"by mapping {requested_by_mapping_id}"
                 )
             ),
             performed_by=None
@@ -260,7 +260,7 @@ class RefundRequestService:
             reason=(
                 "Approved "
                 f"{request.request_code} for ₹{request.amount} "
-                f"requested by {request.requested_by}"
+                f"requested by mapping {request.requested_by_mapping_id}"
             ),
             performed_by=performed_by
         ))
@@ -294,7 +294,7 @@ class RefundRequestService:
 
         reason = (
             f"Rejected {request.request_code} for ₹{request.amount} "
-            f"requested by {request.requested_by}"
+            f"requested by mapping {request.requested_by_mapping_id}"
         )
         if rejection_reason:
             reason = f"{reason} | {rejection_reason}"
@@ -325,7 +325,8 @@ class RefundRequestService:
         *,
         event_id,
         status=None,
-        requested_by=None
+        requested_by_mapping_ids=None,
+        flat_id=None
     ):
         query = (
             db.query(RefundRequest, Flat)
@@ -338,8 +339,11 @@ class RefundRequestService:
         else:
             query = query.filter(RefundRequest.status != "approved")
 
-        if requested_by:
-            query = query.filter(RefundRequest.requested_by == requested_by)
+        if requested_by_mapping_ids:
+            query = query.filter(RefundRequest.requested_by_mapping_id.in_(requested_by_mapping_ids))
+
+        if flat_id:
+            query = query.filter(RefundRequest.flat_id == flat_id)
 
         return (
             query

@@ -1030,10 +1030,15 @@ def handle_committee_intent(
 
         lines = [format_heading("Payment Requests", "📥")]
         for request, flat in requests:
+            requester = getattr(
+                request,
+                "requested_by_mapping_id",
+                getattr(request, "requested_by", "unknown")
+            )
             lines.append(
                 f"{request.request_code} | {flat.flat_number} | "
                 f"{format_currency(request.amount)} | "
-                f"{request.requested_by} | {request.status}"
+                f"{requester} | {request.status}"
             )
 
         return success_response(join_lines(lines))
@@ -1054,10 +1059,15 @@ def handle_committee_intent(
 
         lines = [format_heading("Refund Requests", "📤")]
         for request, flat in requests:
+            requester = getattr(
+                request,
+                "requested_by_mapping_id",
+                getattr(request, "requested_by", "unknown")
+            )
             lines.append(
                 f"{request.request_code} | {flat.flat_number} | "
                 f"{format_currency(request.amount)} | "
-                f"{request.requested_by} | {request.status}"
+                f"{requester} | {request.status}"
             )
 
         return success_response(join_lines(lines))
