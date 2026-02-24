@@ -1081,7 +1081,7 @@ def whatsapp_webhook_verify(
         }
     },
 )
-async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
+async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook event")
     raw_body = await request.body()
@@ -1357,7 +1357,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                     ),
-                    role=member.role,
+                    role=str(member.role) if member.role is not None else None,
                 )
 
                 latest_event = get_latest_event(db)
@@ -1416,7 +1416,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                     ),
-                    role=member.role,
+                    role=str(member.role) if member.role is not None else None,
                 )
                 session_key = build_export_session_key(
                     member_id=str(member.id),
@@ -1504,7 +1504,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                         registry=build_whatsapp_report_registry(
                             handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                         ),
-                        role=member.role,
+                        role=str(member.role) if member.role is not None else None,
                     )
                     latest_event = get_latest_event(db)
                     session = ExportSessionState(
@@ -1564,7 +1564,7 @@ async def whatsapp_webhook_event(request: Request) -> WebhookStatusResponse:
                     registry=build_whatsapp_report_registry(
                         handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
                     ),
-                    role=member.role,
+                    role=str(member.role) if member.role is not None else None,
                 )
 
                 session_key = build_export_session_key(

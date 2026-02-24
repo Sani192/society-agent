@@ -227,7 +227,7 @@ class PaymentRequestService:
     def approve_request(
         db: Session,
         *,
-        request: PaymentRequest,
+        request,
         performed_by
     ):
         context = build_log_context(
@@ -290,7 +290,7 @@ class PaymentRequestService:
     def reject_request(
         db: Session,
         *,
-        request: PaymentRequest,
+        request,
         performed_by,
         rejection_reason=None
     ):

@@ -30,6 +30,14 @@ class Settings:
     WHATSAPP_ENABLED = _env_flag("WHATSAPP_ENABLED", "true")
     TELEGRAM_ENABLED = _env_flag("TELEGRAM_ENABLED", "true")
 
+    # Declared explicitly for static type-checkers; values are populated from env.
+    WHATSAPP_VERIFY_TOKEN: str | None
+    WHATSAPP_APP_SECRET: str | None
+    WHATSAPP_ACCESS_TOKEN: str | None
+    WHATSAPP_PHONE_NUMBER_ID: str | None
+    WHATSAPP_API_VERSION: str
+    WHATSAPP_GRAPH_BASE_URL: str
+
     ADMIN_PHONE_WHITELIST = [
         phone.strip()
         for phone in os.getenv("ADMIN_PHONE_WHITELIST", "").split(",")

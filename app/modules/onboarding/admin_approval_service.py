@@ -7,6 +7,7 @@ Created on Sun Jan 18 10:46:44 2026
 """
 
 import logging
+from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import PendingUser, Flat, AuditLog
@@ -59,7 +60,8 @@ class AdminApprovalService:
         )
         logger.info("Assigned user to flat for approval | context=%s", context)
 
-        pending.status = "approved"
+        pending_row: Any = pending
+        pending_row.status = "approved"
         db.add(AuditLog(
             society_id=pending.society_id,
             entity_type="onboarding",
