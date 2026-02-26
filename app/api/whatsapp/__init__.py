@@ -38,6 +38,9 @@ for _name in dir(_approval_flow):
     if not _name.startswith("__") and _name not in globals():
         globals()[_name] = getattr(_approval_flow, _name)
 
+# Explicit export for static type checkers.
+router = _webhook.router
+
 
 def _sync_compat_symbols() -> None:
     """Propagate patched module-level symbols into split submodules."""
