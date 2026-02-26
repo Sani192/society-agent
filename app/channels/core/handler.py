@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from app.channels.core.types import InboundMessage
 from app.commands.handlers.committee_handler import handle_committee_intent
-from app.commands.handlers.common import get_latest_event
+from app.commands.handlers.common import get_latest_event_for_society, resolve_sender_society_id
 from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
 from app.commands.router import detect_intent
@@ -105,7 +105,7 @@ def handle_inbound_message(
     *,
     session_factory: Callable[[], object] = SessionLocal,
     committee_member_resolver: Callable[..., object] = ensure_committee_member,
-    latest_event_getter: Callable[[object], object] = get_latest_event,
+    latest_event_getter: Callable[[object, object], object] = get_latest_event_for_society,
     intent_detector: Callable[[str], str | None] = detect_intent,
     onboarding_intent_handler: Callable[..., str | None] = handle_onboarding_intent,
     committee_intent_handler: Callable[..., str | None] = handle_committee_intent,
@@ -146,10 +146,20 @@ def handle_inbound_message(
                 extra={"sender_id": message.sender_id, "channel": message.channel},
             )
 
-        event = latest_event_getter(db)
+        society_id = getattr(member, "society_id", None)
+        if not society_id:
+            society_id = resolve_sender_society_id(db, canonical_sender_id)
+
+        try:
+            event = latest_event_getter(db, society_id)
+        except TypeError:
+            event = latest_event_getter(db)
         logger.info(
             "Loaded latest event context",
-            extra={"event_id": getattr(event, "id", None)},
+            extra={
+                "event_id": getattr(event, "id", None),
+                "society_id": str(society_id) if society_id else None,
+            },
         )
 
         allow_numeric_export_selection = False
@@ -201,7 +211,10 @@ def handle_inbound_message(
             report_session = get_export_session(export_session_key)
             selected_event_id = report_session.event_id if report_session else None
             if selected_event_id:
-                selected_event = db.query(Event).filter(Event.id == selected_event_id).first()
+                selected_event_query = db.query(Event).filter(Event.id == selected_event_id)
+                if society_id:
+                    selected_event_query = selected_event_query.filter(Event.society_id == society_id)
+                selected_event = selected_event_query.first()
                 if selected_event:
                     event = selected_event
 
