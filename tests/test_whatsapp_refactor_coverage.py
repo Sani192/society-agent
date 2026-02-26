@@ -6,7 +6,9 @@ from app.channels.whatsapp import report_flow
 
 
 def test_sync_compat_symbols_propagates_patched_values():
-    sentinel = lambda: None
+    def sentinel():
+        return None
+
     original = webhook_module._ensure_channel_enabled
     try:
         whatsapp_api._ensure_channel_enabled = sentinel
@@ -17,7 +19,8 @@ def test_sync_compat_symbols_propagates_patched_values():
 
 
 def test_whatsapp_webhook_event_wrapper_syncs_before_delegate(monkeypatch):
-    sentinel = lambda: None
+    def sentinel():
+        return None
 
     async def fake_delegate(_request):
         assert webhook_module._ensure_channel_enabled is sentinel
