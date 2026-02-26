@@ -32,6 +32,7 @@ from app.modules.reports.common.whatsapp_report_registry import (
 )
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.utils.logger import logger
+from app.utils.time import utc_now
 from app.permissions.guard import is_action_allowed
 from app.whatsapp.response_templates import (
     error_response,
@@ -290,7 +291,7 @@ def _handle_event_creation_wizard_step(*, db, member, message: str, session_key:
 
 
 def _recent_event_options(*, db, society_id):
-    cutoff = datetime.utcnow() - timedelta(days=365)
+    cutoff = utc_now() - timedelta(days=365)
     events = (
         db.query(Event)
         .filter(Event.society_id == society_id, Event.event_date >= cutoff)

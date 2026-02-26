@@ -12,8 +12,8 @@ import logging
 from app.workflows.rules import STATE_RULES
 from app.db.models import WorkflowState, AuditLog, CommitteeMember
 from sqlalchemy.orm import Session
-from datetime import datetime
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 OVERRIDE_ROLES = {"chairman", "secretary", "treasurer"}
@@ -146,7 +146,7 @@ class WorkflowEngine:
             action=f"OVERRIDE_{action}",
             reason=reason,
             performed_by=performed_by,
-            performed_at=datetime.utcnow()
+            performed_at=utc_now()
         )
 
         db.add(audit)
@@ -174,7 +174,7 @@ class WorkflowEngine:
 #             action=f"OVERRIDE_{action}",
 #             reason=reason,
 #             performed_by=performed_by,
-#             performed_at=datetime.utcnow()
+#             performed_at=utc_now()
 #         )
 # 
 #         db.add(audit)

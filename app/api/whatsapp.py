@@ -10,7 +10,7 @@ Created on Sun Jan 11 06:32:11 2026
 
 import hashlib
 import hmac
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
@@ -71,6 +71,7 @@ from app.whatsapp.ui import (
 from app.utils.guards import ensure_committee_member, ensure_member_of_society, normalize_phone
 from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
+from app.utils.time import utc_now
 from app.whatsapp.export_session import (
     ExportSessionState,
     build_export_session_key,
@@ -152,7 +153,7 @@ def _get_latest_event_in_context(*, db, society_id):
 def _recent_report_events(*, db, society_id) -> list[Event]:
     if not society_id:
         return []
-    cutoff = datetime.utcnow() - timedelta(days=365)
+    cutoff = utc_now() - timedelta(days=365)
     return (
         db.query(Event)
         .filter(Event.society_id == society_id, Event.event_date >= cutoff)

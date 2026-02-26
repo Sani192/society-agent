@@ -7,7 +7,6 @@ Created on Sun Jan 25 17:29:05 2026
 """
 
 import io
-from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -15,6 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from app.modules.reports.pdf.base import BasePDF
 from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
+from app.utils.time import utc_now
 
 
 def generate_balance_continuity_pdf(
@@ -46,7 +46,7 @@ def generate_balance_continuity_pdf(
     
     # Report Meta
     pdf.report_meta(elements, {
-        "Generated On": datetime.now().strftime("%d %b %Y %H:%M"),
+        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
         "Currency": "INR (₹)"
     })
     

@@ -7,13 +7,13 @@ Created on Mon Jan 26 10:29:14 2026
 """
 
 import io
-from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
 from app.modules.reports.pdf.table import build_table
+from app.utils.time import utc_now
 
 
 def generate_governance_audit_pdf(
@@ -45,7 +45,7 @@ def generate_governance_audit_pdf(
     
     # Report Meta
     pdf.report_meta(elements, {
-        "Generated On": datetime.now().strftime("%d %b %Y %H:%M"),
+        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
         "Scope": "Overrides, Manual Actions, Report Access"
     })
     

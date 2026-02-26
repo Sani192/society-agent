@@ -10,7 +10,6 @@ Created on Sat Jan 10 14:52:44 2026
 
 import logging
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.db.models import (
     Event,
@@ -21,6 +20,7 @@ from app.db.models import (
 )
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ class FoodPassService:
             food_pass.kids_count = kids_count
             food_pass.total_amount = total_amount
             food_pass.is_participating = True
-            food_pass.updated_at = datetime.utcnow()
+            food_pass.updated_at = utc_now()
             action = "UPDATE_PASS"
             logger.info("Updated existing food pass | context=%s", context)
         else:
@@ -258,7 +258,7 @@ class FoodPassService:
             food_pass.kids_count = 0
             food_pass.total_amount = 0
             food_pass.is_participating = False
-            food_pass.updated_at = datetime.utcnow()
+            food_pass.updated_at = utc_now()
             logger.info("Updated existing food pass to not participating | context=%s", context)
         else:
             food_pass = EventFoodPass(
