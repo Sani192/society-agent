@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
+
+from sqlalchemy.orm import Session
 
 from app.channels.core.types import InboundMessage
 from app.commands.handlers.committee_handler import handle_committee_intent
@@ -103,10 +106,10 @@ def _attempt_telegram_member_link(
 def handle_inbound_message(
     message: InboundMessage,
     *,
-    session_factory: Callable[[], object] = SessionLocal,
+    session_factory: Callable[[], Session] = SessionLocal,
     committee_member_resolver: Callable[..., object] = ensure_committee_member,
-    latest_event_getter: Callable[[object, object], object] = get_latest_event_for_society,
-    intent_detector: Callable[[str], str | None] = detect_intent,
+    latest_event_getter: Callable[..., Any] = get_latest_event_for_society,
+    intent_detector: Callable[..., str | None] = detect_intent,
     onboarding_intent_handler: Callable[..., str | None] = handle_onboarding_intent,
     committee_intent_handler: Callable[..., str | None] = handle_committee_intent,
     public_intent_handler: Callable[..., str | None] = handle_public_intent,
