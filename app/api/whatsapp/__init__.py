@@ -13,6 +13,9 @@ from app.channels.whatsapp import report_flow as _report_flow
 from app.channels.whatsapp import session_flows as _session_flows
 from app.channels.whatsapp import ui_router as _ui_router
 
+# Keep explicit legacy monkeypatch targets exported from this module.
+_compat_exports_anchor = (settings, get_latest_event)
+
 
 # Re-export symbols for compatibility.
 for _name in dir(_webhook):

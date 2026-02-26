@@ -10,7 +10,6 @@ from pydantic import BaseModel
 
 from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
 from app.channels.core.handler import handle_inbound_message
-from app.channels.core.types import InboundMessage
 from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.channels.whatsapp.constants import (
@@ -20,57 +19,12 @@ from app.channels.whatsapp.constants import (
 from app.channels.whatsapp.report_flow import handle_report_flow
 from app.channels.whatsapp.session_flows import handle_session_flow
 from app.channels.whatsapp.ui_router import (
-    FINANCE_EVENT_ACTIONS,
-    REPORT_INTENTS_REQUIRING_EVENT,
     WHATSAPP_LIST_MAX_ROWS,
-    WHATSAPP_MORE_REPORTS_ROW_ID,
-    _build_report_event_sections,
-    _chunk_report_options,
-    _default_report_event_id,
-    _get_latest_event_in_context,
-    _next_report_page,
-    _normalize_report_page,
-    _parse_finance_event_selection,
-    _parse_report_event_selection,
     _button_row,
-    _recent_report_events,
-    _report_page_option_limit,
     _try_handle_ui_message,
 )
 from app.config import settings
-from app.db.models import Event
-from app.db.session import SessionLocal
-from app.whatsapp.router import detect_whatsapp_intent
-from app.whatsapp.intents import WHATSAPP_INTENTS
-from app.modules.reports.common.whatsapp_report_registry import (
-    build_whatsapp_report_registry,
-    list_exportable_report_options,
-    resolve_report_entry,
-)
-from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
-from app.commands.parser import parse_pass_counts
-from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
-from app.whatsapp.export_session import (
-    ExportSessionState,
-    build_export_session_key,
-    get_export_session,
-    save_export_session,
-)
-from app.whatsapp.finance_action_session import (
-    FinanceActionSessionState,
-    build_finance_action_session_key,
-    clear_finance_action_session,
-    get_finance_action_session,
-    save_finance_action_session,
-)
-from app.whatsapp.join_session import (
-    JoinSessionState,
-    build_join_session_key,
-    clear_join_session,
-    get_join_session,
-    save_join_session,
-)
 from app.whatsapp.handler import handle_message
 
 router = APIRouter()

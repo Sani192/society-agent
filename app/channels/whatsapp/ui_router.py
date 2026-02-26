@@ -4,27 +4,10 @@
 
 from datetime import timedelta
 
-from app.channels.core.handler import handle_inbound_message
-from app.channels.core.types import InboundMessage
-from app.channels.whatsapp.constants import (
-    WHATSAPP_SIGNATURE_HEADER,
-    WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE,
-)
 from app.db.session import SessionLocal
 from app.db.models import Event, MemberIdentity, UserFlatMapping
-from app.whatsapp.router import detect_whatsapp_intent
 from app.whatsapp.intents import WHATSAPP_INTENTS
-from app.modules.reports.common.whatsapp_report_registry import (
-    build_whatsapp_report_registry,
-    list_exportable_report_options,
-    resolve_report_entry,
-)
-from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.users.user_query_service import UserQueryService
-from app.modules.onboarding.join_code_service import JoinCodeService
-from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
-from app.modules.payments.payment_request_service import PaymentRequestService
-from app.modules.payments.refund_request_service import RefundRequestService
 from app.commands.handlers.common import (
     get_latest_event,
     get_latest_event_for_society,
@@ -55,12 +38,6 @@ from app.utils.guards import ensure_committee_member, ensure_member_of_society, 
 from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
 from app.utils.time import utc_now
-from app.whatsapp.export_session import (
-    ExportSessionState,
-    build_export_session_key,
-    get_export_session,
-    save_export_session,
-)
 from app.whatsapp.finance_action_session import (
     FinanceActionSessionState,
     build_finance_action_session_key,
@@ -71,10 +48,9 @@ from app.whatsapp.finance_action_session import (
 from app.whatsapp.join_session import (
     JoinSessionState,
     build_join_session_key,
-    clear_join_session,
-    get_join_session,
     save_join_session,
 )
+from app.channels.whatsapp.approval_flow import _send_approval_selection_list
 
 WHATSAPP_LIST_MAX_ROWS = 10
 WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
@@ -397,8 +373,6 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
     )
 
 
-
-from app.channels.whatsapp.approval_flow import _send_approval_selection_list
 
 
 def _try_handle_ui_message(*, client, message) -> bool:

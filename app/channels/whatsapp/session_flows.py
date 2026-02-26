@@ -6,7 +6,6 @@ from app.commands.parser import parse_pass_counts
 from app.db.models import Event
 from app.db.session import SessionLocal
 from app.modules.onboarding.join_code_service import JoinCodeService
-from app.utils.logger import logger
 from app.whatsapp.finance_action_session import (
     FinanceActionSessionState,
     build_finance_action_session_key,
