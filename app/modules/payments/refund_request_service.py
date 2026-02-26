@@ -8,7 +8,6 @@ Created on Tue Feb 04 10:23:02 2026
 
 # app/modules/payments/refund_request_service.py
 
-from datetime import datetime
 import logging
 from sqlalchemy.orm import Session
 
@@ -23,6 +22,7 @@ from app.db.models import (
 from app.modules.payments.refund_service import RefundService
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
+from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ class RefundRequestService:
 
         request.status = "approved"
         request.approved_by = performed_by
-        request.approved_at = datetime.utcnow()
+        request.approved_at = utc_now()
 
         db.add(AuditLog(
             society_id=request.society_id,

@@ -7,13 +7,13 @@ Created on Fri Jan 23 17:35:10 2026
 """
 
 import io
-from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
 from app.modules.reports.pdf.table import build_table
+from app.utils.time import utc_now
 
 
 def generate_flat_payment_pdf(
@@ -50,7 +50,7 @@ def generate_flat_payment_pdf(
     # Report Meta
     pdf.report_meta(elements, {
         "Event": event_name,
-        "Generated On": datetime.now().strftime("%d %b %Y %H:%M"),
+        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
         "Currency": "INR (₹)"
     })
 

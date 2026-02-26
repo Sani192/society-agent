@@ -7,7 +7,6 @@ Created on Sat Jan 24 20:34:34 2026
 """
 
 import io
-from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -15,6 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from app.modules.reports.pdf.base import BasePDF
 from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
+from app.utils.time import utc_now
 
 
 def generate_event_financial_summary_pdf(
@@ -48,7 +48,7 @@ def generate_event_financial_summary_pdf(
     # Report meta
     pdf.report_meta(elements, {
         "Event": event_name,
-        "Generated On": datetime.now().strftime("%d %b %Y %H:%M"),
+        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
         "Currency": "INR (₹)"
     })
     

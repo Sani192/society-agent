@@ -10,7 +10,6 @@ Created on Sat Jan 10 15:19:25 2026
 
 import logging
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.db.models import (
     Event,
@@ -21,6 +20,7 @@ from app.db.models import (
 )
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ class PaymentService:
 
         payment.paid_amount += amount
         payment.payment_mode = payment_mode
-        payment.paid_at = datetime.utcnow()
+        payment.paid_at = utc_now()
 
         if payment.paid_amount >= expected_amount:
             payment.status = "paid"

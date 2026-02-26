@@ -7,12 +7,12 @@ Created on Mon Jan 26 11:11:43 2026
 """
 
 import io
-from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 
 from app.modules.reports.pdf.base import BasePDF
+from app.utils.time import utc_now
 
 
 def generate_public_event_summary_pdf(
@@ -44,7 +44,7 @@ def generate_public_event_summary_pdf(
     elements = []
 
     pdf.report_meta(elements, {
-        "Generated On": datetime.now().strftime("%d %b %Y"),
+        "Generated On": utc_now().strftime("%d %b %Y"),
         "Scope": "Public • Read-only"
     })
 

@@ -7,10 +7,10 @@ Created on Fri Jan 23 16:53:43 2026
 """
 
 import logging
-from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.models import Payment, Refund, EventExpense, EventContribution
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class EventFinancialSummaryReport:
         sponsor_income = sum(x[0] for x in contributions if x[0])
         closing_balance = total_paid + sponsor_income - total_expense - total_refund
 
-        generated_at = datetime.utcnow().strftime("%d %b %Y %H:%M")
+        generated_at = utc_now().strftime("%d %b %Y %H:%M")
         rows = [
             ["Income", "Flat Contributions", total_paid, generated_at, "System"],
             ["Income", "Sponsor Contributions", sponsor_income, generated_at, "System"],

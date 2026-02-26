@@ -7,13 +7,13 @@ Created on Sun Jan 25 17:07:38 2026
 """
 
 import io
-from datetime import datetime
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
 from app.modules.reports.pdf.base import BasePDF
 from app.modules.reports.pdf.table import build_table
+from app.utils.time import utc_now
 
 
 def generate_member_directory_pdf(
@@ -45,7 +45,7 @@ def generate_member_directory_pdf(
 
     # Report Meta
     pdf.report_meta(elements, {
-        "Generated On": datetime.now().strftime("%d %b %Y %H:%M")
+        "Generated On": utc_now().strftime("%d %b %Y %H:%M")
     })
     
     # Table
