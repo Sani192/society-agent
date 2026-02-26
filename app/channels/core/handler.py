@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
+
+from sqlalchemy.orm import Session
 
 from app.channels.core.types import InboundMessage
 from app.commands.handlers.committee_handler import handle_committee_intent
-from app.commands.handlers.common import get_latest_event
+from app.commands.handlers.common import get_latest_event_for_society, resolve_sender_society_id
 from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
 from app.commands.router import detect_intent
@@ -103,10 +106,10 @@ def _attempt_telegram_member_link(
 def handle_inbound_message(
     message: InboundMessage,
     *,
-    session_factory: Callable[[], object] = SessionLocal,
+    session_factory: Callable[[], Session] = SessionLocal,
     committee_member_resolver: Callable[..., object] = ensure_committee_member,
-    latest_event_getter: Callable[[object], object] = get_latest_event,
-    intent_detector: Callable[[str], str | None] = detect_intent,
+    latest_event_getter: Callable[..., Any] = get_latest_event_for_society,
+    intent_detector: Callable[..., str | None] = detect_intent,
     onboarding_intent_handler: Callable[..., str | None] = handle_onboarding_intent,
     committee_intent_handler: Callable[..., str | None] = handle_committee_intent,
     public_intent_handler: Callable[..., str | None] = handle_public_intent,
@@ -146,10 +149,20 @@ def handle_inbound_message(
                 extra={"sender_id": message.sender_id, "channel": message.channel},
             )
 
-        event = latest_event_getter(db)
+        society_id = getattr(member, "society_id", None)
+        if not society_id:
+            society_id = resolve_sender_society_id(db, canonical_sender_id)
+
+        try:
+            event = latest_event_getter(db, society_id)
+        except TypeError:
+            event = latest_event_getter(db)
         logger.info(
             "Loaded latest event context",
-            extra={"event_id": getattr(event, "id", None)},
+            extra={
+                "event_id": getattr(event, "id", None),
+                "society_id": str(society_id) if society_id else None,
+            },
         )
 
         allow_numeric_export_selection = False
@@ -201,7 +214,10 @@ def handle_inbound_message(
             report_session = get_export_session(export_session_key)
             selected_event_id = report_session.event_id if report_session else None
             if selected_event_id:
-                selected_event = db.query(Event).filter(Event.id == selected_event_id).first()
+                selected_event_query = db.query(Event).filter(Event.id == selected_event_id)
+                if society_id:
+                    selected_event_query = selected_event_query.filter(Event.society_id == society_id)
+                selected_event = selected_event_query.first()
                 if selected_event:
                     event = selected_event
 

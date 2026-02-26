@@ -17,7 +17,7 @@ from app.whatsapp.response_templates import (
     success_response,
 )
 from app.commands.parser import parse_target_phone
-from app.commands.handlers.common import get_latest_event
+from app.commands.handlers.common import get_latest_event, resolve_sender_society_id
 
 
 def handle_onboarding_intent(
@@ -70,11 +70,13 @@ def handle_onboarding_intent(
         )
 
     if intent == "JOIN_STATUS":
-        latest_event = get_latest_event(db)
-        if not latest_event:
+        society_id = getattr(member, "society_id", None) or resolve_sender_society_id(db, phone_number)
+        if not society_id:
+            latest_event = get_latest_event(db)
+            society_id = getattr(latest_event, "society_id", None)
+        if not society_id:
             return error_response("No society context found.")
 
-        society_id = latest_event.society_id
 
         target_phone = None
         if member:

@@ -41,7 +41,12 @@ from app.modules.onboarding.join_code_service import JoinCodeService
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
 from app.modules.payments.payment_request_service import PaymentRequestService
 from app.modules.payments.refund_request_service import RefundRequestService
-from app.commands.handlers.common import get_latest_event, resolve_flat
+from app.commands.handlers.common import (
+    get_latest_event,
+    get_latest_event_for_society,
+    resolve_flat,
+    resolve_sender_society_id,
+)
 from app.commands.parser import parse_pass_counts
 from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
@@ -135,6 +140,13 @@ def _next_report_page(current_page: int, total_pages: int) -> int:
     return (current_page + 1) % total_pages
 
 
+
+
+def _get_latest_event_in_context(*, db, society_id):
+    event = get_latest_event_for_society(db, society_id)
+    if event:
+        return event
+    return get_latest_event(db)
 
 
 def _recent_report_events(*, db, society_id) -> list[Event]:
@@ -239,8 +251,8 @@ def _parse_finance_event_selection(message_text: str) -> str | None:
     return text[len(WHATSAPP_FINANCE_EVENT_ROW_PREFIX):].strip() or None
 
 
-def _select_event_for_finance_action(*, db, sender_id: str, action: str) -> tuple[Event | None, bool]:
-    latest_event = get_latest_event(db)
+def _select_event_for_finance_action(*, db, sender_id: str, society_id, action: str) -> tuple[Event | None, bool]:
+    latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
     if latest_event and str((latest_event.status or "").upper()) in REPORT_AUTO_EVENT_STATES:
         return latest_event, True
 
@@ -289,6 +301,18 @@ def _get_committee_member(*, db, sender_id: str, external_user_id: str):
         )
     except Exception:
         return None
+
+
+def _resolve_sender_society_context(*, db, sender_id: str, external_user_id: str):
+    committee_member = _get_committee_member(
+        db=db,
+        sender_id=sender_id,
+        external_user_id=external_user_id,
+    )
+    committee_society_id = getattr(committee_member, "society_id", None) if committee_member else None
+    if committee_society_id:
+        return committee_society_id, committee_member
+    return resolve_sender_society_id(db, sender_id), committee_member if committee_member else None
 
 
 def _is_registered_member_for_sender(*, db, sender_id: str) -> bool:
@@ -344,9 +368,9 @@ def _with_navigation(
     return [*sections, {"title": "Navigation", "rows": nav_rows}] if nav_rows else sections
 
 
-def _get_current_event_state(db) -> str | None:
+def _get_current_event_state(db, society_id) -> str | None:
     try:
-        return get_event_state(get_latest_event(db))
+        return get_event_state(_get_latest_event_in_context(db=db, society_id=society_id))
     except Exception:
         return None
 
@@ -410,7 +434,9 @@ def _send_approval_selection_list(
         client.send_text_message(sender_id, "Access restricted.")
         return True
 
-    latest_event = get_latest_event(db)
+    committee_member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=external_user_id)
+    society_id = getattr(committee_member, "society_id", None)
+    latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
     if not latest_event:
         client.send_text_message(sender_id, "No active event found.")
         return True
@@ -514,12 +540,13 @@ def _try_handle_ui_message(*, client, message) -> bool:
         db = SessionLocal()
         try:
             try:
-                latest_event = get_latest_event(db)
-                is_committee = _is_committee_member(
+                society_id, committee_member = _resolve_sender_society_context(
                     db=db,
                     sender_id=canonical_sender,
                     external_user_id=message.sender_id,
                 )
+                latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
+                is_committee = committee_member is not None
                 is_society_member = False
                 if not is_committee:
                     is_society_member = _is_registered_member_for_sender(
@@ -557,12 +584,13 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg in {"menu", "help", "ui::menu", "ui::menu:more"}:
         db = SessionLocal()
         try:
-            latest_event = get_latest_event(db)
-            is_committee = _is_committee_member(
+            society_id, committee_member = _resolve_sender_society_context(
                 db=db,
                 sender_id=canonical_sender,
                 external_user_id=message.sender_id,
             )
+            latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
+            is_committee = committee_member is not None
             is_society_member = False
             if latest_event and not is_committee:
                 try:
@@ -608,9 +636,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::participation":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = _get_current_event_state(db)
+            society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            is_committee = committee_member is not None
+            event_state = _get_current_event_state(db, society_id)
             can_add_pass = is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -626,9 +654,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::participation:add-update-pass":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = _get_current_event_state(db)
+            society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            is_committee = committee_member is not None
+            event_state = _get_current_event_state(db, society_id)
             if not is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Pass updates are available only when event is active.")
                 return True
@@ -655,9 +683,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::finance:view-balance":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
             finance_session = get_finance_action_session(finance_session_key)
+            society_id, _committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             selected_event = None
             if finance_session and finance_session.pending_action == "VIEW_BALANCE" and finance_session.event_id:
                 selected_event = db.query(Event).filter(Event.id == finance_session.event_id).first()
@@ -665,6 +693,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 selected_event, _ = _select_event_for_finance_action(
                     db=db,
                     sender_id=canonical_sender,
+                    society_id=society_id,
                     action="VIEW_BALANCE",
                 )
             if not selected_event:
@@ -699,8 +728,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::make-payment":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            is_committee = committee_member is not None
             finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
             finance_session = get_finance_action_session(finance_session_key)
             selected_event = None
@@ -710,11 +739,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 selected_event, _ = _select_event_for_finance_action(
                     db=db,
                     sender_id=canonical_sender,
+                    society_id=society_id,
                     action="MAKE_PAYMENT",
                 )
-            if selected_event and not is_member_action_visible(intent="PAY", event_state=get_event_state(selected_event), is_committee=is_committee):
-                client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
-                return True
             if not selected_event:
                 return _request_finance_event_selection(
                     client=client,
@@ -725,7 +752,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 )
             flat = resolve_flat(db, phone_number=canonical_sender, society_id=selected_event.society_id)
             balance = UserQueryService.get_my_balance(db=db, event_id=selected_event.id, flat_id=flat.id)
-            outstanding = max(balance["balance"], 0)
+            outstanding = balance.get("balance", 0)
+            if outstanding <= 0:
+                client.send_text_message(message.sender_id, "No outstanding balance to pay.")
+                return True
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Make Payment",
@@ -754,9 +784,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::request-refund":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = _get_current_event_state(db)
+            society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            is_committee = committee_member is not None
+            event_state = _get_current_event_state(db, society_id)
             if not is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=is_committee):
                 client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
                 return True
@@ -802,9 +832,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::finance":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            is_committee = _is_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
-            event_state = _get_current_event_state(db)
+            society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            is_committee = committee_member is not None
+            event_state = _get_current_event_state(db, society_id)
             can_use_payment = is_member_action_visible(intent="PAY", event_state=event_state, is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -820,12 +850,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg == "ui::reports":
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
-            is_committee = _is_committee_member(
-                db=db,
-                sender_id=canonical_sender,
-                external_user_id=message.sender_id,
-            )
+            _society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            is_committee = committee_member is not None
             sections = build_reports_sections(is_committee=is_committee)
             client.send_list_message(
                 to_phone=message.sender_id,
@@ -841,7 +867,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
     if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports"}:
         db = SessionLocal()
         try:
-            canonical_sender = message.metadata.get("canonical_sender_id") or message.sender_id
             member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             if not member:
                 client.send_text_message(message.sender_id, "Access restricted.")
@@ -877,7 +902,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     sections=sections,
                     back_id=back_id,
                     include_main_menu=True,
-                    
+
                 ),
             )
             return True
@@ -1302,7 +1327,7 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
                     channel_type="whatsapp",
                     external_user_id=message.sender_id,
                 )
-                latest_event = get_latest_event(db)
+                latest_event = _get_latest_event_in_context(db=db, society_id=member.society_id)
                 default_event_id = _default_report_event_id(latest_event)
                 if not default_event_id:
                     session_key = build_export_session_key(
@@ -1360,7 +1385,7 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
                     role=str(member.role) if member.role is not None else None,
                 )
 
-                latest_event = get_latest_event(db)
+                latest_event = _get_latest_event_in_context(db=db, society_id=member.society_id)
                 session_key = build_export_session_key(
                     member_id=str(member.id),
                     sender_id=canonical_sender,
@@ -1506,7 +1531,7 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
                         ),
                         role=str(member.role) if member.role is not None else None,
                     )
-                    latest_event = get_latest_event(db)
+                    latest_event = _get_latest_event_in_context(db=db, society_id=member.society_id)
                     session = ExportSessionState(
                         options=report_options,
                         current_page=0,
