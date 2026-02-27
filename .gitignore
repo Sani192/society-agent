@@ -15,3 +15,8 @@ logs/
 # Editor
 .vscode/
 .idea/
+
+# Local database snapshots
+*.db
+*.sqlite
+*.sqlite3
