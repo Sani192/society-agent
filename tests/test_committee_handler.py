@@ -30,7 +30,7 @@ def test_committee_add_expense_success(monkeypatch):
         called["added"] = True
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ExpenseService.add_expense",
+        "app.handlers.shared.committee.ExpenseService.add_expense",
         fake_add_expense,
     )
 
@@ -77,7 +77,7 @@ def test_committee_pending_payments_success(monkeypatch):
     member = SimpleNamespace(id="member-1", role="treasurer")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.PendingPaymentReport.get_pending_flats",
+        "app.handlers.shared.committee.PendingPaymentReport.get_pending_flats",
         lambda **kwargs: [{"flat": "A-101", "pending": 200}],
     )
 
@@ -104,7 +104,7 @@ def test_committee_payment_requests(monkeypatch):
     flat = SimpleNamespace(flat_number="A-101")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.PaymentRequestService.list_requests",
+        "app.handlers.shared.committee.PaymentRequestService.list_requests",
         lambda **kwargs: [(request, flat)],
     )
 
@@ -132,7 +132,7 @@ def test_committee_refund_requests(monkeypatch):
     flat = SimpleNamespace(flat_number="B-201")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.RefundRequestService.list_requests",
+        "app.handlers.shared.committee.RefundRequestService.list_requests",
         lambda **kwargs: [(request, flat)],
     )
 
@@ -153,7 +153,7 @@ def test_committee_participation_report(monkeypatch):
     member = SimpleNamespace(id="member-1", role="chairman")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.EventParticipationReport.generate",
+        "app.handlers.shared.committee.EventParticipationReport.generate",
         lambda **kwargs: {"participating": ["A-101"], "not_participating": ["A-102"]},
     )
 
@@ -198,7 +198,7 @@ def test_committee_add_expense_guided_flow(monkeypatch):
         called["amount"] = kwargs["amount"]
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ExpenseService.add_expense",
+        "app.handlers.shared.committee.ExpenseService.add_expense",
         fake_add_expense,
     )
 
@@ -251,7 +251,7 @@ def test_committee_add_sponsor_guided_flow(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ContributionService.add_contribution",
+        "app.handlers.shared.committee.ContributionService.add_contribution",
         fake_add_contribution,
     )
 
@@ -307,7 +307,7 @@ def test_committee_refund_sponsor_guided_flow(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        "app.handlers.shared.committee.ContributionRefundService.process_refund",
         fake_process_refund,
     )
 
@@ -414,7 +414,7 @@ def test_committee_approve_user(monkeypatch):
         called["approved"] = True
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.AdminApprovalService.approve_user",
+        "app.handlers.shared.committee.AdminApprovalService.approve_user",
         fake_approve_user,
     )
 
@@ -459,7 +459,7 @@ def test_committee_pending_users(monkeypatch):
     ]
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.AdminOnboardingQueryService.list_pending_users",
+        "app.handlers.shared.committee.AdminOnboardingQueryService.list_pending_users",
         lambda **kwargs: pending,
     )
 
@@ -480,7 +480,7 @@ def test_committee_approve_payment(monkeypatch):
     request = SimpleNamespace(request_code="PAY-001", status="requested")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
+        "app.handlers.shared.committee.PaymentRequestService.get_request_by_code",
         lambda **kwargs: request,
     )
 
@@ -490,7 +490,7 @@ def test_committee_approve_payment(monkeypatch):
         called["approved"] = kwargs["request"].request_code
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.PaymentRequestService.approve_request",
+        "app.handlers.shared.committee.PaymentRequestService.approve_request",
         fake_approve_request,
     )
 
@@ -511,7 +511,7 @@ def test_committee_approve_payment_not_found(monkeypatch):
     member = SimpleNamespace(id="member-1", role="treasurer")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
+        "app.handlers.shared.committee.PaymentRequestService.get_request_by_code",
         lambda **kwargs: None,
     )
 
@@ -532,7 +532,7 @@ def test_committee_approve_payment_already_processed(monkeypatch):
     request = SimpleNamespace(request_code="PAY-002", status="approved")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.PaymentRequestService.get_request_by_code",
+        "app.handlers.shared.committee.PaymentRequestService.get_request_by_code",
         lambda **kwargs: request,
     )
 
@@ -553,7 +553,7 @@ def test_committee_approve_refund(monkeypatch):
     request = SimpleNamespace(request_code="REF-001", status="requested")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.RefundRequestService.get_request_by_code",
+        "app.handlers.shared.committee.RefundRequestService.get_request_by_code",
         lambda **kwargs: request,
     )
 
@@ -563,7 +563,7 @@ def test_committee_approve_refund(monkeypatch):
         called["approved"] = kwargs["request"].request_code
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.RefundRequestService.approve_request",
+        "app.handlers.shared.committee.RefundRequestService.approve_request",
         fake_approve_refund,
     )
 
@@ -589,7 +589,7 @@ def test_committee_refund_sponsor_surfaces_error(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        "app.handlers.shared.committee.ContributionRefundService.process_refund",
         fake_process_refund,
     )
 
@@ -617,7 +617,7 @@ def test_committee_refund_sponsor_prompts_override_when_required(monkeypatch):
         raise Exception("Action 'REFUND_CONTRIBUTION' requires override in state 'CLOSED'")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        "app.handlers.shared.committee.ContributionRefundService.process_refund",
         fake_process_refund,
     )
 
@@ -642,7 +642,7 @@ def test_committee_refund_sponsor_direct_passes_override_reason(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+        "app.handlers.shared.committee.ContributionRefundService.process_refund",
         fake_process_refund,
     )
 
@@ -664,7 +664,7 @@ def test_committee_approve_refund_already_processed(monkeypatch):
     request = SimpleNamespace(request_code="REF-002", status="approved")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.RefundRequestService.get_request_by_code",
+        "app.handlers.shared.committee.RefundRequestService.get_request_by_code",
         lambda **kwargs: request,
     )
 
@@ -792,7 +792,7 @@ def test_committee_add_event_wizard_completes_and_creates_event(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.committee_handler.EventService.create_event",
+        "app.handlers.shared.committee.EventService.create_event",
         fake_create_event,
     )
 
@@ -900,19 +900,19 @@ def test_committee_add_event_wizard_reprompts_on_invalid_date():
         (
             "ADD_EXPENSE",
             "expense water 1200 override closed correction",
-            "app.whatsapp.handlers.committee_handler.ExpenseService.add_expense",
+            "app.handlers.shared.committee.ExpenseService.add_expense",
             ["chairman", "secretary", "treasurer"],
         ),
         (
             "ADD_SPONSOR",
             "add sponsor ABC Corp 5000 override closed correction",
-            "app.whatsapp.handlers.committee_handler.ContributionService.add_contribution",
+            "app.handlers.shared.committee.ContributionService.add_contribution",
             ["chairman", "secretary", "treasurer"],
         ),
         (
             "REFUND_SPONSOR",
             "refund sponsor SP-001 500 reason duplicate charge override closed correction",
-            "app.whatsapp.handlers.committee_handler.ContributionRefundService.process_refund",
+            "app.handlers.shared.committee.ContributionRefundService.process_refund",
             ["chairman", "secretary", "treasurer"],
         ),
     ],
@@ -921,7 +921,7 @@ def test_closed_override_allows_all_committee_roles(monkeypatch, intent, message
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler._event_state_for_intent",
+        "app.handlers.shared.committee._event_state_for_intent",
         lambda **kwargs: "CLOSED",
     )
 
@@ -951,7 +951,7 @@ def test_closed_override_still_blocks_missing_reason(monkeypatch):
     member = SimpleNamespace(id="member-1", role="treasurer")
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler._event_state_for_intent",
+        "app.handlers.shared.committee._event_state_for_intent",
         lambda **kwargs: "CLOSED",
     )
 

@@ -18,7 +18,7 @@ def test_onboarding_join_requires_args():
 
 def test_onboarding_join_invalid_code(monkeypatch):
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.JoinCodeService.get_society_by_join_code",
+        "app.handlers.shared.onboarding.JoinCodeService.get_society_by_join_code",
         lambda *args, **kwargs: None
     )
 
@@ -37,11 +37,11 @@ def test_onboarding_join_auto_approved(monkeypatch):
     society = SimpleNamespace(id="soc-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.JoinCodeService.get_society_by_join_code",
+        "app.handlers.shared.onboarding.JoinCodeService.get_society_by_join_code",
         lambda *args, **kwargs: society
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingService.start_onboarding",
+        "app.handlers.shared.onboarding.OnboardingService.start_onboarding",
         lambda **kwargs: "APPROVED"
     )
 
@@ -60,11 +60,11 @@ def test_onboarding_join_pending(monkeypatch):
     society = SimpleNamespace(id="soc-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.JoinCodeService.get_society_by_join_code",
+        "app.handlers.shared.onboarding.JoinCodeService.get_society_by_join_code",
         lambda *args, **kwargs: society
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingService.start_onboarding",
+        "app.handlers.shared.onboarding.OnboardingService.start_onboarding",
         lambda **kwargs: "REQ-003"
     )
 
@@ -83,7 +83,7 @@ def test_onboarding_join_surfaces_error(monkeypatch):
     society = SimpleNamespace(id="soc-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.JoinCodeService.get_society_by_join_code",
+        "app.handlers.shared.onboarding.JoinCodeService.get_society_by_join_code",
         lambda *args, **kwargs: society
     )
 
@@ -91,7 +91,7 @@ def test_onboarding_join_surfaces_error(monkeypatch):
         raise Exception("You are already registered with this society.")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingService.start_onboarding",
+        "app.handlers.shared.onboarding.OnboardingService.start_onboarding",
         fake_start_onboarding
     )
 
@@ -111,7 +111,7 @@ def test_onboarding_join_committee_for_phone(monkeypatch):
     member = SimpleNamespace(id="member-1", role="chairman")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.JoinCodeService.get_society_by_join_code",
+        "app.handlers.shared.onboarding.JoinCodeService.get_society_by_join_code",
         lambda *args, **kwargs: society
     )
 
@@ -122,7 +122,7 @@ def test_onboarding_join_committee_for_phone(monkeypatch):
         return "APPROVED"
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingService.start_onboarding",
+        "app.handlers.shared.onboarding.OnboardingService.start_onboarding",
         fake_start_onboarding
     )
 
@@ -141,11 +141,11 @@ def test_onboarding_join_committee_for_phone(monkeypatch):
 def test_onboarding_join_status(monkeypatch):
     event = SimpleNamespace(society_id="soc-1")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.get_latest_event",
+        "app.handlers.shared.onboarding.get_latest_event",
         lambda db: event
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingQueryService.get_user_join_status",
+        "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: "APPROVED"
     )
 
@@ -163,11 +163,11 @@ def test_onboarding_join_status(monkeypatch):
 def test_onboarding_join_status_pending(monkeypatch):
     event = SimpleNamespace(society_id="soc-1")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.get_latest_event",
+        "app.handlers.shared.onboarding.get_latest_event",
         lambda db: event
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingQueryService.get_user_join_status",
+        "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: "PENDING"
     )
 
@@ -185,11 +185,11 @@ def test_onboarding_join_status_pending(monkeypatch):
 def test_onboarding_join_status_not_found(monkeypatch):
     event = SimpleNamespace(society_id="soc-1")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.get_latest_event",
+        "app.handlers.shared.onboarding.get_latest_event",
         lambda db: event
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingQueryService.get_user_join_status",
+        "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: None
     )
 
@@ -208,7 +208,7 @@ def test_onboarding_join_status_committee_for_phone(monkeypatch):
     event = SimpleNamespace(society_id="soc-1")
     member = SimpleNamespace(id="member-1", role="chairman")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.get_latest_event",
+        "app.handlers.shared.onboarding.get_latest_event",
         lambda db: event
     )
 
@@ -219,7 +219,7 @@ def test_onboarding_join_status_committee_for_phone(monkeypatch):
         return "APPROVED"
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.OnboardingQueryService.get_user_join_status",
+        "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         fake_status
     )
 
@@ -237,7 +237,7 @@ def test_onboarding_join_status_committee_for_phone(monkeypatch):
 
 def test_onboarding_join_status_no_event(monkeypatch):
     monkeypatch.setattr(
-        "app.whatsapp.handlers.onboarding_handler.get_latest_event",
+        "app.handlers.shared.onboarding.get_latest_event",
         lambda db: None
     )
 

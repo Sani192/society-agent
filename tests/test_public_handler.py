@@ -17,7 +17,7 @@ def test_public_add_pass_success(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
@@ -27,7 +27,7 @@ def test_public_add_pass_success(monkeypatch):
         called["payload"] = kwargs
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.FoodPassService.add_or_update_pass",
+        "app.handlers.shared.public.FoodPassService.add_or_update_pass",
         fake_add_or_update_pass
     )
 
@@ -74,13 +74,13 @@ def test_public_pay_request_for_member(monkeypatch):
     flat = SimpleNamespace(id="flat-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
     request = SimpleNamespace(request_code="PAY-001")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.request_payment",
+        "app.handlers.shared.public.PaymentRequestService.request_payment",
         lambda **kwargs: request
     )
 
@@ -102,13 +102,13 @@ def test_public_pay_committee_approves_request(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
     request = SimpleNamespace(request_code="PAY-002")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.find_matching_request",
+        "app.handlers.shared.public.PaymentRequestService.find_matching_request",
         lambda **kwargs: request
     )
 
@@ -118,7 +118,7 @@ def test_public_pay_committee_approves_request(monkeypatch):
         called["approved"] = True
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.approve_request",
+        "app.handlers.shared.public.PaymentRequestService.approve_request",
         fake_approve_request
     )
 
@@ -141,11 +141,11 @@ def test_public_pay_committee_records_payment(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.find_matching_request",
+        "app.handlers.shared.public.PaymentRequestService.find_matching_request",
         lambda **kwargs: None
     )
 
@@ -155,7 +155,7 @@ def test_public_pay_committee_records_payment(monkeypatch):
         called["recorded"] = True
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentService.record_payment",
+        "app.handlers.shared.public.PaymentService.record_payment",
         fake_record_payment
     )
 
@@ -190,13 +190,13 @@ def test_public_refund_request_for_member(monkeypatch):
     flat = SimpleNamespace(id="flat-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
     request = SimpleNamespace(request_code="REF-001")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundRequestService.request_refund",
+        "app.handlers.shared.public.RefundRequestService.request_refund",
         lambda **kwargs: request
     )
 
@@ -217,7 +217,7 @@ def test_public_refund_request_surfaces_error(monkeypatch):
     flat = SimpleNamespace(id="flat-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
@@ -225,7 +225,7 @@ def test_public_refund_request_surfaces_error(monkeypatch):
         raise Exception("Invalid flat number.")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundRequestService.request_refund",
+        "app.handlers.shared.public.RefundRequestService.request_refund",
         fake_request_refund
     )
 
@@ -247,13 +247,13 @@ def test_public_refund_committee_approves_request(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
     request = SimpleNamespace(request_code="REF-002")
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundRequestService.find_matching_request",
+        "app.handlers.shared.public.RefundRequestService.find_matching_request",
         lambda **kwargs: request
     )
 
@@ -263,7 +263,7 @@ def test_public_refund_committee_approves_request(monkeypatch):
         called["approved"] = True
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundRequestService.approve_request",
+        "app.handlers.shared.public.RefundRequestService.approve_request",
         fake_approve_request
     )
 
@@ -286,11 +286,11 @@ def test_public_refund_committee_surfaces_error(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundRequestService.find_matching_request",
+        "app.handlers.shared.public.RefundRequestService.find_matching_request",
         lambda **kwargs: None
     )
 
@@ -298,7 +298,7 @@ def test_public_refund_committee_surfaces_error(monkeypatch):
         raise Exception("Refund amount exceeds paid amount")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundService.process_refund",
+        "app.handlers.shared.public.RefundService.process_refund",
         fake_process_refund
     )
 
@@ -320,12 +320,12 @@ def test_public_my_pass_success(monkeypatch):
     food_pass = SimpleNamespace(veg_count=1, jain_count=0, kids_count=1)
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: flat
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_pass",
+        "app.handlers.shared.public.UserQueryService.get_my_pass",
         lambda **kwargs: food_pass
     )
 
@@ -360,12 +360,12 @@ def test_public_my_payment_requests(monkeypatch):
     request_flat = SimpleNamespace(flat_number="A-101")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: member_flat
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
+        "app.handlers.shared.public.PaymentRequestService.list_requests",
         lambda **kwargs: [(request, request_flat)]
     )
 
@@ -389,12 +389,12 @@ def test_public_my_refund_requests(monkeypatch):
     request_flat = SimpleNamespace(flat_number="B-101")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: member_flat
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.RefundRequestService.list_requests",
+        "app.handlers.shared.public.RefundRequestService.list_requests",
         lambda **kwargs: [(request, request_flat)]
     )
 
@@ -424,22 +424,22 @@ def test_public_my_payments(monkeypatch):
     db.query.return_value = QueryMock(first_result=payment)
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: member_flat
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_payment_summary",
+        "app.handlers.shared.public.UserQueryService.get_my_payment_summary",
         lambda **kwargs: {"paid": 400, "refunded": 0, "net_paid": 400}
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_balance",
+        "app.handlers.shared.public.UserQueryService.get_my_balance",
         lambda **kwargs: {"expected": 500, "paid": 400, "balance": 100}
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
+        "app.handlers.shared.public.PaymentRequestService.list_requests",
         lambda **kwargs: [(request, request_flat), (pending_request, pending_flat)]
     )
 
@@ -469,22 +469,22 @@ def test_public_my_payments_no_requests(monkeypatch):
     db.query.return_value = QueryMock(first_result=payment)
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.resolve_flat",
+        "app.handlers.shared.public.resolve_flat",
         lambda *args, **kwargs: member_flat
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_payment_summary",
+        "app.handlers.shared.public.UserQueryService.get_my_payment_summary",
         lambda **kwargs: {"paid": 0, "refunded": 0, "net_paid": 0}
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.UserQueryService.get_my_balance",
+        "app.handlers.shared.public.UserQueryService.get_my_balance",
         lambda **kwargs: {"expected": 800, "paid": 0, "balance": 800}
     )
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PaymentRequestService.list_requests",
+        "app.handlers.shared.public.PaymentRequestService.list_requests",
         lambda **kwargs: []
     )
 
@@ -524,7 +524,7 @@ def test_public_summary_formats_currency(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.PublicEventSummaryReport.generate",
+        "app.handlers.shared.public.PublicEventSummaryReport.generate",
         lambda **kwargs: {
             "participants": 12,
             "income": 1200,
@@ -555,7 +555,7 @@ def test_public_block_report_formats_currency(monkeypatch):
     member = SimpleNamespace(id="member-1")
 
     monkeypatch.setattr(
-        "app.whatsapp.handlers.public_handler.BlockContributionReport.generate",
+        "app.handlers.shared.public.BlockContributionReport.generate",
         lambda **kwargs: {"Block A": 2500}
     )
 
