@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from typing import Any, cast
 
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -29,7 +30,6 @@ MAX_SENDS_PER_BATCH = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_BATCH", 
 MAX_SENDS_PER_MINUTE = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_MINUTE", "60"))
 ERROR_RATE_THRESHOLD = float(getattr(settings, "ANNOUNCEMENT_ERROR_RATE_THRESHOLD", "0.4"))
 CIRCUIT_BREAKER_MIN_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_CIRCUIT_BREAKER_MIN_ATTEMPTS", "10"))
-TEMPLATE_NAME = getattr(settings, "ANNOUNCEMENT_WHATSAPP_TEMPLATE_NAME", None)
 
 announcement_delivery_scheduler = BackgroundScheduler()
 
@@ -58,7 +58,14 @@ def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | 
     if not state.get("opt_in"):
         return "skipped_no_opt_in", "Recipient has no opt-in state for WhatsApp announcements"
 
-    if not TEMPLATE_NAME:
+    if not delivery.rendered_payload:
+        return "failed_template_required", "Announcement rendered payload is missing"
+
+    payload: dict[str, Any] = (
+        cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
+    )
+    template_name = str(payload.get("template_name") or "").strip()
+    if not template_name:
         return "failed_template_required", "Announcement template is not configured"
 
     return "sent_template", None
@@ -84,12 +91,20 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
         uses_template_path=policy_outcome == "sent_template",
     )
 
+    payload: dict[str, Any] = (
+        cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
+    )
+    template_name = str(payload.get("template_name"))
+    body_parameters = list(payload.get("body_parameters") or [])
+
+    if not body_parameters or any(not str(param).strip() for param in body_parameters):
+        raise ValueError("Announcement payload has empty template placeholders")
+
     client = get_whatsapp_client()
-    template_name = str(TEMPLATE_NAME)
     client.send_template_message(
         to_phone=str(delivery.recipient_id),
         template_name=template_name,
-        body_parameters=[delivery.announcement.message_text[:128]],
+        body_parameters=body_parameters,
     )
     return "sent_template", None
 
