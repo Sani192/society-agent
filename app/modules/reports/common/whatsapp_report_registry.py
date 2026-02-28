@@ -89,6 +89,14 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         requires_event_id=False,
     ),
     WhatsAppReportDefinition(
+        category="admin",
+        report_code="ANNOUNCEMENT_HISTORY",
+        report_key="announcement-history",
+        label="Announcement History",
+        requires_event_id=False,
+        supported_formats=("csv", "excel"),
+    ),
+    WhatsAppReportDefinition(
         category="governance",
         report_code="GOVERNANCE_AUDIT",
         report_key="audit",

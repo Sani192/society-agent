@@ -122,6 +122,63 @@
         "summary": "Health Check"
       }
     },
+    "/reports/admin/announcements/export": {
+      "get": {
+        "operationId": "export_announcement_history_reports_admin_announcements_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "phone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Phone"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "csv",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Announcement History",
+        "tags": [
+          "Reports | Admin"
+        ]
+      }
+    },
     "/reports/admin/members/export": {
       "get": {
         "operationId": "export_member_directory_reports_admin_members_export_get",

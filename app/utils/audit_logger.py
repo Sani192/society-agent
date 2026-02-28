@@ -30,3 +30,28 @@ def log_report_access(
 
     db.add(log)
     db.commit()
+
+
+
+def log_announcement_creation(
+    db: Session,
+    *,
+    society_id,
+    announcement_id,
+    announcement_type: str,
+    message_text: str,
+    performed_by,
+):
+    preview = (message_text or "").strip().replace("\n", " ")[:80]
+    reason = f"type={announcement_type}; preview={preview}" if preview else f"type={announcement_type}"
+
+    log = AuditLog(
+        society_id=society_id,
+        entity_type="announcement",
+        entity_id=announcement_id,
+        action="CREATE_ANNOUNCEMENT",
+        reason=reason,
+        performed_by=performed_by,
+    )
+
+    db.add(log)
