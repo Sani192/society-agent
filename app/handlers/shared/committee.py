@@ -8,6 +8,7 @@ Created on Tue Feb 04 10:33:10 2026
 
 # app/whatsapp/handlers/committee_handler.py
 
+import threading
 from datetime import datetime, timedelta
 
 from sqlalchemy import func
@@ -19,8 +20,6 @@ from app.db.models import (
     Refund,
     EventFoodPass,
     WorkflowState,
-    MemberIdentity,
-    UserFlatMapping,
 )
 from app.modules.expenses.expense_service import ExpenseService
 from app.modules.onboarding.admin_approval_service import AdminApprovalService
@@ -34,6 +33,9 @@ from app.modules.contributions.contribution_refund_service import (
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.events.service import EventService
+from app.modules.announcements.delivery_worker import run_pending_announcement_deliveries
+from app.modules.announcements.recipient_service import AnnouncementRecipientService
+from app.modules.announcements.service import AnnouncementService
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.reports.common.whatsapp_report_registry import (
     build_whatsapp_report_registry,
@@ -124,52 +126,87 @@ ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH = 4096
 
 
 def _extract_announcement_body(*, message: str, command_prefix: str) -> str:
-    normalized_message = (message or "").strip()
-    if normalized_message.lower().startswith(command_prefix.lower()):
-        return normalized_message[len(command_prefix):].strip()
+    raw_message = message or ""
+    left_trimmed_message = raw_message.lstrip()
+    if left_trimmed_message.lower().startswith(command_prefix.lower()):
+        return left_trimmed_message[len(command_prefix):]
     return ""
 
 
-def _list_society_recipient_phones(*, db, society_id) -> list[str]:
-    recipients = (
-        db.query(MemberIdentity.normalized_phone)
-        .join(UserFlatMapping, UserFlatMapping.member_identity_id == MemberIdentity.id)
+def _resolve_current_event(*, db, society_id):
+    return (
+        db.query(Event)
         .filter(
-            UserFlatMapping.society_id == society_id,
-            UserFlatMapping.is_active.is_(True),
-            MemberIdentity.normalized_phone.isnot(None),
+            Event.society_id == society_id,
+            Event.status.in_(["ACTIVE", "LOCKED", "EVENT_DAY"]),
         )
-        .all()
+        .order_by(Event.event_date.desc())
+        .first()
     )
 
-    unique_phones: list[str] = []
-    seen: set[str] = set()
-    for row in recipients:
-        if isinstance(row, tuple):
-            phone = row[0]
-        else:
-            phone = getattr(row, "normalized_phone", None)
-        if not phone or phone in seen:
-            continue
-        seen.add(phone)
-        unique_phones.append(phone)
-    return unique_phones
+
+def _trigger_announcement_delivery_async() -> None:
+    thread = threading.Thread(
+        target=run_pending_announcement_deliveries,
+        kwargs={"batch_size": 20},
+        daemon=True,
+    )
+    thread.start()
 
 
-def _queue_announcement(*, db, member, event, message_body: str, scope: str) -> int:
-    del event
-    recipients = _list_society_recipient_phones(db=db, society_id=member.society_id)
+def _queue_announcement(*, db, member, event, message_body: str, scope: str) -> dict:
+    if scope == "event":
+        target_event = event or _resolve_current_event(db=db, society_id=member.society_id)
+        if not target_event:
+            raise ValueError("No active event found. Please contact committee.")
+        recipient_resolution = AnnouncementRecipientService.get_event_joined_member_targets(
+            db=db,
+            society_id=member.society_id,
+            event_id=target_event.id,
+        )
+        announcement_type = "event"
+    else:
+        target_event = None
+        recipient_resolution = AnnouncementRecipientService.get_active_member_targets(
+            db=db,
+            society_id=member.society_id,
+        )
+        announcement_type = "announcement"
+
+    announcement = AnnouncementService.create_announcement(
+        db,
+        society_id=member.society_id,
+        event_id=getattr(target_event, "id", None),
+        announcement_type=announcement_type,
+        message_text=message_body,
+        created_by=member.id,
+        recipients=recipient_resolution["targets"],
+    )
+
+    _trigger_announcement_delivery_async()
+
+    accepted_count = recipient_resolution["queued_count"]
+    skipped_count = (
+        recipient_resolution["total_candidates"]
+        - recipient_resolution["queued_count"]
+    )
     logger.info(
         "Queued WhatsApp announcement",
         extra={
             "scope": scope,
             "society_id": str(member.society_id),
-            "queued_count": len(recipients),
+            "accepted_count": accepted_count,
+            "skipped_count": skipped_count,
+            "announcement_id": str(announcement.id),
             "initiated_by": str(getattr(member, "id", "unknown")),
             "message_preview": message_body[:120],
         },
     )
-    return len(recipients)
+    return {
+        "announcement_id": str(announcement.id),
+        "accepted_count": accepted_count,
+        "skipped_count": skipped_count,
+    }
 
 
 def _event_wizard_prompt(step: str) -> str:
@@ -881,15 +918,23 @@ def handle_committee_intent(
                         f"Announcement is too long ({len(answer)} chars). Max allowed is {ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH}."
                     )
                 clear_committee_action_session(committee_action_session_key)
-                queued_count = _queue_announcement(
-                    db=db,
-                    member=member,
-                    event=event,
-                    message_body=answer,
-                    scope="event" if state.action == "ANNOUNCE_EVENT" else "society",
-                )
+                try:
+                    queue_result = _queue_announcement(
+                        db=db,
+                        member=member,
+                        event=event,
+                        message_body=answer,
+                        scope="event" if state.action == "ANNOUNCE_EVENT" else "society",
+                    )
+                except ValueError as exc:
+                    return error_response(str(exc))
                 return success_response(
-                    f"Announcement accepted for processing. Queued recipients: {queued_count}",
+                    (
+                        "Announcement accepted for processing. "
+                        f"Accepted: {queue_result['accepted_count']}, "
+                        f"Skipped: {queue_result['skipped_count']}, "
+                        f"Announcement ID: {queue_result['announcement_id']}"
+                    ),
                     heading="Announcement queued",
                     emoji="📣",
                 )
@@ -1331,7 +1376,7 @@ def handle_committee_intent(
         command_prefix = "announce event" if intent == "ANNOUNCE_EVENT" else "announce society"
         announcement_body = _extract_announcement_body(message=message, command_prefix=command_prefix)
 
-        if not announcement_body:
+        if not announcement_body.strip():
             state = CommitteeActionSessionState(action=intent, step="message_body")
             save_committee_action_session(committee_action_session_key, state)
             return info_response(_prompt_for_pending_action_step(state))
@@ -1341,16 +1386,24 @@ def handle_committee_intent(
                 f"Announcement is too long ({len(announcement_body)} chars). Max allowed is {ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH}."
             )
 
-        queued_count = _queue_announcement(
-            db=db,
-            member=member,
-            event=event,
-            message_body=announcement_body,
-            scope="event" if intent == "ANNOUNCE_EVENT" else "society",
-        )
+        try:
+            queue_result = _queue_announcement(
+                db=db,
+                member=member,
+                event=event,
+                message_body=announcement_body,
+                scope="event" if intent == "ANNOUNCE_EVENT" else "society",
+            )
+        except ValueError as exc:
+            return error_response(str(exc))
 
         return success_response(
-            f"Announcement accepted for processing. Queued recipients: {queued_count}",
+            (
+                "Announcement accepted for processing. "
+                f"Accepted: {queue_result['accepted_count']}, "
+                f"Skipped: {queue_result['skipped_count']}, "
+                f"Announcement ID: {queue_result['announcement_id']}"
+            ),
             heading="Announcement queued",
             emoji="📣",
         )
