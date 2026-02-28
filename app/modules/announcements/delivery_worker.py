@@ -100,9 +100,10 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
 
     client = get_whatsapp_client()
     if policy_outcome == "sent_template":
+        template_name = str(TEMPLATE_NAME)
         client.send_template_message(
             to_phone=str(delivery.recipient_id),
-            template_name=TEMPLATE_NAME,
+            template_name=template_name,
             body_parameters=[delivery.announcement.message_text[:128]],
         )
         return policy_outcome, None

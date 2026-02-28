@@ -160,7 +160,7 @@ def handle_inbound_message(
         whatsapp_state["opt_in"] = True
         channel_state["whatsapp"] = whatsapp_state
         metadata["channel_state"] = channel_state
-        identity.metadata_json = metadata
+        setattr(identity, "metadata_json", metadata)
         db.commit()
 
     try:

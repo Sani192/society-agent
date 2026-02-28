@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from json import JSONDecodeError
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from app.channels.whatsapp.constants import (
     DEFAULT_WHATSAPP_API_VERSION,
