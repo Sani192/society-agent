@@ -79,7 +79,7 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
         return policy_outcome, reason
 
     AnnouncementService.guard_whatsapp_announcement_delivery(
-        channel=delivery.channel,
+        channel=str(delivery.channel),
         announcement_type=str(getattr(delivery.announcement, "type", "announcement")),
         uses_template_path=policy_outcome == "sent_template",
     )
