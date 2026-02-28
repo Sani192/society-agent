@@ -12,7 +12,16 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
-from app.db.models import Event, Flat, Payment, Refund, EventFoodPass, WorkflowState
+from app.db.models import (
+    Event,
+    Flat,
+    Payment,
+    Refund,
+    EventFoodPass,
+    WorkflowState,
+    MemberIdentity,
+    UserFlatMapping,
+)
 from app.modules.expenses.expense_service import ExpenseService
 from app.modules.onboarding.admin_approval_service import AdminApprovalService
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
@@ -91,6 +100,8 @@ INTENT_ROLE_ACTIONS = {
     "REFUND_SPONSOR": "REFUND",
     "REMIND_FLAT": "PAY",
     "CLOSE_EVENT": "CLOSE_EVENT",
+    "ANNOUNCE_EVENT": "ANNOUNCE",
+    "ANNOUNCE_SOCIETY": "ANNOUNCE",
 }
 
 INTENT_ROLE_WARNINGS = {
@@ -102,10 +113,63 @@ INTENT_ROLE_WARNINGS = {
     "REFUND_SPONSOR": "Only Treasurer or Chairman can refund sponsors.",
     "REMIND_FLAT": "This action normally requires Treasurer approval.",
     "CLOSE_EVENT": "Only Chairman, Secretary, or Treasurer can close events.",
+    "ANNOUNCE_EVENT": "Only committee members can announce event updates.",
+    "ANNOUNCE_SOCIETY": "Only committee members can announce society updates.",
 }
 
 CLOSED_OVERRIDE_INTENTS = {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR"}
 COMMITTEE_ROLES = {"chairman", "secretary", "treasurer"}
+ANNOUNCE_INTENTS = {"ANNOUNCE_EVENT", "ANNOUNCE_SOCIETY"}
+ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH = 4096
+
+
+def _extract_announcement_body(*, message: str, command_prefix: str) -> str:
+    normalized_message = (message or "").strip()
+    if normalized_message.lower().startswith(command_prefix.lower()):
+        return normalized_message[len(command_prefix):].strip()
+    return ""
+
+
+def _list_society_recipient_phones(*, db, society_id) -> list[str]:
+    recipients = (
+        db.query(MemberIdentity.normalized_phone)
+        .join(UserFlatMapping, UserFlatMapping.member_identity_id == MemberIdentity.id)
+        .filter(
+            UserFlatMapping.society_id == society_id,
+            UserFlatMapping.is_active.is_(True),
+            MemberIdentity.normalized_phone.isnot(None),
+        )
+        .all()
+    )
+
+    unique_phones: list[str] = []
+    seen: set[str] = set()
+    for row in recipients:
+        if isinstance(row, tuple):
+            phone = row[0]
+        else:
+            phone = getattr(row, "normalized_phone", None)
+        if not phone or phone in seen:
+            continue
+        seen.add(phone)
+        unique_phones.append(phone)
+    return unique_phones
+
+
+def _queue_announcement(*, db, member, event, message_body: str, scope: str) -> int:
+    del event
+    recipients = _list_society_recipient_phones(db=db, society_id=member.society_id)
+    logger.info(
+        "Queued WhatsApp announcement",
+        extra={
+            "scope": scope,
+            "society_id": str(member.society_id),
+            "queued_count": len(recipients),
+            "initiated_by": str(getattr(member, "id", "unknown")),
+            "message_preview": message_body[:120],
+        },
+    )
+    return len(recipients)
 
 
 def _event_wizard_prompt(step: str) -> str:
@@ -166,6 +230,9 @@ def _event_state_for_intent(*, db, event) -> str | None:
 def can_execute_intent(*, member, intent: str, event_state: str | None, override_reason: str | None) -> tuple[bool, str | None]:
     action = INTENT_ROLE_ACTIONS.get(intent)
     if not action:
+        return True, None
+
+    if intent in ANNOUNCE_INTENTS and member.role in COMMITTEE_ROLES:
         return True, None
 
     if is_action_allowed(member.role, action):
@@ -461,6 +528,8 @@ def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
         ("REFUND_SPONSOR", "reason"): "Please share refund reason.\nExpected next reply: reason text.\nType `cancel` to stop.",
         ("REFUND_SPONSOR", "override_reason"): "This refund needs an override reason due to workflow state.\nExpected next reply: override reason text.\nType `cancel` to stop.",
         ("REMIND_FLAT", "flat_number"): "Please share flat number. Example: A-101\nExpected next reply: flat number.\nType `cancel` to stop.",
+        ("ANNOUNCE_EVENT", "message_body"): "Please type the event announcement text to send.\nType `cancel` to stop.",
+        ("ANNOUNCE_SOCIETY", "message_body"): "Please type the society announcement text to send.\nType `cancel` to stop.",
     }
     return prompts[(state.action, state.step)]
 
@@ -596,7 +665,7 @@ def handle_committee_intent(
     )
     pending_action_state = get_committee_action_session(committee_action_session_key)
 
-    if intent in {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR", "REMIND_FLAT", "CLOSE_EVENT"}:
+    if intent in {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR", "REMIND_FLAT", "CLOSE_EVENT", "ANNOUNCE_EVENT", "ANNOUNCE_SOCIETY"}:
         clear_committee_action_session(committee_action_session_key)
 
 
@@ -662,7 +731,7 @@ def handle_committee_intent(
             clear_committee_action_session(committee_action_session_key)
             return info_response("Cancelled pending action.")
 
-        if not event:
+        if not event and state.action not in ANNOUNCE_INTENTS:
             clear_committee_action_session(committee_action_session_key)
             return error_response("No active event found. Please contact committee.")
 
@@ -802,6 +871,28 @@ def handle_committee_intent(
                     return error_response("Flat number is required.")
                 clear_committee_action_session(committee_action_session_key)
                 return _build_reminder_preview(db=db, event=event, flat_number=answer)
+
+        if state.action in ANNOUNCE_INTENTS:
+            if state.step == "message_body":
+                if not answer:
+                    return error_response("Announcement body cannot be empty.")
+                if len(answer) > ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH:
+                    return error_response(
+                        f"Announcement is too long ({len(answer)} chars). Max allowed is {ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH}."
+                    )
+                clear_committee_action_session(committee_action_session_key)
+                queued_count = _queue_announcement(
+                    db=db,
+                    member=member,
+                    event=event,
+                    message_body=answer,
+                    scope="event" if state.action == "ANNOUNCE_EVENT" else "society",
+                )
+                return success_response(
+                    f"Announcement accepted for processing. Queued recipients: {queued_count}",
+                    heading="Announcement queued",
+                    emoji="📣",
+                )
 
     event_session_key = build_event_creation_session_key(
         member_id=str(getattr(member, "id", "")) if member else None,
@@ -1226,6 +1317,43 @@ def handle_committee_intent(
         flat_number = parts[1]
 
         return _build_reminder_preview(db=db, event=event, flat_number=flat_number)
+
+    if intent in ANNOUNCE_INTENTS:
+        can_execute, warning = can_execute_intent(
+            member=member,
+            intent=intent,
+            event_state=None,
+            override_reason=None,
+        )
+        if not can_execute:
+            return warning_response(warning)
+
+        command_prefix = "announce event" if intent == "ANNOUNCE_EVENT" else "announce society"
+        announcement_body = _extract_announcement_body(message=message, command_prefix=command_prefix)
+
+        if not announcement_body:
+            state = CommitteeActionSessionState(action=intent, step="message_body")
+            save_committee_action_session(committee_action_session_key, state)
+            return info_response(_prompt_for_pending_action_step(state))
+
+        if len(announcement_body) > ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH:
+            return error_response(
+                f"Announcement is too long ({len(announcement_body)} chars). Max allowed is {ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH}."
+            )
+
+        queued_count = _queue_announcement(
+            db=db,
+            member=member,
+            event=event,
+            message_body=announcement_body,
+            scope="event" if intent == "ANNOUNCE_EVENT" else "society",
+        )
+
+        return success_response(
+            f"Announcement accepted for processing. Queued recipients: {queued_count}",
+            heading="Announcement queued",
+            emoji="📣",
+        )
 
     if intent == "APPROVE":
         if not is_action_allowed(member.role, "ALL"):

@@ -42,6 +42,8 @@ INTENTS = {
     "ADD_PASS": "add pass",
     "ADD_EXPENSE": "expense",
     "ADD_EVENT": "add event",
+    "ANNOUNCE_EVENT": "announce event",
+    "ANNOUNCE_SOCIETY": "announce society",
     "CLOSE_EVENT": "close event",
     "ACTIVATE_EVENT": "activate event",
     "LOCK_PASSES": "lock passes",
