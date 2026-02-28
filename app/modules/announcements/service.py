@@ -15,6 +15,18 @@ from app.db.models import Announcement, AnnouncementDelivery
 class AnnouncementService:
 
     @staticmethod
+    def guard_whatsapp_announcement_delivery(
+        *,
+        channel: str,
+        announcement_type: str,
+        uses_template_path: bool,
+    ) -> None:
+        """Enforce template-only delivery for WhatsApp announcement dispatches."""
+
+        if channel == "whatsapp" and announcement_type == "announcement" and not uses_template_path:
+            raise ValueError("WhatsApp announcement deliveries must use template messaging")
+
+    @staticmethod
     def create_announcement(
         db: Session,
         *,
