@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from typing import Any, cast
 
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -60,7 +61,10 @@ def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | 
     if not delivery.rendered_payload:
         return "failed_template_required", "Announcement rendered payload is missing"
 
-    template_name = str((delivery.rendered_payload or {}).get("template_name") or "").strip()
+    payload: dict[str, Any] = (
+        cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
+    )
+    template_name = str(payload.get("template_name") or "").strip()
     if not template_name:
         return "failed_template_required", "Announcement template is not configured"
 
@@ -87,7 +91,9 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
         uses_template_path=policy_outcome == "sent_template",
     )
 
-    payload = dict(delivery.rendered_payload or {})
+    payload: dict[str, Any] = (
+        cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
+    )
     template_name = str(payload.get("template_name"))
     body_parameters = list(payload.get("body_parameters") or [])
 
