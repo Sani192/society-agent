@@ -9,7 +9,7 @@ Created on Sat Jan 10 13:22:14 2026
 # app/db/models.py
 
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Date, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Date, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy import ForeignKey
@@ -460,3 +460,46 @@ class PendingUser(Base):
     # pending / approved / rejected
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=True)
+
+    type = Column(String(50), nullable=False)
+    message_text = Column(Text, nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=False)
+
+    status = Column(String(50), nullable=False, default="queued")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    society = relationship("Society", backref="announcements")
+    event = relationship("Event", backref="announcements")
+
+
+class AnnouncementDelivery(Base):
+    __tablename__ = "announcement_deliveries"
+
+    announcement_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("announcements.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    member_identity_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("member_identities.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    channel = Column(String(50), primary_key=True)
+
+    recipient_id = Column(String(255), nullable=False)
+    status = Column(String(50), nullable=False, default="pending")
+    attempts = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    announcement = relationship("Announcement", backref="deliveries")
+    member_identity = relationship("MemberIdentity", backref="announcement_deliveries")

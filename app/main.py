@@ -18,6 +18,7 @@ from app.db.models import Society
 from app.utils.logger import logger
 from app.config import settings
 from app.modules.reminders.reminder_scheduler import start_scheduler
+from app.modules.announcements.delivery_worker import start_announcement_delivery_scheduler
 
 
 from app.api.contracts import API_SCHEMA_VERSION
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
         else:
             logger.info(f"Loaded society: {society.name}")
             start_scheduler()
+            start_announcement_delivery_scheduler()
 
     finally:
         db.close()
