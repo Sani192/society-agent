@@ -1019,7 +1019,11 @@ def test_committee_announce_event_acknowledges_queued_count(monkeypatch):
 
     monkeypatch.setattr(
         "app.handlers.shared.committee._queue_announcement",
-        lambda **kwargs: 27,
+        lambda **kwargs: {
+            "accepted_count": 27,
+            "skipped_count": 3,
+            "announcement_id": "ann-123",
+        },
     )
 
     response = handle_committee_intent(
@@ -1031,7 +1035,9 @@ def test_committee_announce_event_acknowledges_queued_count(monkeypatch):
     )
 
     assert response.startswith("✅")
-    assert "Queued recipients: 27" in response
+    assert "Accepted: 27" in response
+    assert "Skipped: 3" in response
+    assert "Announcement ID: ann-123" in response
 
 
 def test_committee_announce_event_pending_flow_rejects_empty_then_accepts(monkeypatch):
@@ -1040,7 +1046,11 @@ def test_committee_announce_event_pending_flow_rejects_empty_then_accepts(monkey
 
     monkeypatch.setattr(
         "app.handlers.shared.committee._queue_announcement",
-        lambda **kwargs: 9,
+        lambda **kwargs: {
+            "accepted_count": 9,
+            "skipped_count": 1,
+            "announcement_id": "ann-999",
+        },
     )
 
     step1 = handle_committee_intent(
@@ -1074,4 +1084,29 @@ def test_committee_announce_event_pending_flow_rejects_empty_then_accepts(monkey
     )
     clear_committee_action_session("member-1:sender-ann-2")
     assert step3.startswith("✅")
-    assert "Queued recipients: 9" in step3
+    assert "Accepted: 9" in step3
+    assert "Skipped: 1" in step3
+    assert "Announcement ID: ann-999" in step3
+
+
+def test_committee_announce_event_returns_error_when_no_active_event(monkeypatch):
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+
+    def raise_no_event(**kwargs):
+        raise ValueError("No active event found. Please contact committee.")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee._queue_announcement",
+        raise_no_event,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_EVENT",
+        message="announce event Starts at 8pm",
+        event=None,
+        member=member,
+    )
+
+    assert response.startswith("❌")
+    assert "No active event found" in response
