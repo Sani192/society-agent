@@ -39,6 +39,9 @@ def export_member_directory(
         return error_response
 
     society = db.query(Society).get(member.society_id)
+    if not society:
+        return error_envelope("Society not found")
+
     report = MemberDirectoryReport.generate(db, society.id)
 
     record_report_access(
@@ -87,6 +90,9 @@ def export_onboarding_status(
         return error_response
 
     society = db.query(Society).get(member.society_id)
+    if not society:
+        return error_envelope("Society not found")
+
     report = OnboardingStatusReport.generate(db, society.id)
 
     record_report_access(
@@ -136,6 +142,9 @@ def export_announcement_history(
         return error_response
 
     society = db.query(Society).get(member.society_id)
+    if not society:
+        return error_envelope("Society not found")
+
     report = AnnouncementHistoryReport.generate(db, society.id)
 
     record_report_access(

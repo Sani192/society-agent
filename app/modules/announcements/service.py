@@ -98,6 +98,12 @@ class AnnouncementService:
             }
         """
 
+        queued_recipients = [
+            recipient
+            for recipient in recipients
+            if recipient.get("recipient_id") or recipient.get("whatsapp_user_id")
+        ]
+
         announcement = Announcement(
             society_id=society_id,
             event_id=event_id,
@@ -105,7 +111,7 @@ class AnnouncementService:
             message_text=message_text,
             created_by=created_by,
             status="queued",
-            total_targets=0,
+            total_targets=len(queued_recipients),
             sent_count=0,
             failed_count=0,
             skipped_count=0,
@@ -113,9 +119,7 @@ class AnnouncementService:
         db.add(announcement)
         db.flush()
 
-        queued_targets = 0
-
-        for recipient in recipients:
+        for recipient in queued_recipients:
             recipient_id = recipient.get("recipient_id") or recipient.get("whatsapp_user_id")
             if not recipient_id:
                 continue
@@ -141,11 +145,6 @@ class AnnouncementService:
                     attempts=0,
                 )
             )
-            queued_targets += 1
-
-        announcement.total_targets = queued_targets
-
-
         log_announcement_creation(
             db,
             society_id=society_id,
