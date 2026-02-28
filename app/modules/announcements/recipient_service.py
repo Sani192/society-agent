@@ -5,7 +5,7 @@
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Flat, MemberIdentity, Payment, UserFlatMapping
+from app.db.models import Event, Flat, MemberIdentity, Payment, UserFlatMapping
 
 
 class AnnouncementRecipientService:
@@ -31,10 +31,20 @@ class AnnouncementRecipientService:
                 continue
 
             seen_whatsapp_ids.add(whatsapp_user_id)
+
+            receiver_name = (
+                getattr(row, "owner_name", None)
+                or getattr(row, "normalized_identifier", None)
+                or "Member"
+            )
+            event_name = getattr(row, "event_name", None)
+
             targets.append(
                 {
                     "member_identity_id": str(member_identity_id),
                     "whatsapp_user_id": whatsapp_user_id,
+                    "receiver_name": str(receiver_name).strip(),
+                    "event_name": str(event_name).strip() if event_name else None,
                 }
             )
 
@@ -49,10 +59,17 @@ class AnnouncementRecipientService:
     @staticmethod
     def get_event_joined_member_targets(db: Session, society_id, event_id) -> dict:
         members = (
-            db.query(MemberIdentity.id, MemberIdentity.whatsapp_user_id)
+            db.query(
+                MemberIdentity.id,
+                MemberIdentity.whatsapp_user_id,
+                MemberIdentity.normalized_identifier,
+                Flat.owner_name,
+                Event.name.label("event_name"),
+            )
             .join(UserFlatMapping, UserFlatMapping.member_identity_id == MemberIdentity.id)
             .join(Flat, Flat.id == UserFlatMapping.flat_id)
             .join(Payment, Payment.flat_id == Flat.id)
+            .join(Event, Event.id == Payment.event_id)
             .filter(
                 Flat.society_id == society_id,
                 Payment.event_id == event_id,
@@ -68,8 +85,14 @@ class AnnouncementRecipientService:
     @staticmethod
     def get_active_member_targets(db: Session, society_id) -> dict:
         members = (
-            db.query(MemberIdentity.id, MemberIdentity.whatsapp_user_id)
+            db.query(
+                MemberIdentity.id,
+                MemberIdentity.whatsapp_user_id,
+                MemberIdentity.normalized_identifier,
+                Flat.owner_name,
+            )
             .join(UserFlatMapping, UserFlatMapping.member_identity_id == MemberIdentity.id)
+            .join(Flat, Flat.id == UserFlatMapping.flat_id)
             .filter(
                 UserFlatMapping.society_id == society_id,
                 UserFlatMapping.is_active.is_(True),
