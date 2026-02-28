@@ -964,3 +964,114 @@ def test_closed_override_still_blocks_missing_reason(monkeypatch):
     )
 
     assert response.startswith("⚠️")
+
+
+def test_committee_announce_event_requires_committee_role():
+    member = SimpleNamespace(id="member-1", role="member", society_id="soc-1")
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_EVENT",
+        message="announce event Dinner starts at 8pm",
+        event=None,
+        member=member,
+    )
+
+    assert response.startswith("⚠️")
+
+
+def test_committee_announce_event_prompts_for_body_when_missing():
+    member = SimpleNamespace(id="member-1", role="secretary", society_id="soc-1")
+    inbound = SimpleNamespace(sender_id="sender-ann-1", metadata={})
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_EVENT",
+        message="announce event   ",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+
+    clear_committee_action_session("member-1:sender-ann-1")
+    assert response.startswith("ℹ️")
+    assert "Please type the event announcement text" in response
+
+
+def test_committee_announce_society_rejects_over_limit_body():
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    long_body = "x" * 4097
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_SOCIETY",
+        message=f"announce society {long_body}",
+        event=None,
+        member=member,
+    )
+
+    assert response.startswith("❌")
+    assert "too long" in response
+
+
+def test_committee_announce_event_acknowledges_queued_count(monkeypatch):
+    member = SimpleNamespace(id="member-1", role="treasurer", society_id="soc-1")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee._queue_announcement",
+        lambda **kwargs: 27,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_EVENT",
+        message="announce event Dinner starts at 8pm",
+        event=SimpleNamespace(id="event-1", society_id="soc-1"),
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Queued recipients: 27" in response
+
+
+def test_committee_announce_event_pending_flow_rejects_empty_then_accepts(monkeypatch):
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    inbound = SimpleNamespace(sender_id="sender-ann-2", metadata={})
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee._queue_announcement",
+        lambda **kwargs: 9,
+    )
+
+    step1 = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_EVENT",
+        message="announce event",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    assert "Please type the event announcement text" in step1
+
+    step2 = handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="   ",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    assert step2.startswith("❌")
+    assert "cannot be empty" in step2
+
+    step3 = handle_committee_intent(
+        db=MagicMock(),
+        intent="COMMITTEE_PENDING_ACTION",
+        message="Please arrive by 8pm",
+        event=None,
+        member=member,
+        inbound_message=inbound,
+    )
+    clear_committee_action_session("member-1:sender-ann-2")
+    assert step3.startswith("✅")
+    assert "Queued recipients: 9" in step3

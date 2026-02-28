@@ -40,6 +40,8 @@ def build_committee_operations_sections() -> list[dict]:
                 {"id": "expense", "title": "Add Expense", "description": "Record event expense"},
                 {"id": "add sponsor", "title": "Add Sponsor", "description": "Record sponsor contribution"},
                 {"id": "refund sponsor", "title": "Refund Sponsor", "description": "Reverse sponsor entry"},
+                {"id": "announce event", "title": "Announce Event", "description": "Send an event announcement"},
+                {"id": "announce society", "title": "Announce Society", "description": "Send a society-wide announcement"},
                 {
                     "id": "ui::administration:operations:more",
                     "title": "More Operations",

@@ -5,7 +5,11 @@ import pytest
 
 from app.api.whatsapp import WhatsAppRequest, whatsapp_webhook
 from app.whatsapp.intents import WHATSAPP_INTENTS
-from app.whatsapp.ui.committee import build_committee_more_sections, build_committee_sections
+from app.whatsapp.ui.committee import (
+    build_committee_more_sections,
+    build_committee_operations_sections,
+    build_committee_sections,
+)
 from app.whatsapp.ui.dashboard import build_finance_sections, build_my_account_sections, build_society_sections
 from app.whatsapp.ui.finance import build_make_payment_sections, build_payments_sections
 from app.whatsapp.ui.participation import build_participation_sections
@@ -201,7 +205,7 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
         for row in section["rows"]
     }
 
-    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund", "add event", "activate event", "lock passes", "start event", "close event", "add sponsor", "refund sponsor", "expense", "remind"}
+    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund", "add event", "activate event", "lock passes", "start event", "close event", "add sponsor", "refund sponsor", "expense", "remind", "announce event", "announce society"}
     template_helper_rows = {
         "ui::approve-user",
         "ui::approve-payment",
@@ -219,3 +223,11 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
 
     assert not missing
     assert template_helper_rows.issubset(row_ids)
+
+
+def test_committee_operations_menu_contains_announce_actions():
+    sections = build_committee_operations_sections()
+    row_ids = {row["id"] for section in sections for row in section["rows"]}
+
+    assert "announce event" in row_ids
+    assert "announce society" in row_ids
