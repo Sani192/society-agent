@@ -1,8 +1,6 @@
 from types import SimpleNamespace
 from uuid import uuid4
 
-import pytest
-
 from app.channels.whatsapp.client import WhatsAppRetryableError
 from app.modules.announcements import delivery_worker
 from app.modules.announcements.recipient_service import AnnouncementRecipientService
