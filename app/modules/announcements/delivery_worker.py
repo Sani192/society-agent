@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import joinedload
 
-from app.channels.whatsapp.client import get_whatsapp_client
+from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_client
+from app.config import settings
 from app.db.models import AnnouncementDelivery
 from app.db.session import SessionLocal
 from app.utils.logger import logger
@@ -23,10 +24,20 @@ SEND_INTERVAL_SECONDS = 0.25
 BATCH_SIZE = 20
 SCHEDULER_INTERVAL_SECONDS = 30
 
+POLICY_WINDOW_HOURS = 24
+MAX_SENDS_PER_BATCH = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_BATCH", "100"))
+MAX_SENDS_PER_MINUTE = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_MINUTE", "60"))
+ERROR_RATE_THRESHOLD = float(getattr(settings, "ANNOUNCEMENT_ERROR_RATE_THRESHOLD", "0.4"))
+CIRCUIT_BREAKER_MIN_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_CIRCUIT_BREAKER_MIN_ATTEMPTS", "10"))
+TEMPLATE_NAME = getattr(settings, "ANNOUNCEMENT_WHATSAPP_TEMPLATE_NAME", None)
+
 announcement_delivery_scheduler = BackgroundScheduler()
 
 
 def _is_transient_error(exc: Exception) -> bool:
+    if isinstance(exc, WhatsAppRetryableError):
+        return True
+
     if isinstance(exc, (requests.Timeout, requests.ConnectionError)):
         return True
 
@@ -36,9 +47,46 @@ def _is_transient_error(exc: Exception) -> bool:
     return False
 
 
-def _send_delivery(delivery: AnnouncementDelivery) -> None:
+def _coerce_iso_datetime(raw_timestamp: str | None) -> datetime | None:
+    if not raw_timestamp:
+        return None
+    try:
+        normalized = raw_timestamp.replace("Z", "+00:00")
+        value = datetime.fromisoformat(normalized)
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _get_whatsapp_policy_state(delivery: AnnouncementDelivery) -> dict:
+    metadata = dict((delivery.member_identity.metadata_json or {})) if delivery.member_identity else {}
+    channel_state = dict(metadata.get("channel_state") or {})
+    return dict(channel_state.get("whatsapp") or {})
+
+
+def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
+    state = _get_whatsapp_policy_state(delivery)
+    if not state.get("opt_in"):
+        return "skipped_no_opt_in", "Recipient has no opt-in state for WhatsApp announcements"
+
+    last_inbound = _coerce_iso_datetime(state.get("last_inbound_at"))
+    if not last_inbound:
+        return "skipped_policy_window", "Recipient has no inbound timestamp for 24h policy window"
+
+    if datetime.now(timezone.utc) - last_inbound <= timedelta(hours=POLICY_WINDOW_HOURS):
+        return "sent_free_text", None
+
+    if TEMPLATE_NAME:
+        return "sent_template", None
+
+    return "skipped_policy_window", "Outside 24h policy window and no template configured"
+
+
+def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if delivery.status == "sent":
-        return
+        return "sent_free_text", None
 
     if delivery.channel != "whatsapp":
         raise ValueError(f"Unsupported channel: {delivery.channel}")
@@ -46,8 +94,25 @@ def _send_delivery(delivery: AnnouncementDelivery) -> None:
     if not delivery.announcement or not delivery.announcement.message_text:
         raise ValueError("Announcement payload is missing message text")
 
+    policy_outcome, reason = _resolve_policy_outcome(delivery)
+    if policy_outcome == "skipped_no_opt_in":
+        return policy_outcome, reason
+
     client = get_whatsapp_client()
+    if policy_outcome == "sent_template":
+        template_name = str(TEMPLATE_NAME)
+        client.send_template_message(
+            to_phone=str(delivery.recipient_id),
+            template_name=template_name,
+            body_parameters=[delivery.announcement.message_text[:128]],
+        )
+        return policy_outcome, None
+
+    if policy_outcome == "skipped_policy_window":
+        return policy_outcome, reason
+
     client.send_text_message(str(delivery.recipient_id), delivery.announcement.message_text)
+    return "sent_free_text", None
 
 
 def run_pending_announcement_deliveries(
@@ -59,11 +124,18 @@ def run_pending_announcement_deliveries(
 ) -> int:
     db = SessionLocal()
     processed_count = 0
+    attempt_count = 0
+    error_count = 0
+    minute_window_start = time.monotonic()
+    sent_in_current_minute = 0
 
     try:
         pending_deliveries = (
             db.query(AnnouncementDelivery)
-            .options(joinedload(AnnouncementDelivery.announcement))
+            .options(
+                joinedload(AnnouncementDelivery.announcement),
+                joinedload(AnnouncementDelivery.member_identity),
+            )
             .filter(AnnouncementDelivery.status == "pending")
             .filter(AnnouncementDelivery.sent_at.is_(None))
             .order_by(AnnouncementDelivery.announcement_id)
@@ -72,29 +144,79 @@ def run_pending_announcement_deliveries(
         )
 
         for delivery in pending_deliveries:
+            if processed_count >= MAX_SENDS_PER_BATCH:
+                logger.warning("Announcement batch send cap reached", extra={"max_sends_per_batch": MAX_SENDS_PER_BATCH})
+                break
+
             # Idempotency guard.
             if delivery.status == "sent" or delivery.sent_at is not None:
                 continue
 
             while delivery.attempts < max_attempts and delivery.status != "sent":
+                if sent_in_current_minute >= MAX_SENDS_PER_MINUTE:
+                    elapsed = time.monotonic() - minute_window_start
+                    if elapsed < 60:
+                        time.sleep(60 - elapsed)
+                    minute_window_start = time.monotonic()
+                    sent_in_current_minute = 0
+
                 try:
-                    _send_delivery(delivery)
+                    attempt_count += 1
+                    policy_outcome, reason = _send_delivery(delivery)
+
                     delivery.attempts += 1
-                    delivery.status = "sent"
-                    delivery.last_error = None
-                    delivery.sent_at = datetime.now(timezone.utc)
+                    if policy_outcome.startswith("sent_"):
+                        delivery.status = "sent"
+                        delivery.last_error = None
+                        delivery.sent_at = datetime.now(timezone.utc)
+                        processed_count += 1
+                        sent_in_current_minute += 1
+                        time.sleep(send_interval_seconds)
+                    else:
+                        delivery.status = "failed"
+                        delivery.last_error = reason
+
                     db.commit()
-                    processed_count += 1
-                    time.sleep(send_interval_seconds)
+                    logger.info(
+                        "Announcement delivery policy outcome",
+                        extra={
+                            "announcement_id": str(delivery.announcement_id),
+                            "member_identity_id": str(delivery.member_identity_id),
+                            "channel": delivery.channel,
+                            "policy_outcome": policy_outcome,
+                            "reason": reason,
+                        },
+                    )
+                    break
                 except Exception as exc:  # intentionally broad for delivery safety
+                    error_count += 1
                     delivery.attempts += 1
                     is_transient = _is_transient_error(exc)
                     delivery.last_error = str(exc)[:2000]
 
+                    if attempt_count >= CIRCUIT_BREAKER_MIN_ATTEMPTS:
+                        error_rate = error_count / attempt_count if attempt_count else 0.0
+                        if error_rate >= ERROR_RATE_THRESHOLD:
+                            logger.error(
+                                "Announcement delivery circuit breaker opened",
+                                extra={
+                                    "attempt_count": attempt_count,
+                                    "error_count": error_count,
+                                    "error_rate": error_rate,
+                                    "threshold": ERROR_RATE_THRESHOLD,
+                                },
+                            )
+                            db.commit()
+                            return processed_count
+
                     if is_transient and delivery.attempts < max_attempts:
                         delivery.status = "pending"
                         db.commit()
-                        time.sleep(backoff_seconds * (2 ** (delivery.attempts - 1)))
+                        retry_after_seconds = None
+                        if isinstance(exc, WhatsAppRetryableError):
+                            retry_after_seconds = exc.retry_after_seconds
+                        sleep_for = retry_after_seconds if retry_after_seconds is not None else backoff_seconds * (2 ** (delivery.attempts - 1))
+                        time.sleep(max(sleep_for, 0))
                         continue
 
                     delivery.status = "failed"
@@ -108,6 +230,7 @@ def run_pending_announcement_deliveries(
                             "attempts": delivery.attempts,
                         },
                     )
+                    break
 
         return processed_count
     except Exception:

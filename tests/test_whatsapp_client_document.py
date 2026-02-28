@@ -147,3 +147,64 @@ def test_send_text_message_handles_non_json_response(monkeypatch):
     response = client.send_text_message("919999000000", "Hello")
 
     assert response == {}
+
+
+def test_send_template_message_builds_payload(monkeypatch):
+    captured = {}
+
+    class DummyResponse:
+        status_code = 200
+        content = b'{"messages":[{"id":"wamid.8"}]}'
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"messages": [{"id": "wamid.8"}]}
+
+    def fake_post(url, *, headers, json, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        captured["headers"] = headers
+        captured["body"] = json
+        return DummyResponse()
+
+    monkeypatch.setattr("app.channels.whatsapp.client.requests.post", fake_post)
+
+    client = WhatsAppClient(access_token="token", phone_number_id="123")
+    response = client.send_template_message(
+        to_phone="919999000000",
+        template_name="announcement_fallback",
+        body_parameters=["Important update"],
+    )
+
+    assert response["messages"][0]["id"] == "wamid.8"
+    assert captured["body"]["type"] == "template"
+    assert captured["body"]["template"]["name"] == "announcement_fallback"
+
+
+def test_send_text_message_raises_retryable_error_with_retry_after(monkeypatch):
+    class DummyResponse:
+        status_code = 429
+        content = b'{"error":"rate limit"}'
+        headers = {"Retry-After": "7"}
+
+        def raise_for_status(self):
+            import requests
+
+            raise requests.HTTPError("429", response=self)
+
+    monkeypatch.setattr(
+        "app.channels.whatsapp.client.requests.post",
+        lambda *args, **kwargs: DummyResponse(),
+    )
+
+    from app.channels.whatsapp.client import WhatsAppRetryableError
+
+    client = WhatsAppClient(access_token="token", phone_number_id="123")
+
+    try:
+        client.send_text_message("919999000000", "Hello")
+        assert False, "Expected WhatsAppRetryableError"
+    except WhatsAppRetryableError as exc:
+        assert exc.retry_after_seconds == 7.0

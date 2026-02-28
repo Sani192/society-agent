@@ -12,7 +12,7 @@ from app.commands.handlers.onboarding_handler import handle_onboarding_intent
 from app.commands.handlers.public_handler import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
-from app.db.models import Event
+from app.db.models import Event, MemberIdentity
 from app.modules.users.channel_identity_service import (
     link_member_by_code,
     link_member_by_phone,
@@ -20,6 +20,7 @@ from app.modules.users.channel_identity_service import (
 from app.utils.guards import ensure_committee_member
 from app.permissions.command_policy import get_event_state, get_intent_state_warning
 from app.utils.logger import logger
+from app.utils.identity import normalize_identifier
 from app.whatsapp.event_creation_session import (
     build_event_creation_session_key,
     get_event_creation_session,
@@ -125,7 +126,45 @@ def handle_inbound_message(
     )
     db = session_factory()
 
+    def _persist_member_inbound_activity() -> None:
+        if message.channel != "whatsapp":
+            return
+
+        sender_candidates = {
+            message.sender_id,
+            message.metadata.get("canonical_sender_id"),
+            normalize_identifier(message.sender_id),
+            normalize_identifier(message.metadata.get("canonical_sender_id", "")),
+        }
+        sender_candidates = {candidate for candidate in sender_candidates if candidate}
+        if not sender_candidates:
+            return
+
+        identity = (
+            db.query(MemberIdentity)
+            .filter(
+                (MemberIdentity.whatsapp_user_id.in_(tuple(sender_candidates)))
+                | (MemberIdentity.normalized_identifier.in_(tuple(sender_candidates)))
+                | (MemberIdentity.normalized_phone.in_(tuple(sender_candidates)))
+            )
+            .first()
+        )
+        if not identity:
+            return
+
+        metadata = dict(identity.metadata_json or {})
+        channel_state = dict(metadata.get("channel_state") or {})
+        whatsapp_state = dict(channel_state.get("whatsapp") or {})
+        whatsapp_state["last_inbound_at"] = message.metadata.get("timestamp_iso")
+        whatsapp_state["last_inbound_sender"] = message.sender_id
+        whatsapp_state["opt_in"] = True
+        channel_state["whatsapp"] = whatsapp_state
+        metadata["channel_state"] = channel_state
+        setattr(identity, "metadata_json", metadata)
+        db.commit()
+
     try:
+        _persist_member_inbound_activity()
         canonical_sender_id = _get_canonical_sender(message)
         member = None
         try:

@@ -630,3 +630,32 @@ def test_add_sponsor_intent_to_contribution_service(monkeypatch):
     assert called["event_id"] == "event-sponsor"
     assert called["performed_by"] == "member-sponsor"
     assert called["amount"] == 5000
+
+
+def test_parse_webhook_payload_maps_timestamp_iso():
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "wamid.456",
+                                    "from": "919111222333",
+                                    "timestamp": "1700000000",
+                                    "text": {"body": "menu"},
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    messages = parse_webhook_payload(payload)
+
+    assert len(messages) == 1
+    assert messages[0].metadata["timestamp"] == "1700000000"
+    assert messages[0].metadata["timestamp_iso"] == "2023-11-14T22:13:20+00:00"
