@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.models import Announcement, AnnouncementDelivery
+from app.utils.audit_logger import log_announcement_creation
 
 
 class AnnouncementService:
@@ -104,9 +105,15 @@ class AnnouncementService:
             message_text=message_text,
             created_by=created_by,
             status="queued",
+            total_targets=0,
+            sent_count=0,
+            failed_count=0,
+            skipped_count=0,
         )
         db.add(announcement)
         db.flush()
+
+        queued_targets = 0
 
         for recipient in recipients:
             recipient_id = recipient.get("recipient_id") or recipient.get("whatsapp_user_id")
@@ -134,7 +141,19 @@ class AnnouncementService:
                     attempts=0,
                 )
             )
+            queued_targets += 1
 
+        announcement.total_targets = queued_targets
+
+
+        log_announcement_creation(
+            db,
+            society_id=society_id,
+            announcement_id=announcement.id,
+            announcement_type=announcement_type,
+            message_text=message_text,
+            performed_by=created_by,
+        )
         db.commit()
         db.refresh(announcement)
         return announcement

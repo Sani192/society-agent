@@ -16,6 +16,7 @@ from app.api.reports.common import authorize_committee_member_report, record_rep
 
 from app.modules.reports.administrative.member_directory_report import MemberDirectoryReport
 from app.modules.reports.administrative.onboarding_status_report import OnboardingStatusReport
+from app.modules.reports.administrative.announcement_history_report import AnnouncementHistoryReport
 from app.modules.reports.pdf.member_directory_pdf import generate_member_directory_pdf
 from app.modules.reports.pdf.onboarding_status_pdf import generate_onboarding_status_pdf
 from app.modules.reports.common.exporters import export_csv, export_excel
@@ -117,3 +118,41 @@ def export_onboarding_status(
         )
 
     return error_envelope("Supported formats: csv, excel, pdf")
+
+
+@router.get("/announcements/export")
+def export_announcement_history(
+    phone: str | None = Query(default=None),
+    format: str = Query(default="csv"),
+    db: Session = Depends(get_db)
+):
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="ANNOUNCEMENT_HISTORY",
+        log_message="Failed to authorize announcement history export",
+    )
+    if error_response:
+        return error_response
+
+    society = db.query(Society).get(member.society_id)
+    report = AnnouncementHistoryReport.generate(db, society.id)
+
+    record_report_access(
+        db=db,
+        member=member,
+        report_code="ANNOUNCEMENT_HISTORY",
+        format=format,
+        society_id=society.id,
+    )
+
+    if format == "csv":
+        return Response(export_csv(report["headers"], report["rows"]), media_type="text/csv")
+
+    if format == "excel":
+        return Response(
+            export_excel("Announcements", report["headers"], report["rows"]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    return error_envelope("Supported formats: csv, excel")

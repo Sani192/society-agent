@@ -17,5 +17,6 @@ REPORT_PERMISSIONS = {
     "MEMBER_REFUNDS": {"chairman", "treasurer"},
     "MEMBER_DIRECTORY": {"chairman", "secretary"},
     "ONBOARDING_STATUS": {"chairman", "secretary"},
+    "ANNOUNCEMENT_HISTORY": {"chairman", "secretary"},
     "LEDGER": {"chairman", "secretary", "treasurer"}
 }

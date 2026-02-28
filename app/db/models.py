@@ -474,6 +474,10 @@ class Announcement(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=False)
 
     status = Column(String(50), nullable=False, default="queued")
+    total_targets = Column(Integer, nullable=False, default=0)
+    sent_count = Column(Integer, nullable=False, default=0)
+    failed_count = Column(Integer, nullable=False, default=0)
+    skipped_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     society = relationship("Society", backref="announcements")

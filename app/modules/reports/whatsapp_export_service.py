@@ -7,6 +7,7 @@ from app.api.reports.common import record_report_access
 from app.db.models import Event, Society
 from app.modules.reports.administrative.member_directory_report import MemberDirectoryReport
 from app.modules.reports.administrative.onboarding_status_report import OnboardingStatusReport
+from app.modules.reports.administrative.announcement_history_report import AnnouncementHistoryReport
 from app.modules.reports.common.exporters import export_csv, export_excel
 from app.modules.reports.common.whatsapp_report_registry import (
     build_whatsapp_report_registry,
@@ -51,6 +52,7 @@ class WhatsAppReportExportService:
             "LEDGER": WhatsAppReportExportService._export_ledger,
             "MEMBER_DIRECTORY": WhatsAppReportExportService._export_member_directory,
             "ONBOARDING_STATUS": WhatsAppReportExportService._export_onboarding_status,
+            "ANNOUNCEMENT_HISTORY": WhatsAppReportExportService._export_announcement_history,
             "GOVERNANCE_AUDIT": WhatsAppReportExportService._export_governance_audit,
         }
 
@@ -386,6 +388,25 @@ class WhatsAppReportExportService:
         )
 
     @staticmethod
+    def _export_announcement_history(*, db, member, event, normalized_format, event_id):
+        report_data = AnnouncementHistoryReport.generate(db, member.society_id)
+
+        if normalized_format == "csv":
+            payload = export_csv(report_data["headers"], report_data["rows"])
+        else:
+            payload = export_excel("Announcements", report_data["headers"], report_data["rows"])
+
+        return WhatsAppReportExportService._build_result(
+            category="admin",
+            report="announcement-history",
+            normalized_format=normalized_format,
+            event=None,
+            row_count=len(report_data["rows"]),
+            filename_stem="announcement_history",
+            payload=payload,
+        )
+
+    @staticmethod
     def _export_governance_audit(*, db, member, event, normalized_format, event_id):
         report_data = GovernanceAuditReport.generate(db, member.society_id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
@@ -437,6 +458,9 @@ class WhatsAppReportExportService:
         )
 
         ensure_report_access(role=member.role, report_code=entry.report_code)
+
+        if normalized_format not in set(entry.supported_formats):
+            raise ValueError(f"Supported formats: {', '.join(entry.supported_formats)}")
 
         resolved_event_id = event_id or getattr(event, "id", None)
         if entry.requires_event_id and not resolved_event_id:
