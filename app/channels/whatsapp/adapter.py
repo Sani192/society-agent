@@ -6,10 +6,21 @@ WhatsApp Cloud API payload adapter.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from app.channels.core.types import InboundMessage
 from app.utils.logger import logger
+
+
+def _to_iso_timestamp(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        epoch_seconds = int(value)
+        return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).isoformat()
+    except (TypeError, ValueError):
+        return None
 
 
 def _iter_messages(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
@@ -63,6 +74,8 @@ def parse_webhook_payload(payload: dict[str, Any]) -> list[InboundMessage]:
                     "interactive_list_reply_title": interactive_list_reply.get("title"),
                     "interactive_button_reply_id": interactive_button_reply.get("id"),
                     "interactive_button_reply_title": interactive_button_reply.get("title"),
+                    "timestamp": message.get("timestamp"),
+                    "timestamp_iso": _to_iso_timestamp(message.get("timestamp")),
                 },
             )
         )

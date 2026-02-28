@@ -7,6 +7,7 @@ WhatsApp Cloud API client.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from json import JSONDecodeError
 
 import requests
@@ -21,6 +22,60 @@ from app.channels.whatsapp.constants import (
 )
 from app.config import settings
 from app.utils.logger import logger
+
+
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+class WhatsAppRetryableError(requests.HTTPError):
+    """HTTP error wrapper with parsed retry metadata for backoff-aware callers."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        response: requests.Response,
+        retry_after_seconds: float | None,
+    ) -> None:
+        super().__init__(message, response=response)
+        self.retry_after_seconds = retry_after_seconds
+
+
+def _parse_retry_after(retry_after_raw: str | None) -> float | None:
+    if not retry_after_raw:
+        return None
+
+    retry_after_raw = retry_after_raw.strip()
+    if not retry_after_raw:
+        return None
+
+    try:
+        return max(float(retry_after_raw), 0.0)
+    except ValueError:
+        pass
+
+    try:
+        retry_at = datetime.strptime(retry_after_raw, "%a, %d %b %Y %H:%M:%S GMT")
+        retry_at = retry_at.replace(tzinfo=timezone.utc)
+        return max((retry_at - datetime.now(timezone.utc)).total_seconds(), 0.0)
+    except ValueError:
+        logger.warning("Could not parse Retry-After header", extra={"retry_after": retry_after_raw})
+        return None
+
+
+def _raise_for_whatsapp_response(response: requests.Response, *, operation: str, to_phone: str | None = None) -> None:
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        status_code = response.status_code
+        if status_code in RETRYABLE_STATUS_CODES:
+            retry_after_seconds = _parse_retry_after(response.headers.get("Retry-After"))
+            raise WhatsAppRetryableError(
+                f"WhatsApp API retryable error: status={status_code}",
+                response=response,
+                retry_after_seconds=retry_after_seconds,
+            ) from exc
+        raise
 
 
 def _extract_response_payload(response: requests.Response, *, context: dict) -> dict:
@@ -63,7 +118,7 @@ class WhatsAppClient:
                 files={"file": (filename, file_bytes, mime_type)},
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
+            _raise_for_whatsapp_response(response, operation="upload_media")
             payload = _extract_response_payload(
                 response,
                 context={"operation": "upload_media", "document_name": filename},
@@ -121,7 +176,7 @@ class WhatsAppClient:
                 json=payload,
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
+            _raise_for_whatsapp_response(response, operation="send_document_message", to_phone=to_phone)
             payload = _extract_response_payload(
                 response,
                 context={"operation": "send_document_message", "to_phone": to_phone},
@@ -166,7 +221,7 @@ class WhatsAppClient:
                 json=payload,
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
+            _raise_for_whatsapp_response(response, operation="send_text_message", to_phone=to_phone)
             logger.info(
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone},
@@ -179,6 +234,66 @@ class WhatsAppClient:
             logger.exception(
                 "Failed sending WhatsApp message",
                 extra={"to_phone": to_phone, "url": url},
+            )
+            raise
+
+    def send_template_message(
+        self,
+        *,
+        to_phone: str,
+        template_name: str,
+        body_parameters: list[str] | None = None,
+        language_code: str = "en",
+    ) -> dict:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
+        template_payload: dict = {
+            "name": template_name,
+            "language": {"code": language_code},
+        }
+        if body_parameters:
+            template_payload["components"] = [
+                {
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": value} for value in body_parameters],
+                }
+            ]
+
+        payload = {
+            "messaging_product": WHATSAPP_MESSAGING_PRODUCT,
+            "to": to_phone,
+            "type": "template",
+            "template": template_payload,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(
+            "Sending WhatsApp template message",
+            extra={"to_phone": to_phone, "url": url, "message_type": "template", "template_name": template_name},
+        )
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
+            )
+            _raise_for_whatsapp_response(response, operation="send_template_message", to_phone=to_phone)
+            response_payload = _extract_response_payload(
+                response,
+                context={"operation": "send_template_message", "to_phone": to_phone},
+            )
+            logger.info(
+                "Received WhatsApp API response",
+                extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "template"},
+            )
+            return response_payload
+        except requests.RequestException:
+            logger.exception(
+                "Failed sending WhatsApp template message",
+                extra={"to_phone": to_phone, "url": url, "template_name": template_name},
             )
             raise
 
@@ -224,7 +339,7 @@ class WhatsAppClient:
                 json=payload,
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
+            _raise_for_whatsapp_response(response, operation="send_list_message", to_phone=to_phone)
             payload = _extract_response_payload(
                 response,
                 context={"operation": "send_list_message", "to_phone": to_phone},
@@ -282,7 +397,7 @@ class WhatsAppClient:
                 json=payload,
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
+            _raise_for_whatsapp_response(response, operation="send_button_message", to_phone=to_phone)
             payload = _extract_response_payload(
                 response,
                 context={"operation": "send_button_message", "to_phone": to_phone},
