@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-import requests
+import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import joinedload
 
@@ -47,7 +47,7 @@ def _send_delivery(delivery: AnnouncementDelivery) -> None:
         raise ValueError("Announcement payload is missing message text")
 
     client = get_whatsapp_client()
-    client.send_text_message(delivery.recipient_id, delivery.announcement.message_text)
+    client.send_text_message(str(delivery.recipient_id), delivery.announcement.message_text)
 
 
 def run_pending_announcement_deliveries(
