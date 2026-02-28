@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -15,6 +15,7 @@ from sqlalchemy.orm import joinedload
 from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_client
 from app.config import settings
 from app.db.models import AnnouncementDelivery
+from app.modules.announcements.service import AnnouncementService
 from app.db.session import SessionLocal
 from app.utils.logger import logger
 
@@ -24,7 +25,6 @@ SEND_INTERVAL_SECONDS = 0.25
 BATCH_SIZE = 20
 SCHEDULER_INTERVAL_SECONDS = 30
 
-POLICY_WINDOW_HOURS = 24
 MAX_SENDS_PER_BATCH = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_BATCH", "100"))
 MAX_SENDS_PER_MINUTE = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_MINUTE", "60"))
 ERROR_RATE_THRESHOLD = float(getattr(settings, "ANNOUNCEMENT_ERROR_RATE_THRESHOLD", "0.4"))
@@ -47,19 +47,6 @@ def _is_transient_error(exc: Exception) -> bool:
     return False
 
 
-def _coerce_iso_datetime(raw_timestamp: str | None) -> datetime | None:
-    if not raw_timestamp:
-        return None
-    try:
-        normalized = raw_timestamp.replace("Z", "+00:00")
-        value = datetime.fromisoformat(normalized)
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
-    except ValueError:
-        return None
-
-
 def _get_whatsapp_policy_state(delivery: AnnouncementDelivery) -> dict:
     metadata = dict((delivery.member_identity.metadata_json or {})) if delivery.member_identity else {}
     channel_state = dict(metadata.get("channel_state") or {})
@@ -71,22 +58,15 @@ def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | 
     if not state.get("opt_in"):
         return "skipped_no_opt_in", "Recipient has no opt-in state for WhatsApp announcements"
 
-    last_inbound = _coerce_iso_datetime(state.get("last_inbound_at"))
-    if not last_inbound:
-        return "skipped_policy_window", "Recipient has no inbound timestamp for 24h policy window"
+    if not TEMPLATE_NAME:
+        return "failed_template_required", "Announcement template is not configured"
 
-    if datetime.now(timezone.utc) - last_inbound <= timedelta(hours=POLICY_WINDOW_HOURS):
-        return "sent_free_text", None
-
-    if TEMPLATE_NAME:
-        return "sent_template", None
-
-    return "skipped_policy_window", "Outside 24h policy window and no template configured"
+    return "sent_template", None
 
 
 def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if delivery.status == "sent":
-        return "sent_free_text", None
+        return "sent_template", None
 
     if delivery.channel != "whatsapp":
         raise ValueError(f"Unsupported channel: {delivery.channel}")
@@ -95,24 +75,23 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
         raise ValueError("Announcement payload is missing message text")
 
     policy_outcome, reason = _resolve_policy_outcome(delivery)
-    if policy_outcome == "skipped_no_opt_in":
+    if policy_outcome in {"skipped_no_opt_in", "failed_template_required"}:
         return policy_outcome, reason
+
+    AnnouncementService.guard_whatsapp_announcement_delivery(
+        channel=str(delivery.channel),
+        announcement_type=str(getattr(delivery.announcement, "type", "announcement")),
+        uses_template_path=policy_outcome == "sent_template",
+    )
 
     client = get_whatsapp_client()
-    if policy_outcome == "sent_template":
-        template_name = str(TEMPLATE_NAME)
-        client.send_template_message(
-            to_phone=str(delivery.recipient_id),
-            template_name=template_name,
-            body_parameters=[delivery.announcement.message_text[:128]],
-        )
-        return policy_outcome, None
-
-    if policy_outcome == "skipped_policy_window":
-        return policy_outcome, reason
-
-    client.send_text_message(str(delivery.recipient_id), delivery.announcement.message_text)
-    return "sent_free_text", None
+    template_name = str(TEMPLATE_NAME)
+    client.send_template_message(
+        to_phone=str(delivery.recipient_id),
+        template_name=template_name,
+        body_parameters=[delivery.announcement.message_text[:128]],
+    )
+    return "sent_template", None
 
 
 def run_pending_announcement_deliveries(
