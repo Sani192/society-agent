@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 def _verify_webhook_secret(secret: str | None) -> None:
-    expected_secret = settings.TELEGRAM_WEBHOOK_SECRET
+    expected_secret = getattr(settings, "TELEGRAM_WEBHOOK_SECRET", None)
     if not expected_secret:
         return
     if secret != expected_secret:
@@ -97,7 +97,7 @@ def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> Normal
 async def telegram_webhook_event(
     request: Request,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
-) -> WebhookStatusResponse:
+) -> dict[str, str]:
     _ensure_channel_enabled()
     logger.info("Received Telegram webhook event")
     _verify_webhook_secret(x_telegram_bot_api_secret_token)
