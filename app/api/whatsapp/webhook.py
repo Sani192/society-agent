@@ -4,13 +4,20 @@
 
 import hashlib
 import hmac
+import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
 from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
 from app.channels.core.handler import handle_inbound_message
-from app.channels.whatsapp.adapter import parse_webhook_payload
+from app.channels.core.audit_events import NormalizedAuditEvent, persist_audit_events
+from app.channels.whatsapp.adapter import (
+    parse_webhook_events,
+    parse_webhook_payload,
+    to_normalized_audit_events,
+)
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.channels.whatsapp.constants import (
     WHATSAPP_SIGNATURE_HEADER,
@@ -80,6 +87,24 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     logger.info("WhatsApp webhook signature verification passed")
 
 
+
+def _hash_payload(raw_body: bytes) -> str:
+    return hashlib.sha256(raw_body).hexdigest()
+
+
+def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> NormalizedAuditEvent:
+    selected_fields = {
+        "object": payload.get("object"),
+        "entry_count": len(payload.get("entry") or []),
+        "entry_ids": [entry.get("id") for entry in (payload.get("entry") or []) if isinstance(entry, dict)],
+    }
+    return NormalizedAuditEvent(
+        channel="whatsapp",
+        direction="system",
+        event_type="webhook_received",
+        payload_json={"payload_hash": payload_hash, "selected": selected_fields},
+        occurred_at=datetime.now(timezone.utc),
+    )
 
 
 def _build_reports_list_sections(
@@ -151,12 +176,25 @@ def whatsapp_webhook_verify(
 async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook event")
-    raw_body = await request.body()
+    if hasattr(request, "body"):
+        raw_body = await request.body()
+    else:
+        payload_for_body = await request.json()
+        raw_body = json.dumps(payload_for_body, separators=(",", ":"), sort_keys=True).encode("utf-8")
     signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
     _verify_signature(raw_body, signature)
 
-    payload = WhatsAppWebhookPayload.model_validate(await request.json())
-    inbound_messages = parse_webhook_payload(payload.model_dump(exclude_none=True))
+    payload_data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    payload = WhatsAppWebhookPayload.model_validate(payload_data)
+    payload_dict = payload.model_dump(exclude_none=True)
+
+    payload_hash = _hash_payload(raw_body)
+    parsed_events = parse_webhook_events(payload_dict)
+    normalized_events = [_build_webhook_received_event(payload_hash=payload_hash, payload=payload_dict)]
+    normalized_events.extend(to_normalized_audit_events(parsed_events))
+    persist_audit_events(normalized_events)
+
+    inbound_messages = parse_webhook_payload(payload_dict)
     if not inbound_messages:
         logger.info("WhatsApp webhook received with no inbound messages")
         return {"status": "ignored"}
