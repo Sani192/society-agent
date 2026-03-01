@@ -3,24 +3,46 @@
 
 """Recipient targeting helpers for WhatsApp announcements."""
 
+from __future__ import annotations
+
+from typing import TypedDict, cast
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 from app.db.models import Event, Flat, MemberIdentity, Payment, UserFlatMapping
 
 
+class AnnouncementTarget(TypedDict):
+    member_identity_id: UUID
+    whatsapp_user_id: str
+    receiver_name: str
+    event_name: str | None
+
+
+class RecipientResolution(TypedDict):
+    targets: list[AnnouncementTarget]
+    total_candidates: int
+    queued_count: int
+    skipped_missing_whatsapp: int
+    duplicate_whatsapp_ids: int
+
+
 class AnnouncementRecipientService:
 
     @staticmethod
-    def _resolve_whatsapp_targets(member_rows) -> dict:
-        targets: list[dict] = []
+    def _resolve_whatsapp_targets(member_rows) -> RecipientResolution:
+        targets: list[AnnouncementTarget] = []
         skipped_missing_whatsapp = 0
         duplicate_whatsapp_ids = 0
-
         seen_whatsapp_ids: set[str] = set()
 
         for row in member_rows:
             member_identity_id = getattr(row, "id", None)
             whatsapp_user_id = getattr(row, "whatsapp_user_id", None)
+
+            if not member_identity_id:
+                continue
 
             if not whatsapp_user_id:
                 skipped_missing_whatsapp += 1
@@ -31,7 +53,6 @@ class AnnouncementRecipientService:
                 continue
 
             seen_whatsapp_ids.add(whatsapp_user_id)
-
             receiver_name = (
                 getattr(row, "owner_name", None)
                 or getattr(row, "normalized_identifier", None)
@@ -41,7 +62,7 @@ class AnnouncementRecipientService:
 
             targets.append(
                 {
-                    "member_identity_id": str(member_identity_id),
+                    "member_identity_id": cast(UUID, member_identity_id),
                     "whatsapp_user_id": whatsapp_user_id,
                     "receiver_name": str(receiver_name).strip(),
                     "event_name": str(event_name).strip() if event_name else None,
@@ -57,7 +78,7 @@ class AnnouncementRecipientService:
         }
 
     @staticmethod
-    def get_event_joined_member_targets(db: Session, society_id, event_id) -> dict:
+    def get_event_joined_member_targets(db: Session, society_id, event_id) -> RecipientResolution:
         members = (
             db.query(
                 MemberIdentity.id,
@@ -83,7 +104,7 @@ class AnnouncementRecipientService:
         return AnnouncementRecipientService._resolve_whatsapp_targets(members)
 
     @staticmethod
-    def get_active_member_targets(db: Session, society_id) -> dict:
+    def get_active_member_targets(db: Session, society_id) -> RecipientResolution:
         members = (
             db.query(
                 MemberIdentity.id,

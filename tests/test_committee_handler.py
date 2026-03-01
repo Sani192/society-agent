@@ -1018,12 +1018,12 @@ def test_committee_announce_event_acknowledges_queued_count(monkeypatch):
     member = SimpleNamespace(id="member-1", role="treasurer", society_id="soc-1")
 
     monkeypatch.setattr(
-        "app.handlers.shared.committee._queue_announcement",
-        lambda **kwargs: {
-            "accepted_count": 27,
-            "skipped_count": 3,
-            "announcement_id": "ann-123",
-        },
+        "app.handlers.shared.committee.AnnouncementManager.queue",
+        lambda **kwargs: SimpleNamespace(
+            accepted_count=27,
+            skipped_count=3,
+            announcement_id="ann-123",
+        ),
     )
 
     response = handle_committee_intent(
@@ -1045,12 +1045,12 @@ def test_committee_announce_event_pending_flow_rejects_empty_then_accepts(monkey
     inbound = SimpleNamespace(sender_id="sender-ann-2", metadata={})
 
     monkeypatch.setattr(
-        "app.handlers.shared.committee._queue_announcement",
-        lambda **kwargs: {
-            "accepted_count": 9,
-            "skipped_count": 1,
-            "announcement_id": "ann-999",
-        },
+        "app.handlers.shared.committee.AnnouncementManager.queue",
+        lambda **kwargs: SimpleNamespace(
+            accepted_count=9,
+            skipped_count=1,
+            announcement_id="ann-999",
+        ),
     )
 
     step1 = handle_committee_intent(
@@ -1096,7 +1096,7 @@ def test_committee_announce_event_returns_error_when_no_active_event(monkeypatch
         raise ValueError("No active event found. Please contact committee.")
 
     monkeypatch.setattr(
-        "app.handlers.shared.committee._queue_announcement",
+        "app.handlers.shared.committee.AnnouncementManager.queue",
         raise_no_event,
     )
 

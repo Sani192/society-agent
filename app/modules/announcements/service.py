@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Announcement creation service."""
+"""Announcement creation and template rendering service."""
 
 from __future__ import annotations
 
+from typing import TypedDict
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -13,22 +14,40 @@ from app.db.models import Announcement, AnnouncementDelivery
 from app.utils.audit_logger import log_announcement_creation
 
 
+class AnnouncementRecipient(TypedDict, total=False):
+    member_identity_id: UUID
+    channel: str
+    recipient_id: str
+    whatsapp_user_id: str
+    receiver_name: str
+    event_name: str
+
+
+class RenderedTemplatePayload(TypedDict):
+    template_name: str
+    body_parameters: list[str]
+
+
 class AnnouncementService:
     MAX_FREE_TEXT_LENGTH = 1024
     GENERAL_TEMPLATE_NAME = "society_announcement_general"
     EVENT_TEMPLATE_NAME = "society_announcement_event"
 
     @staticmethod
-    def guard_whatsapp_announcement_delivery(
-        *,
-        channel: str,
-        announcement_type: str,
-        uses_template_path: bool,
-    ) -> None:
+    def ensure_whatsapp_template_delivery(*, channel: str, uses_template_path: bool) -> None:
         """Enforce template-only delivery for WhatsApp announcement dispatches."""
 
-        if channel == "whatsapp" and announcement_type == "announcement" and not uses_template_path:
+        if channel == "whatsapp" and not uses_template_path:
             raise ValueError("WhatsApp announcement deliveries must use template messaging")
+
+    @staticmethod
+    def _is_event_related(*, announcement_type: str, event_name: str) -> bool:
+        return bool(event_name) or str(announcement_type).strip().lower() in {
+            "event",
+            "event_related",
+            "event-related",
+            "event_announcement",
+        }
 
     @staticmethod
     def build_whatsapp_template_payload(
@@ -37,7 +56,7 @@ class AnnouncementService:
         receiver_name: str,
         free_text: str,
         event_name: str | None,
-    ) -> dict:
+    ) -> RenderedTemplatePayload:
         """Resolve WhatsApp template metadata and ordered body variables."""
 
         receiver_name_clean = (receiver_name or "").strip()
@@ -53,17 +72,12 @@ class AnnouncementService:
                 f"free_text exceeds max length of {AnnouncementService.MAX_FREE_TEXT_LENGTH} characters"
             )
 
-        is_event_related = bool(event_name_clean) or str(announcement_type).strip().lower() in {
-            "event",
-            "event_related",
-            "event-related",
-            "event_announcement",
-        }
-
-        if is_event_related and not event_name_clean:
-            raise ValueError("event_name is required for event-related announcements")
-
-        if is_event_related:
+        if AnnouncementService._is_event_related(
+            announcement_type=announcement_type,
+            event_name=event_name_clean,
+        ):
+            if not event_name_clean:
+                raise ValueError("event_name is required for event-related announcements")
             return {
                 "template_name": AnnouncementService.EVENT_TEMPLATE_NAME,
                 "body_parameters": [receiver_name_clean, event_name_clean, free_text_clean],
@@ -83,20 +97,9 @@ class AnnouncementService:
         announcement_type: str,
         message_text: str,
         created_by: UUID,
-        recipients: list[dict],
+        recipients: list[AnnouncementRecipient],
     ) -> Announcement:
-        """
-        Create an announcement and pending delivery rows.
-
-        recipients item schema:
-            {
-                "member_identity_id": "<uuid>",
-                "channel": "whatsapp",  # optional, defaults to whatsapp
-                "recipient_id": "<external channel user id>",
-                "receiver_name": "<recipient display name>",
-                "event_name": "<event name>",
-            }
-        """
+        """Create an announcement and pending delivery rows."""
 
         queued_recipients = [
             recipient
@@ -124,14 +127,14 @@ class AnnouncementService:
             if not recipient_id:
                 continue
 
-            channel = recipient.get("channel", "whatsapp")
-            rendered_payload = None
+            channel = str(recipient.get("channel", "whatsapp"))
+            rendered_payload: RenderedTemplatePayload | None = None
             if channel == "whatsapp":
                 rendered_payload = AnnouncementService.build_whatsapp_template_payload(
                     announcement_type=announcement_type,
                     receiver_name=str(recipient.get("receiver_name") or ""),
                     free_text=message_text,
-                    event_name=recipient.get("event_name") or recipient.get("announcement_event_name"),
+                    event_name=recipient.get("event_name"),
                 )
 
             db.add(
@@ -139,12 +142,13 @@ class AnnouncementService:
                     announcement_id=announcement.id,
                     member_identity_id=recipient["member_identity_id"],
                     channel=channel,
-                    recipient_id=recipient_id,
+                    recipient_id=str(recipient_id),
                     rendered_payload=rendered_payload,
                     status="pending",
                     attempts=0,
                 )
             )
+
         log_announcement_creation(
             db,
             society_id=society_id,
