@@ -150,18 +150,16 @@ def test_guard_whatsapp_announcement_requires_template():
     from app.modules.announcements.service import AnnouncementService
 
     with pytest.raises(ValueError, match="must use template"):
-        AnnouncementService.guard_whatsapp_announcement_delivery(
+        AnnouncementService.ensure_whatsapp_template_delivery(
             channel="whatsapp",
-            announcement_type="announcement",
             uses_template_path=False,
         )
 
 
-def test_guard_non_announcement_allows_non_template():
+def test_guard_non_whatsapp_allows_non_template():
     from app.modules.announcements.service import AnnouncementService
 
-    AnnouncementService.guard_whatsapp_announcement_delivery(
-        channel="whatsapp",
-        announcement_type="reminder",
+    AnnouncementService.ensure_whatsapp_template_delivery(
+        channel="telegram",
         uses_template_path=False,
     )

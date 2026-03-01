@@ -13,6 +13,9 @@ Society Event Management Agent is a FastAPI-based backend for managing society o
 
 This separation keeps webhook logic isolated from the core domain and makes behavior easier to test and evolve.
 
+### Announcement architecture
+- Detailed design and flow: `docs/announcements.md`
+
 ## 2. Prerequisites
 - Python **3.10+**
 - PostgreSQL **13+**
@@ -166,6 +169,58 @@ Run from repository root:
   ```bash
   python scripts/ci/check_test_markers.py
   ```
-- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+This system helps the society managing committee manage:
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+The system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 - Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate

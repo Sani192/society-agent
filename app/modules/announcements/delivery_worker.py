@@ -86,9 +86,8 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if policy_outcome in {"skipped_no_opt_in", "failed_template_required"}:
         return policy_outcome, reason
 
-    AnnouncementService.guard_whatsapp_announcement_delivery(
+    AnnouncementService.ensure_whatsapp_template_delivery(
         channel=str(delivery.channel),
-        announcement_type=str(getattr(delivery.announcement, "type", "announcement")),
         uses_template_path=policy_outcome == "sent_template",
     )
 

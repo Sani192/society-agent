@@ -8,7 +8,6 @@ Created on Tue Feb 04 10:33:10 2026
 
 # app/whatsapp/handlers/committee_handler.py
 
-import threading
 from datetime import datetime, timedelta
 
 from sqlalchemy import func
@@ -33,9 +32,7 @@ from app.modules.contributions.contribution_refund_service import (
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.events.service import EventService
-from app.modules.announcements.delivery_worker import run_pending_announcement_deliveries
-from app.modules.announcements.recipient_service import AnnouncementRecipientService
-from app.modules.announcements.service import AnnouncementService
+from app.modules.announcements.manager import AnnouncementManager
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.reports.common.whatsapp_report_registry import (
     build_whatsapp_report_registry,
@@ -122,7 +119,7 @@ INTENT_ROLE_WARNINGS = {
 CLOSED_OVERRIDE_INTENTS = {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR"}
 COMMITTEE_ROLES = {"chairman", "secretary", "treasurer"}
 ANNOUNCE_INTENTS = {"ANNOUNCE_EVENT", "ANNOUNCE_SOCIETY"}
-ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH = 4096
+ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH = 1024
 
 
 def _extract_announcement_body(*, message: str, command_prefix: str) -> str:
@@ -131,82 +128,6 @@ def _extract_announcement_body(*, message: str, command_prefix: str) -> str:
     if left_trimmed_message.lower().startswith(command_prefix.lower()):
         return left_trimmed_message[len(command_prefix):]
     return ""
-
-
-def _resolve_current_event(*, db, society_id):
-    return (
-        db.query(Event)
-        .filter(
-            Event.society_id == society_id,
-            Event.status.in_(["ACTIVE", "LOCKED", "EVENT_DAY"]),
-        )
-        .order_by(Event.event_date.desc())
-        .first()
-    )
-
-
-def _trigger_announcement_delivery_async() -> None:
-    thread = threading.Thread(
-        target=run_pending_announcement_deliveries,
-        kwargs={"batch_size": 20},
-        daemon=True,
-    )
-    thread.start()
-
-
-def _queue_announcement(*, db, member, event, message_body: str, scope: str) -> dict:
-    if scope == "event":
-        target_event = event or _resolve_current_event(db=db, society_id=member.society_id)
-        if not target_event:
-            raise ValueError("No active event found. Please contact committee.")
-        recipient_resolution = AnnouncementRecipientService.get_event_joined_member_targets(
-            db=db,
-            society_id=member.society_id,
-            event_id=target_event.id,
-        )
-        announcement_type = "event"
-    else:
-        target_event = None
-        recipient_resolution = AnnouncementRecipientService.get_active_member_targets(
-            db=db,
-            society_id=member.society_id,
-        )
-        announcement_type = "announcement"
-
-    announcement = AnnouncementService.create_announcement(
-        db,
-        society_id=member.society_id,
-        event_id=getattr(target_event, "id", None),
-        announcement_type=announcement_type,
-        message_text=message_body,
-        created_by=member.id,
-        recipients=recipient_resolution["targets"],
-    )
-
-    _trigger_announcement_delivery_async()
-
-    accepted_count = recipient_resolution["queued_count"]
-    skipped_count = (
-        recipient_resolution["total_candidates"]
-        - recipient_resolution["queued_count"]
-    )
-    logger.info(
-        "Queued WhatsApp announcement",
-        extra={
-            "scope": scope,
-            "society_id": str(member.society_id),
-            "accepted_count": accepted_count,
-            "skipped_count": skipped_count,
-            "announcement_id": str(announcement.id),
-            "initiated_by": str(getattr(member, "id", "unknown")),
-            "message_preview": message_body[:120],
-        },
-    )
-    return {
-        "announcement_id": str(announcement.id),
-        "accepted_count": accepted_count,
-        "skipped_count": skipped_count,
-    }
 
 
 def _event_wizard_prompt(step: str) -> str:
@@ -919,7 +840,7 @@ def handle_committee_intent(
                     )
                 clear_committee_action_session(committee_action_session_key)
                 try:
-                    queue_result = _queue_announcement(
+                    queue_result = AnnouncementManager.queue(
                         db=db,
                         member=member,
                         event=event,
@@ -931,9 +852,9 @@ def handle_committee_intent(
                 return success_response(
                     (
                         "Announcement accepted for processing. "
-                        f"Accepted: {queue_result['accepted_count']}, "
-                        f"Skipped: {queue_result['skipped_count']}, "
-                        f"Announcement ID: {queue_result['announcement_id']}"
+                        f"Accepted: {queue_result.accepted_count}, "
+                        f"Skipped: {queue_result.skipped_count}, "
+                        f"Announcement ID: {queue_result.announcement_id}"
                     ),
                     heading="Announcement queued",
                     emoji="📣",
@@ -1387,7 +1308,7 @@ def handle_committee_intent(
             )
 
         try:
-            queue_result = _queue_announcement(
+            queue_result = AnnouncementManager.queue(
                 db=db,
                 member=member,
                 event=event,
@@ -1400,9 +1321,9 @@ def handle_committee_intent(
         return success_response(
             (
                 "Announcement accepted for processing. "
-                f"Accepted: {queue_result['accepted_count']}, "
-                f"Skipped: {queue_result['skipped_count']}, "
-                f"Announcement ID: {queue_result['announcement_id']}"
+                f"Accepted: {queue_result.accepted_count}, "
+                f"Skipped: {queue_result.skipped_count}, "
+                f"Announcement ID: {queue_result.announcement_id}"
             ),
             heading="Announcement queued",
             emoji="📣",
