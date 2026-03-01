@@ -9,7 +9,18 @@ Created on Sat Jan 10 13:22:14 2026
 # app/db/models.py
 
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Date, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    Integer,
+    Date,
+    Text,
+    UniqueConstraint,
+    Index,
+    CheckConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy import ForeignKey
@@ -89,6 +100,74 @@ class CommitteeMemberChannelIdentity(Base):
     )
 
     committee_member = relationship("CommitteeMember", backref="channel_identities")
+
+
+class ChannelConversation(Base):
+    __tablename__ = "channel_conversations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    channel = Column(String(20), nullable=False)
+    external_user_id = Column(String(255), nullable=False)
+    chat_id_or_phone = Column(String(255), nullable=True)
+
+    first_occurred_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_occurred_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("channel", "external_user_id", name="uq_channel_conversation_user"),
+        CheckConstraint("channel IN ('whatsapp', 'telegram')", name="ck_channel_conversations_channel"),
+        Index("ix_channel_conversations_channel_external_user", "channel", "external_user_id"),
+    )
+
+
+class ChannelMessageEvent(Base):
+    __tablename__ = "channel_message_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    trace_id = Column(String(255), nullable=True, index=True)
+    correlation_id = Column(String(255), nullable=True, index=True)
+    channel = Column(String(20), nullable=False)
+    direction = Column(String(20), nullable=False)
+    event_type = Column(String(50), nullable=False)
+
+    provider_message_id = Column(String(255), nullable=True)
+    provider_update_id = Column(String(255), nullable=True)
+    chat_id_or_phone = Column(String(255), nullable=True)
+    external_user_id = Column(String(255), nullable=True)
+
+    message_text_raw = Column(Text, nullable=True)
+    message_text_redacted = Column(Text, nullable=True)
+    payload_json = Column(JSONB, nullable=True)
+
+    http_status = Column(Integer, nullable=True)
+    provider_error_code = Column(String(100), nullable=True)
+    provider_error_message = Column(Text, nullable=True)
+
+    occurred_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("channel IN ('whatsapp', 'telegram')", name="ck_channel_message_events_channel"),
+        CheckConstraint(
+            "direction IN ('inbound', 'outbound', 'status', 'system')",
+            name="ck_channel_message_events_direction",
+        ),
+        CheckConstraint(
+            "event_type IN ('webhook_received', 'message_parsed', 'reply_generated', 'send_attempt', "
+            "'send_result', 'delivery_status', 'exception')",
+            name="ck_channel_message_events_event_type",
+        ),
+        Index(
+            "ix_channel_message_events_channel_external_user_occurred",
+            "channel",
+            "external_user_id",
+            "occurred_at",
+        ),
+        Index("ix_channel_message_events_provider_message_id", "provider_message_id"),
+    )
 
 
 class CommitteeMemberLinkCode(Base):
