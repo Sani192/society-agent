@@ -107,6 +107,8 @@ def _attempt_telegram_member_link(
 def handle_inbound_message(
     message: InboundMessage,
     *,
+    trace_id: str | None = None,
+    correlation_id: str | None = None,
     session_factory: Callable[[], Session] = SessionLocal,
     committee_member_resolver: Callable[..., object] = ensure_committee_member,
     latest_event_getter: Callable[..., Any] = get_latest_event_for_society,
@@ -122,6 +124,8 @@ def handle_inbound_message(
             "sender_id": message.sender_id,
             "display_name": message.display_name,
             "message_text": message.text,
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
         },
     )
     db = session_factory()
