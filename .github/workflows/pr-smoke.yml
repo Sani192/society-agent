@@ -348,18 +348,18 @@ jobs:
           path: artifacts/from-jobs/stage1
 
       - name: Download Stage 2 artifacts
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: stage2-artifacts-${{ github.run_id }}
           path: artifacts/from-jobs/stage2
+          if-no-artifact-found: ignore
 
       - name: Download Stage 3 artifacts
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: stage3-artifacts-${{ github.run_id }}
           path: artifacts/from-jobs/stage3
+          if-no-artifact-found: ignore
 
 
       - name: Ensure fallback Stage 2/3 JUnit files exist
