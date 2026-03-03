@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
@@ -124,17 +125,39 @@ async def telegram_webhook_event(
 
     client = get_telegram_client()
     for message in inbound_messages:
+        trace_id = str(uuid4())
+        correlation_id = message.metadata.get("update_id") or message.metadata.get("message_id")
+        message.metadata["trace_id"] = trace_id
+        if correlation_id is not None:
+            message.metadata["correlation_id"] = str(correlation_id)
         logger.info(
             "Processing inbound Telegram message",
             extra={
                 "sender_id": message.sender_id,
                 "chat_id": message.metadata.get("chat_id"),
                 "message_id": message.metadata.get("message_id"),
+                "trace_id": trace_id,
+                "correlation_id": correlation_id,
             },
         )
-        reply_text = handle_inbound_message(message)
+        try:
+            reply_text = handle_inbound_message(
+                message,
+                trace_id=trace_id,
+                correlation_id=str(correlation_id) if correlation_id is not None else None,
+            )
+        except TypeError:
+            reply_text = handle_inbound_message(message)
         reply_chat_id = message.metadata.get("chat_id") or message.sender_id
-        client.send_text_message(reply_chat_id, reply_text)
+        try:
+            client.send_text_message(
+                reply_chat_id,
+                reply_text,
+                trace_id=trace_id,
+                correlation_id=str(correlation_id) if correlation_id is not None else None,
+            )
+        except TypeError:
+            client.send_text_message(reply_chat_id, reply_text)
 
     logger.info("Telegram webhook processing completed")
     return {"status": "ok"}

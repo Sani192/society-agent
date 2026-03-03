@@ -21,6 +21,8 @@ from app.channels.whatsapp.constants import (
     WHATSAPP_REQUEST_TIMEOUT_SECONDS,
 )
 from app.config import settings
+from app.utils.channel_audit_service import AuditTransport
+from app.utils.channel_response_parser import parse_provider_error
 from app.utils.logger import logger
 
 
@@ -101,6 +103,19 @@ class WhatsAppClient:
     phone_number_id: str
     api_version: str = DEFAULT_WHATSAPP_API_VERSION
     graph_base_url: str = DEFAULT_WHATSAPP_GRAPH_BASE_URL
+    audit_transport: AuditTransport | None = None
+
+    def _audit(self) -> AuditTransport:
+        return self.audit_transport or AuditTransport(channel="whatsapp")
+
+    @staticmethod
+    def _provider_message_id_from_payload(payload: dict) -> str | None:
+        messages = payload.get("messages") if isinstance(payload, dict) else None
+        if isinstance(messages, list) and messages:
+            message = messages[0]
+            if isinstance(message, dict) and message.get("id"):
+                return str(message.get("id"))
+        return None
 
     def upload_media(self, *, file_bytes: bytes, filename: str, mime_type: str) -> str:
         url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MEDIA_PATH}"
@@ -144,6 +159,9 @@ class WhatsAppClient:
         media_id: str,
         filename: str,
         caption: str | None = None,
+        *,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> dict:
         url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
         document_payload = {"id": media_id, "filename": filename}
@@ -169,6 +187,12 @@ class WhatsAppClient:
                 "message_type": "document",
             },
         )
+        self._audit().log_send_attempt(
+            trace_id=trace_id,
+            correlation_id=correlation_id,
+            recipient=to_phone,
+            outbound_payload_metadata={"message_type": "document", "document_name": filename},
+        )
         try:
             response = requests.post(
                 url,
@@ -181,19 +205,48 @@ class WhatsAppClient:
                 response,
                 context={"operation": "send_document_message", "to_phone": to_phone},
             )
+            parsed_error = parse_provider_error(
+                channel="whatsapp",
+                response_payload=payload,
+                response_status_code=response.status_code,
+            )
+            self._audit().log_send_result(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                status_code=response.status_code,
+                provider_message_id=self._provider_message_id_from_payload(payload),
+                response_payload_snapshot=payload,
+                success=True,
+                provider_error_code=parsed_error.get("provider_error_code"),
+                provider_error_message=parsed_error.get("provider_error_message"),
+            )
             logger.info(
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "document"},
             )
             return payload
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            self._audit().log_exception(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                exc=exc,
+            )
             logger.exception(
                 "Failed sending WhatsApp document message",
                 extra={"to_phone": to_phone, "url": url, "document_name": filename},
             )
             raise
 
-    def send_text_message(self, to_phone: str, body: str) -> dict:
+    def send_text_message(
+        self,
+        to_phone: str,
+        body: str,
+        *,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
+    ) -> dict:
         url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
         payload = {
             "messaging_product": WHATSAPP_MESSAGING_PRODUCT,
@@ -214,6 +267,12 @@ class WhatsAppClient:
                 "message_type": "text",
             },
         )
+        self._audit().log_send_attempt(
+            trace_id=trace_id,
+            correlation_id=correlation_id,
+            recipient=to_phone,
+            outbound_payload_metadata={"message_type": "text", "text_length": len(body)},
+        )
         try:
             response = requests.post(
                 url,
@@ -222,15 +281,38 @@ class WhatsAppClient:
                 timeout=WHATSAPP_REQUEST_TIMEOUT_SECONDS,
             )
             _raise_for_whatsapp_response(response, operation="send_text_message", to_phone=to_phone)
+            response_payload = _extract_response_payload(
+                response,
+                context={"operation": "send_text_message", "to_phone": to_phone},
+            )
+            parsed_error = parse_provider_error(
+                channel="whatsapp",
+                response_payload=response_payload,
+                response_status_code=response.status_code,
+            )
+            self._audit().log_send_result(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                status_code=response.status_code,
+                provider_message_id=self._provider_message_id_from_payload(response_payload),
+                response_payload_snapshot=response_payload,
+                success=True,
+                provider_error_code=parsed_error.get("provider_error_code"),
+                provider_error_message=parsed_error.get("provider_error_message"),
+            )
             logger.info(
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone},
             )
-            return _extract_response_payload(
-                response,
-                context={"operation": "send_text_message", "to_phone": to_phone},
+            return response_payload
+        except requests.RequestException as exc:
+            self._audit().log_exception(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                exc=exc,
             )
-        except requests.RequestException:
             logger.exception(
                 "Failed sending WhatsApp message",
                 extra={"to_phone": to_phone, "url": url},
@@ -244,6 +326,8 @@ class WhatsAppClient:
         template_name: str,
         body_parameters: list[str] | None = None,
         language_code: str = "en",
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> dict:
         url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
         template_payload: dict = {
@@ -273,6 +357,12 @@ class WhatsAppClient:
             "Sending WhatsApp template message",
             extra={"to_phone": to_phone, "url": url, "message_type": "template", "template_name": template_name},
         )
+        self._audit().log_send_attempt(
+            trace_id=trace_id,
+            correlation_id=correlation_id,
+            recipient=to_phone,
+            outbound_payload_metadata={"message_type": "template", "template_name": template_name},
+        )
         try:
             response = requests.post(
                 url,
@@ -285,12 +375,34 @@ class WhatsAppClient:
                 response,
                 context={"operation": "send_template_message", "to_phone": to_phone},
             )
+            parsed_error = parse_provider_error(
+                channel="whatsapp",
+                response_payload=response_payload,
+                response_status_code=response.status_code,
+            )
+            self._audit().log_send_result(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                status_code=response.status_code,
+                provider_message_id=self._provider_message_id_from_payload(response_payload),
+                response_payload_snapshot=response_payload,
+                success=True,
+                provider_error_code=parsed_error.get("provider_error_code"),
+                provider_error_message=parsed_error.get("provider_error_message"),
+            )
             logger.info(
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "template"},
             )
             return response_payload
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            self._audit().log_exception(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                exc=exc,
+            )
             logger.exception(
                 "Failed sending WhatsApp template message",
                 extra={"to_phone": to_phone, "url": url, "template_name": template_name},
@@ -306,6 +418,8 @@ class WhatsAppClient:
         button_text: str,
         sections: list[dict],
         footer_text: str | None = None,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> dict:
         url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
         interactive_payload = {
@@ -332,6 +446,12 @@ class WhatsAppClient:
             "Sending WhatsApp interactive list message",
             extra={"to_phone": to_phone, "url": url, "message_type": "interactive_list"},
         )
+        self._audit().log_send_attempt(
+            trace_id=trace_id,
+            correlation_id=correlation_id,
+            recipient=to_phone,
+            outbound_payload_metadata={"message_type": "interactive_list", "sections": len(sections)},
+        )
         try:
             response = requests.post(
                 url,
@@ -344,12 +464,34 @@ class WhatsAppClient:
                 response,
                 context={"operation": "send_list_message", "to_phone": to_phone},
             )
+            parsed_error = parse_provider_error(
+                channel="whatsapp",
+                response_payload=payload,
+                response_status_code=response.status_code,
+            )
+            self._audit().log_send_result(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                status_code=response.status_code,
+                provider_message_id=self._provider_message_id_from_payload(payload),
+                response_payload_snapshot=payload,
+                success=True,
+                provider_error_code=parsed_error.get("provider_error_code"),
+                provider_error_message=parsed_error.get("provider_error_message"),
+            )
             logger.info(
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "interactive_list"},
             )
             return payload
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            self._audit().log_exception(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                exc=exc,
+            )
             logger.exception(
                 "Failed sending WhatsApp interactive list message",
                 extra={"to_phone": to_phone, "url": url},
@@ -364,6 +506,8 @@ class WhatsAppClient:
         body_text: str,
         buttons: list[dict],
         footer_text: str | None = None,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> dict:
         url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}/{WHATSAPP_MESSAGES_PATH}"
         interactive_payload = {
@@ -390,6 +534,12 @@ class WhatsAppClient:
             "Sending WhatsApp interactive button message",
             extra={"to_phone": to_phone, "url": url, "message_type": "interactive_button"},
         )
+        self._audit().log_send_attempt(
+            trace_id=trace_id,
+            correlation_id=correlation_id,
+            recipient=to_phone,
+            outbound_payload_metadata={"message_type": "interactive_button", "buttons": len(buttons)},
+        )
         try:
             response = requests.post(
                 url,
@@ -402,12 +552,34 @@ class WhatsAppClient:
                 response,
                 context={"operation": "send_button_message", "to_phone": to_phone},
             )
+            parsed_error = parse_provider_error(
+                channel="whatsapp",
+                response_payload=payload,
+                response_status_code=response.status_code,
+            )
+            self._audit().log_send_result(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                status_code=response.status_code,
+                provider_message_id=self._provider_message_id_from_payload(payload),
+                response_payload_snapshot=payload,
+                success=True,
+                provider_error_code=parsed_error.get("provider_error_code"),
+                provider_error_message=parsed_error.get("provider_error_message"),
+            )
             logger.info(
                 "Received WhatsApp API response",
                 extra={"status_code": response.status_code, "to_phone": to_phone, "message_type": "interactive_button"},
             )
             return payload
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            self._audit().log_exception(
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                recipient=to_phone,
+                exc=exc,
+            )
             logger.exception(
                 "Failed sending WhatsApp interactive button message",
                 extra={"to_phone": to_phone, "url": url},
@@ -426,6 +598,7 @@ def get_whatsapp_client() -> WhatsAppClient:
         phone_number_id=settings.WHATSAPP_PHONE_NUMBER_ID,
         api_version=settings.WHATSAPP_API_VERSION,
         graph_base_url=settings.WHATSAPP_GRAPH_BASE_URL,
+        audit_transport=AuditTransport(channel="whatsapp"),
     )
     logger.info(
         "WhatsApp client prepared",

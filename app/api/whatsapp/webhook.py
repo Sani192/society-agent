@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
@@ -201,12 +202,23 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
 
     client = get_whatsapp_client()
     for message in inbound_messages:
+        trace_id = str(uuid4())
+        correlation_id = (
+            message.metadata.get("message_id")
+            or message.metadata.get("conversation_id")
+            or message.metadata.get("timestamp")
+        )
+        message.metadata["trace_id"] = trace_id
+        if correlation_id is not None:
+            message.metadata["correlation_id"] = str(correlation_id)
         logger.info(
             "Processing inbound WhatsApp message",
             extra={
                 "sender_id": message.sender_id,
                 "channel": message.channel,
                 "message_id": message.metadata.get("message_id"),
+                "trace_id": trace_id,
+                "correlation_id": correlation_id,
             },
         )
         if _try_handle_ui_message(client=client, message=message):
@@ -222,17 +234,42 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
         if handle_report_flow(client=client, message=message):
             continue
 
-        reply_text = handle_inbound_message(message)
+        try:
+            reply_text = handle_inbound_message(
+                message,
+                trace_id=trace_id,
+                correlation_id=str(correlation_id) if correlation_id is not None else None,
+            )
+        except TypeError:
+            reply_text = handle_inbound_message(message)
         try:
             if reply_text.startswith("ℹ️ Invalid option."):
-                send_response = client.send_button_message(
-                    to_phone=message.sender_id,
-                    header_text="Invalid option",
-                    body_text=reply_text,
-                    buttons=[_button_row("menu", "Main Menu")],
-                )
+                try:
+                    send_response = client.send_button_message(
+                        to_phone=message.sender_id,
+                        header_text="Invalid option",
+                        body_text=reply_text,
+                        buttons=[_button_row("menu", "Main Menu")],
+                        trace_id=trace_id,
+                        correlation_id=str(correlation_id) if correlation_id is not None else None,
+                    )
+                except TypeError:
+                    send_response = client.send_button_message(
+                        to_phone=message.sender_id,
+                        header_text="Invalid option",
+                        body_text=reply_text,
+                        buttons=[_button_row("menu", "Main Menu")],
+                    )
             else:
-                send_response = client.send_text_message(message.sender_id, reply_text)
+                try:
+                    send_response = client.send_text_message(
+                        message.sender_id,
+                        reply_text,
+                        trace_id=trace_id,
+                        correlation_id=str(correlation_id) if correlation_id is not None else None,
+                    )
+                except TypeError:
+                    send_response = client.send_text_message(message.sender_id, reply_text)
             logger.info(
                 "WhatsApp text reply sent",
                 extra={

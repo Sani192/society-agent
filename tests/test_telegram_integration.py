@@ -66,16 +66,28 @@ def test_parse_telegram_webhook_payload_ignores_non_text_update():
 
 def test_telegram_webhook_event_uses_shared_handler_and_sends_reply(monkeypatch):
     sent_messages: list[tuple[str, str]] = []
+    call_metadata: dict[str, str | None] = {}
 
     class StubTelegramClient:
-        def send_text_message(self, chat_id: str, text: str):
+        def send_text_message(
+            self,
+            chat_id: str,
+            text: str,
+            *,
+            trace_id: str | None = None,
+            correlation_id: str | None = None,
+        ):
             sent_messages.append((chat_id, text))
+            call_metadata["trace_id"] = trace_id
+            call_metadata["correlation_id"] = correlation_id
             return {"ok": True}
 
-    def fake_handle_inbound_message(inbound_message):
+    def fake_handle_inbound_message(inbound_message, **kwargs):
         assert inbound_message.channel == "telegram"
         assert inbound_message.sender_id == "999"
         assert inbound_message.text == "help"
+        assert kwargs["trace_id"]
+        assert kwargs["correlation_id"] == "1001"
         return "Here are commands"
 
     monkeypatch.setattr("app.api.telegram.get_telegram_client", lambda: StubTelegramClient())
@@ -85,6 +97,8 @@ def test_telegram_webhook_event_uses_shared_handler_and_sends_reply(monkeypatch)
 
     assert response == {"status": "ok"}
     assert sent_messages == [("123456", "Here are commands")]
+    assert call_metadata["trace_id"]
+    assert call_metadata["correlation_id"] == "1001"
 
 
 def test_telegram_webhook_event_returns_ignored_without_inbound_messages(monkeypatch):
