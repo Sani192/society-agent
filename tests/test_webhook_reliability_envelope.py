@@ -1,8 +1,12 @@
 import asyncio
 
+import pytest
+
 from app.api import telegram as telegram_api
 from app.api.whatsapp import webhook as whatsapp_webhook_api
 from app.channels.core.types import InboundMessage
+
+pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
 
 class StubTelegramRequest:
