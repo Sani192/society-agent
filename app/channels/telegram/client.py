@@ -88,6 +88,7 @@ class TelegramClient:
                 correlation_id=correlation_id,
                 recipient=str(chat_id),
                 exc=exc,
+                outbound_payload_metadata=payload,
             )
             logger.exception("Failed sending Telegram message", extra={"chat_id": chat_id})
             raise

@@ -13,7 +13,11 @@ from pydantic import BaseModel
 
 from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
 from app.channels.core.handler import handle_inbound_message
-from app.channels.core.audit_events import NormalizedAuditEvent, persist_audit_events
+from app.channels.core.audit_events import (
+    NormalizedAuditEvent,
+    persist_audit_events,
+    summarize_exception_stack,
+)
 from app.channels.whatsapp.adapter import (
     parse_webhook_events,
     parse_webhook_payload,
@@ -107,6 +111,41 @@ def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> Normal
         occurred_at=datetime.now(timezone.utc),
     )
 
+
+
+
+def _build_processing_completed_event(*, trace_id: str, correlation_id: str | None, message, status: str = "completed") -> NormalizedAuditEvent:
+    return NormalizedAuditEvent(
+        channel="whatsapp",
+        direction="system",
+        event_type="processing_completed",
+        provider_message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
+        chat_id_or_phone=str(message.sender_id),
+        external_user_id=str(message.sender_id),
+        payload_json={"trace_id": trace_id, "correlation_id": correlation_id, "status": status},
+        occurred_at=datetime.now(timezone.utc),
+    )
+
+
+def _build_exception_event(*, trace_id: str, correlation_id: str | None, message, exc: Exception) -> NormalizedAuditEvent:
+    return NormalizedAuditEvent(
+        channel="whatsapp",
+        direction="system",
+        event_type="exception",
+        provider_message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
+        chat_id_or_phone=str(message.sender_id),
+        external_user_id=str(message.sender_id),
+        provider_error_code=type(exc).__name__,
+        provider_error_message=str(exc),
+        payload_json={
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
+            "exception_class": type(exc).__name__,
+            "exception_message": str(exc),
+            "stack_summary": summarize_exception_stack(exc),
+        },
+        occurred_at=datetime.now(timezone.utc),
+    )
 
 def _build_reports_list_sections(
     options: list[dict],
@@ -208,84 +247,109 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
             or message.metadata.get("conversation_id")
             or message.metadata.get("timestamp")
         )
+        correlation_id_str = str(correlation_id) if correlation_id is not None else None
+        terminal_event: NormalizedAuditEvent | None = None
         message.metadata["trace_id"] = trace_id
         if correlation_id is not None:
-            message.metadata["correlation_id"] = str(correlation_id)
-        logger.info(
-            "Processing inbound WhatsApp message",
-            extra={
-                "sender_id": message.sender_id,
-                "channel": message.channel,
-                "message_id": message.metadata.get("message_id"),
-                "trace_id": trace_id,
-                "correlation_id": correlation_id,
-            },
-        )
-        if _try_handle_ui_message(client=client, message=message):
-            logger.info(
-                "WhatsApp premium UI response sent",
-                extra={"sender_id": message.sender_id, "message_id": message.metadata.get("message_id")},
-            )
-            continue
-
-        if handle_session_flow(client=client, message=message):
-            continue
-
-        if handle_report_flow(client=client, message=message):
-            continue
-
+            message.metadata["correlation_id"] = correlation_id_str
         try:
-            reply_text = handle_inbound_message(
-                message,
+            logger.info(
+                "Processing inbound WhatsApp message",
+                extra={
+                    "sender_id": message.sender_id,
+                    "channel": message.channel,
+                    "message_id": message.metadata.get("message_id"),
+                    "trace_id": trace_id,
+                    "correlation_id": correlation_id,
+                },
+            )
+            handled = False
+            if _try_handle_ui_message(client=client, message=message):
+                logger.info(
+                    "WhatsApp premium UI response sent",
+                    extra={"sender_id": message.sender_id, "message_id": message.metadata.get("message_id")},
+                )
+                handled = True
+            elif handle_session_flow(client=client, message=message):
+                handled = True
+            elif handle_report_flow(client=client, message=message):
+                handled = True
+
+            if not handled:
+                try:
+                    reply_text = handle_inbound_message(
+                        message,
+                        trace_id=trace_id,
+                        correlation_id=correlation_id_str,
+                    )
+                except TypeError:
+                    reply_text = handle_inbound_message(message)
+                if reply_text.startswith("ℹ️ Invalid option."):
+                    try:
+                        send_response = client.send_button_message(
+                            to_phone=message.sender_id,
+                            header_text="Invalid option",
+                            body_text=reply_text,
+                            buttons=[_button_row("menu", "Main Menu")],
+                            trace_id=trace_id,
+                            correlation_id=correlation_id_str,
+                        )
+                    except TypeError:
+                        send_response = client.send_button_message(
+                            to_phone=message.sender_id,
+                            header_text="Invalid option",
+                            body_text=reply_text,
+                            buttons=[_button_row("menu", "Main Menu")],
+                        )
+                else:
+                    try:
+                        send_response = client.send_text_message(
+                            message.sender_id,
+                            reply_text,
+                            trace_id=trace_id,
+                            correlation_id=correlation_id_str,
+                        )
+                    except TypeError:
+                        send_response = client.send_text_message(message.sender_id, reply_text)
+                logger.info(
+                    "WhatsApp text reply sent",
+                    extra={
+                        "sender_id": message.sender_id,
+                        "message_id": message.metadata.get("message_id"),
+                        "response_keys": sorted(send_response.keys()),
+                    },
+                )
+
+            terminal_event = _build_processing_completed_event(
                 trace_id=trace_id,
-                correlation_id=str(correlation_id) if correlation_id is not None else None,
+                correlation_id=correlation_id_str,
+                message=message,
             )
-        except TypeError:
-            reply_text = handle_inbound_message(message)
-        try:
-            if reply_text.startswith("ℹ️ Invalid option."):
-                try:
-                    send_response = client.send_button_message(
-                        to_phone=message.sender_id,
-                        header_text="Invalid option",
-                        body_text=reply_text,
-                        buttons=[_button_row("menu", "Main Menu")],
-                        trace_id=trace_id,
-                        correlation_id=str(correlation_id) if correlation_id is not None else None,
-                    )
-                except TypeError:
-                    send_response = client.send_button_message(
-                        to_phone=message.sender_id,
-                        header_text="Invalid option",
-                        body_text=reply_text,
-                        buttons=[_button_row("menu", "Main Menu")],
-                    )
-            else:
-                try:
-                    send_response = client.send_text_message(
-                        message.sender_id,
-                        reply_text,
-                        trace_id=trace_id,
-                        correlation_id=str(correlation_id) if correlation_id is not None else None,
-                    )
-                except TypeError:
-                    send_response = client.send_text_message(message.sender_id, reply_text)
-            logger.info(
-                "WhatsApp text reply sent",
-                extra={
-                    "sender_id": message.sender_id,
-                    "message_id": message.metadata.get("message_id"),
-                    "response_keys": sorted(send_response.keys()),
-                },
-            )
-        except Exception:
+        except Exception as exc:
             logger.exception(
-                "Failed to send WhatsApp text reply",
+                "WhatsApp message processing failed",
                 extra={
                     "sender_id": message.sender_id,
                     "message_id": message.metadata.get("message_id"),
+                    "trace_id": trace_id,
+                    "correlation_id": correlation_id,
                 },
             )
+            terminal_event = _build_exception_event(
+                trace_id=trace_id,
+                correlation_id=correlation_id_str,
+                message=message,
+                exc=exc,
+            )
+        finally:
+            if terminal_event is None:
+                terminal_event = _build_processing_completed_event(
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                    message=message,
+                    status="unknown",
+                )
+            persist_audit_events([terminal_event])
 
     logger.info("WhatsApp webhook processing completed")
     return {"status": "ok"}

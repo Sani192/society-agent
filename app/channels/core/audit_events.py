@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import traceback
 from typing import Any, Literal
 
 from app.db.models import ChannelMessageEvent
@@ -14,7 +15,13 @@ from app.utils.logger import logger
 
 ChannelName = Literal["whatsapp", "telegram"]
 Direction = Literal["inbound", "status", "system"]
-EventKind = Literal["webhook_received", "message_parsed", "delivery_status"]
+EventKind = Literal[
+    "webhook_received",
+    "message_parsed",
+    "delivery_status",
+    "processing_completed",
+    "exception",
+]
 
 
 @dataclass(slots=True)
@@ -67,3 +74,8 @@ def persist_audit_events(events: list[NormalizedAuditEvent]) -> int:
     finally:
         db.close()
 
+
+def summarize_exception_stack(exc: Exception, *, max_frames: int = 8) -> list[str]:
+    tb_exception = traceback.TracebackException.from_exception(exc)
+    frames = list(tb_exception.stack)[-max_frames:]
+    return [f"{frame.filename}:{frame.lineno} in {frame.name}" for frame in frames]

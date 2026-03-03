@@ -157,7 +157,7 @@ class ChannelMessageEvent(Base):
         ),
         CheckConstraint(
             "event_type IN ('webhook_received', 'message_parsed', 'reply_generated', 'send_attempt', "
-            "'send_result', 'delivery_status', 'exception')",
+            "'send_result', 'delivery_status', 'processing_completed', 'exception')",
             name="ck_channel_message_events_event_type",
         ),
         Index(
@@ -167,6 +167,28 @@ class ChannelMessageEvent(Base):
             "occurred_at",
         ),
         Index("ix_channel_message_events_provider_message_id", "provider_message_id"),
+    )
+
+
+class ChannelDeadLetter(Base):
+    __tablename__ = "channel_dead_letters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    trace_id = Column(String(255), nullable=False, index=True)
+    correlation_id = Column(String(255), nullable=True, index=True)
+    channel = Column(String(20), nullable=False)
+    recipient = Column(String(255), nullable=False)
+    payload_json = Column(JSONB, nullable=True)
+    error_class = Column(String(255), nullable=False)
+    error_message = Column(Text, nullable=False)
+    stack_summary = Column(JSONB, nullable=True)
+    occurred_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("channel IN ('whatsapp', 'telegram')", name="ck_channel_dead_letters_channel"),
+        Index("ix_channel_dead_letters_trace_id", "trace_id"),
     )
 
 

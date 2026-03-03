@@ -16,7 +16,11 @@ from app.api.contracts import (
 )
 
 from app.channels.core.handler import handle_inbound_message
-from app.channels.core.audit_events import NormalizedAuditEvent, persist_audit_events
+from app.channels.core.audit_events import (
+    NormalizedAuditEvent,
+    persist_audit_events,
+    summarize_exception_stack,
+)
 from app.channels.telegram.adapter import (
     parse_webhook_events,
     parse_webhook_payload,
@@ -55,6 +59,43 @@ def _hash_payload(raw_body: bytes) -> str:
 
     return hashlib.sha256(raw_body).hexdigest()
 
+
+
+
+def _build_processing_completed_event(*, trace_id: str, correlation_id: str | None, message, status: str = "completed") -> NormalizedAuditEvent:
+    return NormalizedAuditEvent(
+        channel="telegram",
+        direction="system",
+        event_type="processing_completed",
+        provider_message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
+        provider_update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
+        chat_id_or_phone=str(message.metadata.get("chat_id") or message.sender_id),
+        external_user_id=str(message.sender_id),
+        payload_json={"trace_id": trace_id, "correlation_id": correlation_id, "status": status},
+        occurred_at=datetime.now(timezone.utc),
+    )
+
+
+def _build_exception_event(*, trace_id: str, correlation_id: str | None, message, exc: Exception) -> NormalizedAuditEvent:
+    return NormalizedAuditEvent(
+        channel="telegram",
+        direction="system",
+        event_type="exception",
+        provider_message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
+        provider_update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
+        chat_id_or_phone=str(message.metadata.get("chat_id") or message.sender_id),
+        external_user_id=str(message.sender_id),
+        provider_error_code=type(exc).__name__,
+        provider_error_message=str(exc),
+        payload_json={
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
+            "exception_class": type(exc).__name__,
+            "exception_message": str(exc),
+            "stack_summary": summarize_exception_stack(exc),
+        },
+        occurred_at=datetime.now(timezone.utc),
+    )
 
 def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> NormalizedAuditEvent:
     selected_fields = {
@@ -127,37 +168,73 @@ async def telegram_webhook_event(
     for message in inbound_messages:
         trace_id = str(uuid4())
         correlation_id = message.metadata.get("update_id") or message.metadata.get("message_id")
+        correlation_id_str = str(correlation_id) if correlation_id is not None else None
+        terminal_event: NormalizedAuditEvent | None = None
         message.metadata["trace_id"] = trace_id
         if correlation_id is not None:
-            message.metadata["correlation_id"] = str(correlation_id)
-        logger.info(
-            "Processing inbound Telegram message",
-            extra={
-                "sender_id": message.sender_id,
-                "chat_id": message.metadata.get("chat_id"),
-                "message_id": message.metadata.get("message_id"),
-                "trace_id": trace_id,
-                "correlation_id": correlation_id,
-            },
-        )
+            message.metadata["correlation_id"] = correlation_id_str
         try:
-            reply_text = handle_inbound_message(
-                message,
-                trace_id=trace_id,
-                correlation_id=str(correlation_id) if correlation_id is not None else None,
+            logger.info(
+                "Processing inbound Telegram message",
+                extra={
+                    "sender_id": message.sender_id,
+                    "chat_id": message.metadata.get("chat_id"),
+                    "message_id": message.metadata.get("message_id"),
+                    "trace_id": trace_id,
+                    "correlation_id": correlation_id,
+                },
             )
-        except TypeError:
-            reply_text = handle_inbound_message(message)
-        reply_chat_id = message.metadata.get("chat_id") or message.sender_id
-        try:
-            client.send_text_message(
-                reply_chat_id,
-                reply_text,
+            try:
+                reply_text = handle_inbound_message(
+                    message,
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                )
+            except TypeError:
+                reply_text = handle_inbound_message(message)
+
+            reply_chat_id = message.metadata.get("chat_id") or message.sender_id
+            try:
+                client.send_text_message(
+                    reply_chat_id,
+                    reply_text,
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                )
+            except TypeError:
+                client.send_text_message(reply_chat_id, reply_text)
+
+            terminal_event = _build_processing_completed_event(
                 trace_id=trace_id,
-                correlation_id=str(correlation_id) if correlation_id is not None else None,
+                correlation_id=correlation_id_str,
+                message=message,
             )
-        except TypeError:
-            client.send_text_message(reply_chat_id, reply_text)
+        except Exception as exc:
+            logger.exception(
+                "Telegram message processing failed",
+                extra={
+                    "sender_id": message.sender_id,
+                    "chat_id": message.metadata.get("chat_id"),
+                    "message_id": message.metadata.get("message_id"),
+                    "trace_id": trace_id,
+                    "correlation_id": correlation_id,
+                },
+            )
+            terminal_event = _build_exception_event(
+                trace_id=trace_id,
+                correlation_id=correlation_id_str,
+                message=message,
+                exc=exc,
+            )
+        finally:
+            if terminal_event is None:
+                terminal_event = _build_processing_completed_event(
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                    message=message,
+                    status="unknown",
+                )
+            persist_audit_events([terminal_event])
 
     logger.info("Telegram webhook processing completed")
     return {"status": "ok"}
