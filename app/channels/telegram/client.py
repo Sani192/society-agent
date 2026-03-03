@@ -95,12 +95,14 @@ class TelegramClient:
 
 def get_telegram_client() -> TelegramClient:
     logger.info("Preparing Telegram client")
-    if not settings.TELEGRAM_BOT_TOKEN:
+    bot_token = getattr(settings, "TELEGRAM_BOT_TOKEN", None)
+    api_base_url = getattr(settings, "TELEGRAM_API_BASE_URL", DEFAULT_TELEGRAM_API_BASE_URL)
+    if not bot_token:
         logger.error("Telegram bot token is not configured")
         raise ValueError("Telegram bot token is not configured")
 
     return TelegramClient(
-        bot_token=settings.TELEGRAM_BOT_TOKEN,
-        api_base_url=settings.TELEGRAM_API_BASE_URL,
+        bot_token=bot_token,
+        api_base_url=api_base_url,
         audit_transport=AuditTransport(channel="telegram"),
     )
