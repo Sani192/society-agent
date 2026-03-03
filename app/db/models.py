@@ -188,7 +188,6 @@ class ChannelDeadLetter(Base):
 
     __table_args__ = (
         CheckConstraint("channel IN ('whatsapp', 'telegram')", name="ck_channel_dead_letters_channel"),
-        Index("ix_channel_dead_letters_trace_id", "trace_id"),
     )
 
 
