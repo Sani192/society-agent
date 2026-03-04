@@ -205,7 +205,7 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
         for row in section["rows"]
     }
 
-    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund", "add event", "activate event", "lock passes", "start event", "close event", "add sponsor", "refund sponsor", "expense", "remind", "announce event", "announce society"}
+    expected_template_only = {"menu", "help", "pay", "join", "refund", "approve user", "approve payment", "approve refund", "add event", "activate event", "lock passes", "start event", "close event", "add sponsor", "refund sponsor", "expense", "remind", "announce event", "announce society", "committee members", "add committee member", "remove committee member", "change committee role"}
     template_helper_rows = {
         "ui::approve-user",
         "ui::approve-payment",

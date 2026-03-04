@@ -14,6 +14,10 @@ INTENTS = {
     # sponsor
     "REFUND_SPONSOR": "refund sponsor",
     "ADD_SPONSOR": "add sponsor",
+    "LIST_COMMITTEE_MEMBERS": "committee members",
+    "ADD_COMMITTEE_MEMBER": "add committee member",
+    "REMOVE_COMMITTEE_MEMBER": "remove committee member",
+    "CHANGE_COMMITTEE_ROLE": "change committee role",
 
     # approvals (specific before generic)
     "APPROVE_PAYMENT": "approve payment",

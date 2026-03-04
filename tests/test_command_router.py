@@ -91,3 +91,10 @@ def test_detect_intent_high_risk_generic_intents_keep_controlled_prefixes():
     assert detect_intent("refund 200 reason guest absent") == "REFUND"
     assert detect_intent("summary now") == "SUMMARY"
     assert detect_intent("help menu") == "HELP"
+
+
+def test_detect_intent_committee_member_crud_commands():
+    assert detect_intent("committee members") == "LIST_COMMITTEE_MEMBERS"
+    assert detect_intent("add committee member Alice|+91 9999900000|secretary") == "ADD_COMMITTEE_MEMBER"
+    assert detect_intent("remove committee member 123") == "REMOVE_COMMITTEE_MEMBER"
+    assert detect_intent("change committee role 123 treasurer") == "CHANGE_COMMITTEE_ROLE"

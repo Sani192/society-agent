@@ -32,6 +32,7 @@ from app.modules.contributions.contribution_refund_service import (
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.events.service import EventService
+from app.modules.committee.committee_member_service import CommitteeMemberService
 from app.modules.announcements.manager import AnnouncementManager
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.modules.reports.common.whatsapp_report_registry import (
@@ -58,6 +59,7 @@ from app.commands.parser import (
     parse_reason,
 )
 
+
 from app.whatsapp.event_creation_session import (
     EventCreationSessionState,
     build_event_creation_session_key,
@@ -81,6 +83,51 @@ from app.whatsapp.committee_action_session import (
 )
 
 
+
+
+def _parse_add_committee_member_args(message: str) -> tuple[str, str, str] | None:
+    raw = (message or "").strip()
+    prefix = "add committee member"
+    if not raw.lower().startswith(prefix):
+        return None
+    payload = raw[len(prefix):].strip()
+    if not payload:
+        return None
+
+    parts = [part.strip() for part in payload.split("|")]
+    if len(parts) != 3:
+        return None
+    name, phone, role = parts
+    if not name or not phone or not role:
+        return None
+    return name, phone, role
+
+
+def _parse_member_id_and_role(message: str, *, prefix: str) -> tuple[str, str] | None:
+    raw = (message or "").strip()
+    if not raw.lower().startswith(prefix.lower()):
+        return None
+    payload = raw[len(prefix):].strip()
+    if not payload:
+        return None
+    parts = payload.split()
+    if len(parts) < 2:
+        return None
+    member_id = parts[0].strip()
+    role = parts[1].strip()
+    if not member_id or not role:
+        return None
+    return member_id, role
+
+
+def _parse_member_id(message: str, *, prefix: str) -> str | None:
+    raw = (message or "").strip()
+    if not raw.lower().startswith(prefix.lower()):
+        return None
+    payload = raw[len(prefix):].strip()
+    if not payload:
+        return None
+    return payload.split()[0].strip()
 
 
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
@@ -1237,6 +1284,108 @@ def handle_committee_intent(
         )
 
 
+    if intent == "LIST_COMMITTEE_MEMBERS":
+        include_inactive = "all" in (message or "").lower()
+        members = CommitteeMemberService.list_members(
+            db=db,
+            society_id=member.society_id,
+            include_inactive=include_inactive,
+        )
+        if not members:
+            return info_response("No committee members found.")
+
+        lines = [format_heading("Committee members", "👥"), ""]
+        for entry in members:
+            status = "active" if entry.is_active else "inactive"
+            lines.append(f"- {entry.name} ({entry.role}) | {entry.phone_number} | id={entry.id} | {status}")
+        return success_response(join_lines(lines))
+
+    if intent == "ADD_COMMITTEE_MEMBER":
+        parsed = _parse_add_committee_member_args(message)
+        if not parsed:
+            return info_response(
+                "Usage: add committee member <name>|<phone>|<role>\n"
+                "Roles: chairman, treasurer, secretary, committee_member"
+            )
+
+        name, phone, role = parsed
+        try:
+            created = CommitteeMemberService.add_member(
+                db=db,
+                society_id=member.society_id,
+                name=name,
+                phone_number=phone,
+                role=role,
+                performed_by=member.id,
+            )
+        except PermissionError as exc:
+            return warning_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Committee member saved: {created.name} ({created.role})",
+            heading="Committee updated",
+            emoji="✅",
+        )
+
+    if intent == "REMOVE_COMMITTEE_MEMBER":
+        member_id = _parse_member_id(message, prefix="remove committee member")
+        if not member_id:
+            return info_response("Usage: remove committee member <member_id>")
+
+        try:
+            removed = CommitteeMemberService.remove_member(
+                db=db,
+                society_id=member.society_id,
+                member_id=member_id,
+                performed_by=member.id,
+            )
+        except PermissionError as exc:
+            return warning_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Committee member removed: {removed.name}",
+            heading="Committee updated",
+            emoji="🗑️",
+        )
+
+    if intent == "CHANGE_COMMITTEE_ROLE":
+        parsed = _parse_member_id_and_role(message, prefix="change committee role")
+        if not parsed:
+            return info_response(
+                "Usage: change committee role <member_id> <role>\n"
+                "Roles: chairman, treasurer, secretary, committee_member"
+            )
+
+        member_id, role = parsed
+
+        try:
+            updated = CommitteeMemberService.change_role(
+                db=db,
+                society_id=member.society_id,
+                member_id=member_id,
+                role=role,
+                performed_by=member.id,
+            )
+        except PermissionError as exc:
+            return warning_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Role updated: {updated.name} is now {updated.role}",
+            heading="Committee updated",
+            emoji="🔁",
+        )
 
 
     if intent == "PARTICIPATION_REPORT":
