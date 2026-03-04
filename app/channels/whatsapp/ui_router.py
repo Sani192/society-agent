@@ -1118,7 +1118,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                             clear_committee_management_session(session_key)
                             client.send_text_message(message.sender_id, "Cannot remove last chairman")
                             return True
-                    target.is_active = False
+                    setattr(target, "is_active", False)
                     db.commit()
                     clear_committee_management_session(session_key)
                     client.send_text_message(message.sender_id, "Member removed successfully")
@@ -1136,7 +1136,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                             clear_committee_management_session(session_key)
                             client.send_text_message(message.sender_id, "Cannot remove last chairman")
                             return True
-                    target.role = session_state.selected_role
+                    setattr(target, "role", session_state.selected_role)
                     db.commit()
                     clear_committee_management_session(session_key)
                     client.send_text_message(message.sender_id, "Member role updated successfully")
