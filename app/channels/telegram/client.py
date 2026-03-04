@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from app.channels.telegram.constants import (
     DEFAULT_TELEGRAM_API_BASE_URL,
