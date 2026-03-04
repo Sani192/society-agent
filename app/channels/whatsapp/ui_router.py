@@ -5,7 +5,7 @@
 from datetime import timedelta
 
 from app.db.session import SessionLocal
-from app.db.models import Event, MemberIdentity, UserFlatMapping
+from app.db.models import CommitteeMember, Event, MemberIdentity, UserFlatMapping
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.commands.handlers.common import (
@@ -22,6 +22,7 @@ from app.whatsapp.ui import (
     build_committee_operations_sections,
     build_committee_reports_sections,
     build_committee_sections,
+    build_committee_management_sections,
     build_finance_sections,
     build_main_dashboard_sections,
     build_make_payment_sections,
@@ -50,6 +51,13 @@ from app.whatsapp.join_session import (
     build_join_session_key,
     save_join_session,
 )
+from app.whatsapp.committee_management_session import (
+    CommitteeManagementSessionState,
+    build_committee_management_session_key,
+    clear_committee_management_session,
+    get_committee_management_session,
+    save_committee_management_session,
+)
 from app.channels.whatsapp.approval_flow import _send_approval_selection_list
 
 WHATSAPP_LIST_MAX_ROWS = 10
@@ -57,6 +65,16 @@ WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
 WHATSAPP_APPROVAL_ROW_LIMIT = 10
 WHATSAPP_REPORT_EVENT_ROW_PREFIX = "report-event::"
 WHATSAPP_FINANCE_EVENT_ROW_PREFIX = "finance-event::"
+COMMITTEE_ROLE_ROW_PREFIX = "committee-role::"
+COMMITTEE_ADD_MEMBER_ROW_PREFIX = "committee-add-member::"
+COMMITTEE_MEMBER_ROW_PREFIX = "committee-member::"
+COMMITTEE_CONFIRM_ROW_PREFIX = "committee-confirm::"
+COMMITTEE_ROLE_OPTIONS = [
+    ("chairman", "Chairman"),
+    ("treasurer", "Treasurer"),
+    ("secretary", "Secretary"),
+    ("committee_member", "Committee Member"),
+]
 
 FINANCE_EVENT_ACTIONS = {"VIEW_BALANCE", "MAKE_PAYMENT"}
 
@@ -373,6 +391,151 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
     )
 
 
+def _committee_role_label(role: str) -> str:
+    role_map = dict(COMMITTEE_ROLE_OPTIONS)
+    return role_map.get(role, role.replace("_", " ").title())
+
+
+def _build_committee_role_sections(*, include_navigation: bool = True) -> list[dict]:
+    sections = [{
+        "title": "Select Role",
+        "rows": [
+            {
+                "id": f"{COMMITTEE_ROLE_ROW_PREFIX}{role}",
+                "title": label,
+                "description": f"Assign role: {label}",
+            }
+            for role, label in COMMITTEE_ROLE_OPTIONS
+        ],
+    }]
+    if include_navigation:
+        return _with_navigation(sections=sections, back_id="ui::administration:committee")
+    return sections
+
+
+def _parse_prefixed_row(*, message_text: str, prefix: str) -> str | None:
+    text = (message_text or "").strip().lower()
+    if not text.startswith(prefix):
+        return None
+    return text[len(prefix):].strip() or None
+
+
+def _committee_member_title(member) -> str:
+    return (getattr(member, "name", None) or "Member")[:24]
+
+
+def _committee_member_description(member) -> str:
+    phone = getattr(member, "phone_number", "") or ""
+    role = _committee_role_label((getattr(member, "role", "") or "").lower())
+    return f"{phone} · {role}"[:72]
+
+
+def _send_committee_member_selection(*, client, sender_id: str, body_text: str, members: list, row_prefix: str) -> None:
+    rows = [
+        {
+            "id": f"{row_prefix}{member.id}",
+            "title": _committee_member_title(member),
+            "description": _committee_member_description(member),
+        }
+        for member in members[:8]
+    ]
+    if not rows:
+        rows = [{"id": "ui::administration:committee", "title": "Back", "description": "No members available"}]
+    client.send_list_message(
+        to_phone=sender_id,
+        header_text="Committee",
+        body_text=body_text,
+        button_text="Select",
+        sections=_with_navigation(sections=[{"title": "Members", "rows": rows}], back_id="ui::administration:committee"),
+    )
+
+
+def _send_add_member_selection(*, client, sender_id: str, db, society_id) -> bool:
+    if not society_id:
+        client.send_text_message(sender_id, "No society context found.")
+        return True
+
+    existing_numbers = {
+        (member.phone_number or "").strip()
+        for member in db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).all()
+    }
+    mappings = (
+        db.query(UserFlatMapping, MemberIdentity)
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
+        .filter(UserFlatMapping.society_id == society_id, UserFlatMapping.is_active.is_(True))
+        .all()
+    )
+
+    rows = []
+    seen_ids = set()
+    for _mapping, identity in mappings:
+        identifier = (getattr(identity, "normalized_identifier", "") or "").strip()
+        if not identifier or identifier in existing_numbers or identity.id in seen_ids:
+            continue
+        seen_ids.add(identity.id)
+        rows.append({
+            "id": f"{COMMITTEE_ADD_MEMBER_ROW_PREFIX}{identity.id}",
+            "title": (identifier[-10:] if len(identifier) > 10 else identifier)[:24],
+            "description": "Select member to add",
+        })
+        if len(rows) >= 8:
+            break
+
+    if not rows:
+        client.send_text_message(sender_id, "No eligible members found to add.")
+        return True
+
+    client.send_list_message(
+        to_phone=sender_id,
+        header_text="Add Committee Member",
+        body_text="Choose a member",
+        button_text="Select",
+        sections=_with_navigation(sections=[{"title": "Society Members", "rows": rows}], back_id="ui::administration:committee"),
+    )
+    return True
+
+
+def _handle_committee_view(*, client, sender_id: str, db, society_id) -> bool:
+    members = (
+        db.query(CommitteeMember)
+        .filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True))
+        .order_by(CommitteeMember.role.asc(), CommitteeMember.name.asc())
+        .all()
+    )
+    if not members:
+        client.send_text_message(sender_id, "No committee members found.")
+        return True
+
+    lines = ["Committee members:"]
+    for member in members:
+        lines.append(f"- {_committee_member_title(member)} ({_committee_role_label((member.role or '').lower())})")
+    client.send_text_message(sender_id, "\n".join(lines))
+    return True
+
+
+def _send_committee_confirmation(*, client, sender_id: str, action: str, member_label: str, role_label: str | None = None) -> None:
+    role_suffix = f" as {role_label}" if role_label else ""
+    client.send_list_message(
+        to_phone=sender_id,
+        header_text="Confirm",
+        body_text=f"Confirm {action} {member_label}{role_suffix}?",
+        button_text="Confirm",
+        sections=_with_navigation(
+            sections=[
+                {
+                    "title": "Confirmation",
+                    "rows": [
+                        {"id": f"{COMMITTEE_CONFIRM_ROW_PREFIX}yes", "title": "Confirm", "description": "Proceed"},
+                        {"id": f"{COMMITTEE_CONFIRM_ROW_PREFIX}no", "title": "Cancel", "description": "Discard"},
+                    ],
+                }
+            ],
+            back_id="ui::administration:committee",
+        ),
+    )
+
+
+
 
 
 def _try_handle_ui_message(*, client, message) -> bool:
@@ -393,6 +556,11 @@ def _try_handle_ui_message(*, client, message) -> bool:
         "ui::administration:operations",
         "ui::administration:operations:more",
         "ui::administration:reports",
+        "ui::administration:committee",
+        "committee::view",
+        "committee::add",
+        "committee::remove",
+        "committee::change-role",
     }
     if msg in membership_gated_ui_ids or msg in {"menu", "help"}:
         db = SessionLocal()
@@ -722,7 +890,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         finally:
             db.close()
 
-    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports"}:
+    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports", "ui::administration:committee"}:
         db = SessionLocal()
         try:
             member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
@@ -745,6 +913,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 base_sections = build_committee_reports_sections()
                 back_id = "ui::administration"
                 body_text = "Report actions"
+            elif msg == "ui::administration:committee":
+                base_sections = build_committee_management_sections()
+                back_id = "ui::administration"
+                body_text = "Committee administration"
             else:
                 base_sections = build_committee_sections()
                 back_id = "ui::menu"
@@ -810,6 +982,171 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 canonical_sender=canonical_sender,
                 external_user_id=message.sender_id,
             )
+        finally:
+            db.close()
+
+
+    if msg in {"committee::view", "committee::add", "committee::remove", "committee::change-role"} or msg.startswith(COMMITTEE_ADD_MEMBER_ROW_PREFIX) or msg.startswith(COMMITTEE_MEMBER_ROW_PREFIX) or msg.startswith(COMMITTEE_ROLE_ROW_PREFIX) or msg.startswith(COMMITTEE_CONFIRM_ROW_PREFIX):
+        db = SessionLocal()
+        try:
+            member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            if not member:
+                client.send_text_message(message.sender_id, "Access restricted.")
+                return True
+
+            society_id = getattr(member, "society_id", None)
+            session_key = build_committee_management_session_key(sender_id=message.sender_id)
+            session_state = get_committee_management_session(session_key)
+
+            if msg == "committee::view":
+                clear_committee_management_session(session_key)
+                return _handle_committee_view(client=client, sender_id=message.sender_id, db=db, society_id=society_id)
+
+            if msg == "committee::add":
+                save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="ADD"))
+                return _send_add_member_selection(client=client, sender_id=message.sender_id, db=db, society_id=society_id)
+
+            if msg == "committee::remove":
+                save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="REMOVE"))
+                target_members = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).order_by(CommitteeMember.name.asc()).all()
+                _send_committee_member_selection(client=client, sender_id=message.sender_id, body_text="Choose member to remove", members=target_members, row_prefix=COMMITTEE_MEMBER_ROW_PREFIX)
+                return True
+
+            if msg == "committee::change-role":
+                save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="CHANGE_ROLE"))
+                target_members = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).order_by(CommitteeMember.name.asc()).all()
+                _send_committee_member_selection(client=client, sender_id=message.sender_id, body_text="Choose member to update", members=target_members, row_prefix=COMMITTEE_MEMBER_ROW_PREFIX)
+                return True
+
+            selected_identity_id = _parse_prefixed_row(message_text=msg, prefix=COMMITTEE_ADD_MEMBER_ROW_PREFIX)
+            if selected_identity_id and session_state and session_state.pending_action == "ADD":
+                session_state.selected_member_id = selected_identity_id
+                save_committee_management_session(session_key, session_state)
+                client.send_list_message(
+                    to_phone=message.sender_id,
+                    header_text="Add Committee Member",
+                    body_text="Choose role",
+                    button_text="Select",
+                    sections=_build_committee_role_sections(),
+                )
+                return True
+
+            selected_member_id = _parse_prefixed_row(message_text=msg, prefix=COMMITTEE_MEMBER_ROW_PREFIX)
+            if selected_member_id and session_state and session_state.pending_action in {"REMOVE", "CHANGE_ROLE"}:
+                target = db.query(CommitteeMember).filter(CommitteeMember.id == selected_member_id, CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).first()
+                if not target:
+                    client.send_text_message(message.sender_id, "Member not found.")
+                    return True
+                session_state.selected_member_id = str(target.id)
+                save_committee_management_session(session_key, session_state)
+                if session_state.pending_action == "REMOVE":
+                    _send_committee_confirmation(client=client, sender_id=message.sender_id, action="remove", member_label=_committee_member_title(target))
+                else:
+                    client.send_list_message(
+                        to_phone=message.sender_id,
+                        header_text="Change Committee Role",
+                        body_text="Choose new role",
+                        button_text="Select",
+                        sections=_build_committee_role_sections(),
+                    )
+                return True
+
+            selected_role = _parse_prefixed_row(message_text=msg, prefix=COMMITTEE_ROLE_ROW_PREFIX)
+            if selected_role and session_state and session_state.pending_action in {"ADD", "CHANGE_ROLE"}:
+                allowed_roles = {role for role, _label in COMMITTEE_ROLE_OPTIONS}
+                if selected_role not in allowed_roles:
+                    client.send_text_message(message.sender_id, "Invalid role selection.")
+                    return True
+                session_state.selected_role = selected_role
+                save_committee_management_session(session_key, session_state)
+                if session_state.pending_action == "ADD":
+                    identity = db.query(MemberIdentity).filter(MemberIdentity.id == session_state.selected_member_id).first()
+                    member_label = getattr(identity, "normalized_identifier", "member") if identity else "member"
+                else:
+                    target = db.query(CommitteeMember).filter(CommitteeMember.id == session_state.selected_member_id).first()
+                    member_label = _committee_member_title(target) if target else "member"
+                _send_committee_confirmation(
+                    client=client,
+                    sender_id=message.sender_id,
+                    action="assign role to" if session_state.pending_action == "ADD" else "change role for",
+                    member_label=member_label,
+                    role_label=_committee_role_label(selected_role),
+                )
+                return True
+
+            confirm_choice = _parse_prefixed_row(message_text=msg, prefix=COMMITTEE_CONFIRM_ROW_PREFIX)
+            if confirm_choice and session_state:
+                if confirm_choice != "yes":
+                    clear_committee_management_session(session_key)
+                    client.send_text_message(message.sender_id, "Action cancelled.")
+                    return True
+
+                if session_state.pending_action == "ADD":
+                    identity = db.query(MemberIdentity).filter(MemberIdentity.id == session_state.selected_member_id).first()
+                    if not identity or not session_state.selected_role:
+                        clear_committee_management_session(session_key)
+                        client.send_text_message(message.sender_id, "Unable to add member.")
+                        return True
+                    identifier = (identity.normalized_phone or identity.normalized_identifier or "").strip()
+                    existing = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.phone_number == identifier, CommitteeMember.is_active.is_(True)).first()
+                    if existing:
+                        clear_committee_management_session(session_key)
+                        client.send_text_message(message.sender_id, "Member already exists in committee.")
+                        return True
+                    new_member = CommitteeMember(
+                        society_id=society_id,
+                        name=identifier,
+                        phone_number=identifier,
+                        role=session_state.selected_role,
+                        is_active=True,
+                    )
+                    db.add(new_member)
+                    db.commit()
+                    clear_committee_management_session(session_key)
+                    client.send_text_message(message.sender_id, "Member added successfully")
+                    return True
+
+                if session_state.pending_action == "REMOVE":
+                    target = db.query(CommitteeMember).filter(CommitteeMember.id == session_state.selected_member_id, CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).first()
+                    if not target:
+                        clear_committee_management_session(session_key)
+                        client.send_text_message(message.sender_id, "Member not found.")
+                        return True
+                    if (target.role or "").lower() == "chairman":
+                        chairman_count = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True), CommitteeMember.role == "chairman").count()
+                        if chairman_count <= 1:
+                            clear_committee_management_session(session_key)
+                            client.send_text_message(message.sender_id, "Cannot remove last chairman")
+                            return True
+                    target.is_active = False
+                    db.commit()
+                    clear_committee_management_session(session_key)
+                    client.send_text_message(message.sender_id, "Member removed successfully")
+                    return True
+
+                if session_state.pending_action == "CHANGE_ROLE":
+                    target = db.query(CommitteeMember).filter(CommitteeMember.id == session_state.selected_member_id, CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).first()
+                    if not target or not session_state.selected_role:
+                        clear_committee_management_session(session_key)
+                        client.send_text_message(message.sender_id, "Unable to change role.")
+                        return True
+                    if (target.role or "").lower() == "chairman" and session_state.selected_role != "chairman":
+                        chairman_count = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True), CommitteeMember.role == "chairman").count()
+                        if chairman_count <= 1:
+                            clear_committee_management_session(session_key)
+                            client.send_text_message(message.sender_id, "Cannot remove last chairman")
+                            return True
+                    target.role = session_state.selected_role
+                    db.commit()
+                    clear_committee_management_session(session_key)
+                    client.send_text_message(message.sender_id, "Member role updated successfully")
+                    return True
+
+            return False
+        except Exception:
+            logger.exception("Failed committee management flow")
+            client.send_text_message(message.sender_id, "Unable to process committee action.")
+            return True
         finally:
             db.close()
 

@@ -9,6 +9,25 @@ def build_committee_sections() -> list[dict]:
                 {"id": "ui::administration:approvals", "title": "Approvals", "description": "Review users, payments, and refunds"},
                 {"id": "ui::administration:operations", "title": "Operations", "description": "Manage event and finance operations"},
                 {"id": "ui::administration:reports", "title": "Reports", "description": "Open committee report actions"},
+                {
+                    "id": "ui::administration:committee",
+                    "title": "Manage Committee",
+                    "description": "Add, remove, and view committee members",
+                },
+            ],
+        }
+    ]
+
+
+def build_committee_management_sections() -> list[dict]:
+    return [
+        {
+            "title": "Committee Management",
+            "rows": [
+                {"id": "committee::view", "title": "View Members", "description": "See current committee roles"},
+                {"id": "committee::add", "title": "Add Member", "description": "Add a member to committee"},
+                {"id": "committee::remove", "title": "Remove Member", "description": "Remove a committee member"},
+                {"id": "committee::change-role", "title": "Change Role", "description": "Update committee role"},
             ],
         }
     ]
