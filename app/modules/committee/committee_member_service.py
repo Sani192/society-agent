@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, CommitteeMember
@@ -16,7 +18,7 @@ VALID_COMMITTEE_ROLES = {"chairman", "treasurer", "secretary", "committee_member
 class CommitteeMemberService:
     @staticmethod
     def _normalize_phone(phone_number: str | None) -> str:
-        normalized = normalize_phone(phone_number) or normalize_identifier(phone_number)
+        normalized = normalize_phone(phone_number or "") or normalize_identifier(phone_number)
         if not normalized:
             raise ValueError("Invalid phone number")
         return normalized
@@ -113,9 +115,10 @@ class CommitteeMemberService:
             raise ValueError("Phone number is already assigned to another society.")
 
         if existing_same_society and not existing_same_society.is_active:
-            existing_same_society.name = cleaned_name
-            existing_same_society.role = normalized_role
-            existing_same_society.is_active = True
+            member_row: Any = cast(Any, existing_same_society)
+            member_row.name = cleaned_name
+            member_row.role = normalized_role
+            member_row.is_active = True
             CommitteeMemberService._audit(
                 db,
                 society_id=society_id,
@@ -195,7 +198,7 @@ class CommitteeMemberService:
             if chairman_count <= 1:
                 raise ValueError("Cannot remove last active chairman.")
 
-        target.is_active = False
+        cast(Any, target).is_active = False
         CommitteeMemberService._audit(
             db,
             society_id=society_id,
@@ -248,7 +251,7 @@ class CommitteeMemberService:
             if chairman_count <= 1:
                 raise ValueError("Cannot remove last active chairman.")
 
-        target.role = next_role
+        cast(Any, target).role = next_role
         CommitteeMemberService._audit(
             db,
             society_id=society_id,
