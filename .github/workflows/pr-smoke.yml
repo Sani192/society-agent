@@ -440,8 +440,14 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const dashboard = fs.readFileSync('artifacts/reliability/dashboard.md', 'utf8');
-            const thresholds = fs.readFileSync('artifacts/reliability/threshold-summary.md', 'utf8');
+            const dashboardPath = 'artifacts/reliability/dashboard.md';
+            const thresholdsPath = 'artifacts/reliability/threshold-summary.md';
+            const dashboard = fs.existsSync(dashboardPath)
+              ? fs.readFileSync(dashboardPath, 'utf8')
+              : '> ⚠️ Reliability dashboard could not be generated in this run.';
+            const thresholds = fs.existsSync(thresholdsPath)
+              ? fs.readFileSync(thresholdsPath, 'utf8')
+              : '> ⚠️ Tier threshold summary is unavailable because prior reliability steps did not produce artifacts.';
             const body = [
               '<!-- pr-reliability-dashboard -->',
               '# PR Reliability Dashboard',
