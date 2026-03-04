@@ -1110,3 +1110,73 @@ def test_committee_announce_event_returns_error_when_no_active_event(monkeypatch
 
     assert response.startswith("❌")
     assert "No active event found" in response
+
+
+def test_committee_list_members(monkeypatch):
+    member = SimpleNamespace(id="member-l1", role="chairman", society_id="soc-1")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.CommitteeMemberService.list_members",
+        lambda **kwargs: [
+            SimpleNamespace(
+                id="cm-1",
+                name="Alice",
+                role="chairman",
+                phone_number="919999900000",
+                is_active=True,
+            )
+        ],
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="LIST_COMMITTEE_MEMBERS",
+        message="committee members",
+        event=None,
+        member=member,
+    )
+
+    assert "Alice" in response
+    assert "cm-1" in response
+
+
+def test_committee_add_member_permission_warning(monkeypatch):
+    member = SimpleNamespace(id="member-l2", role="secretary", society_id="soc-1")
+
+    def _raise(**kwargs):
+        raise PermissionError("Only chairman can perform this action.")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.CommitteeMemberService.add_member",
+        _raise,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_COMMITTEE_MEMBER",
+        message="add committee member Bob|+919999000001|treasurer",
+        event=None,
+        member=member,
+    )
+
+    assert response.startswith("⚠️")
+
+
+def test_committee_change_role_success(monkeypatch):
+    member = SimpleNamespace(id="member-l3", role="chairman", society_id="soc-1")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.CommitteeMemberService.change_role",
+        lambda **kwargs: SimpleNamespace(name="Carl", role="secretary"),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="CHANGE_COMMITTEE_ROLE",
+        message="change committee role cm-2 secretary",
+        event=None,
+        member=member,
+    )
+
+    assert "Carl" in response
+    assert "secretary" in response
