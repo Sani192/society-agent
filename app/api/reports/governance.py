@@ -6,11 +6,15 @@ Created on Mon Jan 26 10:30:15 2026
 @author: anonymous
 """
 
-from fastapi import APIRouter, Depends, Query, Response
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.db.models import Society
+from app.channels.core.audit_security import decrypt_from_audit_store
+from app.config import settings
+from app.db.models import ChannelMessageEvent, Society
 from app.utils.response import error_envelope
 from app.api.reports.common import authorize_committee_member_report, record_report_access
 
@@ -79,3 +83,66 @@ def export_governance_audit(
         )
 
     return error_envelope("Supported formats: csv, excel, pdf")
+
+
+@router.get("/audit/events")
+def read_protected_audit_events(
+    phone: str = Query(...),
+    channel: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    member, error_response = authorize_committee_member_report(
+        phone=phone,
+        db=db,
+        report_code="GOVERNANCE_AUDIT",
+        log_message="Failed to authorize secure audit read",
+    )
+    if error_response:
+        return error_response
+
+    role = (member.role or "").strip().lower()
+    if role not in settings.AUDIT_READ_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for secure audit read")
+
+    query = db.query(ChannelMessageEvent).order_by(ChannelMessageEvent.occurred_at.desc())
+    if channel:
+        query = query.filter(ChannelMessageEvent.channel == channel)
+    if event_type:
+        query = query.filter(ChannelMessageEvent.event_type == event_type)
+
+    rows = query.limit(limit).all()
+    data = []
+    for row in rows:
+        payload_raw = None
+        message_text_raw = None
+        if settings.AUDIT_PII_CAPTURE_MODE == "encrypted_raw":
+            message_text_raw = decrypt_from_audit_store(row.message_text_raw_encrypted)
+            payload_decrypted = decrypt_from_audit_store(row.payload_json_encrypted)
+            payload_raw = json.loads(payload_decrypted) if payload_decrypted else None
+
+        data.append(
+            {
+                "id": str(row.id),
+                "channel": row.channel,
+                "direction": row.direction,
+                "event_type": row.event_type,
+                "occurred_at": row.occurred_at.isoformat() if row.occurred_at else None,
+                "message_text_redacted": row.message_text_redacted,
+                "message_text_raw": message_text_raw,
+                "payload_redacted": row.payload_json,
+                "payload_json": payload_raw,
+                "provider_error_code": row.provider_error_code,
+                "provider_error_message": row.provider_error_message,
+                "prev_event_hash": row.prev_event_hash,
+                "event_hash": row.event_hash,
+            }
+        )
+
+    return {
+        "count": len(data),
+        "retention_days_by_event": settings.AUDIT_RETENTION_DAYS_BY_EVENT,
+        "pii_capture_mode": settings.AUDIT_PII_CAPTURE_MODE,
+        "events": data,
+    }
