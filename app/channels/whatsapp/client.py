@@ -232,6 +232,7 @@ class WhatsAppClient:
                 correlation_id=correlation_id,
                 recipient=to_phone,
                 exc=exc,
+                outbound_payload_metadata=payload,
             )
             logger.exception(
                 "Failed sending WhatsApp document message",
@@ -312,6 +313,7 @@ class WhatsAppClient:
                 correlation_id=correlation_id,
                 recipient=to_phone,
                 exc=exc,
+                outbound_payload_metadata=payload,
             )
             logger.exception(
                 "Failed sending WhatsApp message",
@@ -402,6 +404,7 @@ class WhatsAppClient:
                 correlation_id=correlation_id,
                 recipient=to_phone,
                 exc=exc,
+                outbound_payload_metadata=payload,
             )
             logger.exception(
                 "Failed sending WhatsApp template message",
@@ -491,6 +494,7 @@ class WhatsAppClient:
                 correlation_id=correlation_id,
                 recipient=to_phone,
                 exc=exc,
+                outbound_payload_metadata=payload,
             )
             logger.exception(
                 "Failed sending WhatsApp interactive list message",
@@ -579,6 +583,7 @@ class WhatsAppClient:
                 correlation_id=correlation_id,
                 recipient=to_phone,
                 exc=exc,
+                outbound_payload_metadata=payload,
             )
             logger.exception(
                 "Failed sending WhatsApp interactive button message",

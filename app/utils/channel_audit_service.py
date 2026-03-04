@@ -7,7 +7,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from app.db.models import ChannelMessageEvent
+from app.channels.core.audit_events import summarize_exception_stack
+from app.db.models import ChannelDeadLetter, ChannelMessageEvent
 from app.db.session import SessionLocal
 from app.utils.channel_response_parser import parse_provider_error_from_exception
 from app.utils.logger import logger
@@ -27,6 +28,43 @@ class AuditTransport:
             logger.exception(
                 "Failed to persist transport audit event",
                 extra={"channel": self.channel, "event_type": event.event_type},
+            )
+        finally:
+            db.close()
+
+    def persist_dead_letter(
+        self,
+        *,
+        trace_id: str | None,
+        correlation_id: str | None,
+        recipient: str,
+        outbound_payload_metadata: dict[str, Any] | None,
+        exc: Exception,
+    ) -> None:
+        if not trace_id:
+            return
+
+        db = SessionLocal()
+        try:
+            db.add(
+                ChannelDeadLetter(
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                    channel=self.channel,
+                    recipient=recipient,
+                    payload_json=outbound_payload_metadata or {},
+                    error_class=type(exc).__name__,
+                    error_message=str(exc),
+                    stack_summary=summarize_exception_stack(exc),
+                    occurred_at=datetime.now(timezone.utc),
+                )
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception(
+                "Failed to persist channel dead letter",
+                extra={"channel": self.channel, "trace_id": trace_id, "recipient": recipient},
             )
         finally:
             db.close()
@@ -100,6 +138,7 @@ class AuditTransport:
         correlation_id: str | None,
         recipient: str,
         exc: Exception,
+        outbound_payload_metadata: dict[str, Any] | None = None,
     ) -> None:
         parsed_error = parse_provider_error_from_exception(channel=self.channel, exc=exc)
         self._persist_event(
@@ -113,6 +152,13 @@ class AuditTransport:
                 provider_error_code=parsed_error.get("provider_error_code"),
                 provider_error_message=parsed_error.get("provider_error_message"),
             )
+        )
+        self.persist_dead_letter(
+            trace_id=trace_id,
+            correlation_id=correlation_id,
+            recipient=recipient,
+            outbound_payload_metadata=outbound_payload_metadata or {"transport": "provider_send"},
+            exc=exc,
         )
         self.log_send_result(
             trace_id=trace_id,
