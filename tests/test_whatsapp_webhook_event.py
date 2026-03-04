@@ -6,6 +6,7 @@ from app.api.whatsapp import whatsapp_webhook_event
 from app.channels.core.types import InboundMessage
 from app.whatsapp.finance_action_session import clear_finance_action_session, get_finance_action_session
 from app.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
+from app.whatsapp.ui import build_committee_sections
 
 pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
@@ -648,6 +649,47 @@ def test_whatsapp_webhook_event_administration_operations_more_menu_respects_row
     assert total_rows <= 10
     row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
     assert {"activate event", "close event", "remind", "ui::administration:operations"}.issubset(row_ids)
+
+
+
+def test_whatsapp_webhook_event_committee_management_menu(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.8"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000081",
+        display_name="Jane",
+        text="ui::administration:committee",
+        metadata={"message_id": "wamid.8", "canonical_sender_id": "919999000081"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr("app.api.whatsapp._get_committee_member", lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman"})())
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
+    assert {"committee::view", "committee::add", "committee::remove", "committee::change-role"}.issubset(row_ids)
+
+
+def test_whatsapp_webhook_event_administration_includes_committee_entry():
+    sections = build_committee_sections()
+    row_ids = {row["id"] for section in sections for row in section["rows"]}
+    assert "ui::administration:committee" in row_ids
 
 def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(monkeypatch):
     list_attempts = []
