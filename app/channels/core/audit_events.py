@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import traceback
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from app.channels.core.audit_security import (
     dump_json,
@@ -103,7 +103,8 @@ def persist_audit_events(events: list[NormalizedAuditEvent]) -> int:
                     .order_by(ChannelMessageEvent.created_at.desc())
                     .first()
                 )
-                previous_by_channel[event.channel] = previous.event_hash if previous else None
+                previous_hash = cast(str | None, previous.event_hash) if previous else None
+                previous_by_channel[event.channel] = previous_hash
 
             db_event = event.to_db_model()
             prev_hash = previous_by_channel[event.channel]
@@ -121,9 +122,10 @@ def persist_audit_events(events: list[NormalizedAuditEvent]) -> int:
                 "provider_error_message": db_event.provider_error_message,
                 "occurred_at": db_event.occurred_at.isoformat() if db_event.occurred_at else None,
             }
-            db_event.prev_event_hash = prev_hash
-            db_event.event_hash = hash_event_record(prev_hash=prev_hash, payload=event_payload)
-            previous_by_channel[event.channel] = db_event.event_hash
+            computed_event_hash = hash_event_record(prev_hash=prev_hash, payload=event_payload)
+            setattr(db_event, "prev_event_hash", prev_hash)
+            setattr(db_event, "event_hash", computed_event_hash)
+            previous_by_channel[event.channel] = computed_event_hash
             db.add(db_event)
 
         db.commit()

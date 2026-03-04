@@ -5,9 +5,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
-from app.channels.core.audit_events import NormalizedAuditEvent, persist_audit_events, summarize_exception_stack
+from app.channels.core.audit_events import (
+    ChannelName,
+    EventKind,
+    NormalizedAuditEvent,
+    persist_audit_events,
+    summarize_exception_stack,
+)
 from app.channels.core.audit_security import sanitize_payload
 from app.db.models import ChannelDeadLetter
 from app.db.session import SessionLocal
@@ -17,7 +23,9 @@ from app.utils.logger import logger
 
 class AuditTransport:
     def __init__(self, *, channel: str):
-        self.channel = channel
+        if channel not in {"whatsapp", "telegram"}:
+            raise ValueError(f"Unsupported channel for AuditTransport: {channel}")
+        self.channel = cast(ChannelName, channel)
 
     def _persist_event(self, event: NormalizedAuditEvent) -> None:
         persist_audit_events([event])
@@ -59,7 +67,7 @@ class AuditTransport:
         finally:
             db.close()
 
-    def _build_event(self, *, event_type: str, trace_id: str | None, correlation_id: str | None, recipient: str, payload_json: dict[str, Any] | None = None, http_status: int | None = None, provider_message_id: str | None = None, provider_error_code: str | None = None, provider_error_message: str | None = None) -> NormalizedAuditEvent:
+    def _build_event(self, *, event_type: EventKind, trace_id: str | None, correlation_id: str | None, recipient: str, payload_json: dict[str, Any] | None = None, http_status: int | None = None, provider_message_id: str | None = None, provider_error_code: str | None = None, provider_error_message: str | None = None) -> NormalizedAuditEvent:
         payload = sanitize_payload(payload_json or {})
         payload.update({"trace_id": trace_id, "correlation_id": correlation_id, "http_status": http_status})
         return NormalizedAuditEvent(

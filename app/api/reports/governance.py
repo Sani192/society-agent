@@ -7,6 +7,7 @@ Created on Mon Jan 26 10:30:15 2026
 """
 
 import json
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -40,6 +41,8 @@ def export_governance_audit(
         return error_response
 
     society = db.query(Society).get(member.society_id)
+    if society is None:
+        return error_envelope("Society not found")
     report = GovernanceAuditReport.generate(db, society.id)
 
     record_report_access(
@@ -69,7 +72,7 @@ def export_governance_audit(
         )
 
     if format == "pdf":
-        branding = (society.config_json or {}).get("branding", {})
+        branding = cast(dict[str, Any], (society.config_json or {}).get("branding", {}))
         logo_path = branding.get("logo_path")
 
         return Response(
@@ -115,11 +118,13 @@ def read_protected_audit_events(
     rows = query.limit(limit).all()
     data = []
     for row in rows:
+        row_message_text_raw_encrypted = cast(str | None, row.message_text_raw_encrypted)
+        row_payload_json_encrypted = cast(str | None, row.payload_json_encrypted)
         payload_raw = None
         message_text_raw = None
         if settings.AUDIT_PII_CAPTURE_MODE == "encrypted_raw":
-            message_text_raw = decrypt_from_audit_store(row.message_text_raw_encrypted)
-            payload_decrypted = decrypt_from_audit_store(row.payload_json_encrypted)
+            message_text_raw = decrypt_from_audit_store(row_message_text_raw_encrypted)
+            payload_decrypted = decrypt_from_audit_store(row_payload_json_encrypted)
             payload_raw = json.loads(payload_decrypted) if payload_decrypted else None
 
         data.append(
