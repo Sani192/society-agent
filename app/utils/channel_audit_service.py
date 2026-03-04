@@ -5,10 +5,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
-from app.channels.core.audit_events import summarize_exception_stack
-from app.db.models import ChannelDeadLetter, ChannelMessageEvent
+from app.channels.core.audit_events import (
+    ChannelName,
+    EventKind,
+    NormalizedAuditEvent,
+    persist_audit_events,
+    summarize_exception_stack,
+)
+from app.channels.core.audit_security import sanitize_payload
+from app.db.models import ChannelDeadLetter
 from app.db.session import SessionLocal
 from app.utils.channel_response_parser import parse_provider_error_from_exception
 from app.utils.logger import logger
@@ -16,21 +23,12 @@ from app.utils.logger import logger
 
 class AuditTransport:
     def __init__(self, *, channel: str):
-        self.channel = channel
+        if channel not in {"whatsapp", "telegram"}:
+            raise ValueError(f"Unsupported channel for AuditTransport: {channel}")
+        self.channel = cast(ChannelName, channel)
 
-    def _persist_event(self, event: ChannelMessageEvent) -> None:
-        db = SessionLocal()
-        try:
-            db.add(event)
-            db.commit()
-        except Exception:
-            db.rollback()
-            logger.exception(
-                "Failed to persist transport audit event",
-                extra={"channel": self.channel, "event_type": event.event_type},
-            )
-        finally:
-            db.close()
+    def _persist_event(self, event: NormalizedAuditEvent) -> None:
+        persist_audit_events([event])
 
     def persist_dead_letter(
         self,
@@ -52,7 +50,7 @@ class AuditTransport:
                     correlation_id=correlation_id,
                     channel=self.channel,
                     recipient=recipient,
-                    payload_json=outbound_payload_metadata or {},
+                    payload_json=sanitize_payload(outbound_payload_metadata or {}),
                     error_class=type(exc).__name__,
                     error_message=str(exc),
                     stack_summary=summarize_exception_stack(exc),
@@ -69,18 +67,17 @@ class AuditTransport:
         finally:
             db.close()
 
-    def _build_event(self, *, event_type: str, trace_id: str | None, correlation_id: str | None, recipient: str, payload_json: dict[str, Any] | None = None, http_status: int | None = None, provider_message_id: str | None = None, provider_error_code: str | None = None, provider_error_message: str | None = None) -> ChannelMessageEvent:
-        return ChannelMessageEvent(
-            trace_id=trace_id,
-            correlation_id=correlation_id,
+    def _build_event(self, *, event_type: EventKind, trace_id: str | None, correlation_id: str | None, recipient: str, payload_json: dict[str, Any] | None = None, http_status: int | None = None, provider_message_id: str | None = None, provider_error_code: str | None = None, provider_error_message: str | None = None) -> NormalizedAuditEvent:
+        payload = sanitize_payload(payload_json or {})
+        payload.update({"trace_id": trace_id, "correlation_id": correlation_id, "http_status": http_status})
+        return NormalizedAuditEvent(
             channel=self.channel,
             direction="outbound",
             event_type=event_type,
             provider_message_id=provider_message_id,
             chat_id_or_phone=recipient,
             external_user_id=recipient,
-            payload_json=payload_json,
-            http_status=http_status,
+            payload_json=payload,
             provider_error_code=provider_error_code,
             provider_error_message=provider_error_message,
             occurred_at=datetime.now(timezone.utc),

@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.channels.core.audit_security import redact_text
 from app.channels.core.types import InboundMessage
 from app.commands.handlers.committee_handler import handle_committee_intent
 from app.commands.handlers.common import get_latest_event_for_society, resolve_sender_society_id
@@ -123,7 +124,7 @@ def handle_inbound_message(
             "channel": message.channel,
             "sender_id": message.sender_id,
             "display_name": message.display_name,
-            "message_text": message.text,
+            "message_text": redact_text(message.text),
             "trace_id": trace_id,
             "correlation_id": correlation_id,
         },

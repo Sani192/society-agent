@@ -139,8 +139,13 @@ class ChannelMessageEvent(Base):
     external_user_id = Column(String(255), nullable=True)
 
     message_text_raw = Column(Text, nullable=True)
+    message_text_raw_encrypted = Column(Text, nullable=True)
     message_text_redacted = Column(Text, nullable=True)
     payload_json = Column(JSONB, nullable=True)
+    payload_json_encrypted = Column(Text, nullable=True)
+
+    prev_event_hash = Column(String(64), nullable=True)
+    event_hash = Column(String(64), nullable=True, index=True)
 
     http_status = Column(Integer, nullable=True)
     provider_error_code = Column(String(100), nullable=True)

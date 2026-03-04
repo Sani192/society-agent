@@ -27,7 +27,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff mypy pytest-testmon
+          pip install ruff mypy
+          pip install pytest-testmon || echo "pytest-testmon install failed; using pytest fallback mode"
 
       - name: Restore test impact cache (.testmondata)
         uses: actions/cache@v4
@@ -49,7 +50,12 @@ jobs:
       - name: Run fast unit tests with impact selection
         run: |
           mkdir -p artifacts/junit
-          pytest --testmon -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml
+          if pytest --help | grep -q -- "--testmon"; then
+            pytest --testmon -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml
+          else
+            echo "pytest-testmon not available; running without impact selection"
+            pytest -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml
+          fi
 
       - name: Ensure Stage 1 JUnit artifact exists
         if: always()
@@ -145,7 +151,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-testmon pytest-rerunfailures
+          pip install pytest-rerunfailures
+          pip install pytest-testmon || echo "pytest-testmon install failed; using pytest fallback mode"
 
       - name: Restore test impact cache (.testmondata)
         uses: actions/cache@v4
@@ -159,7 +166,22 @@ jobs:
         run: python scripts/ci/reset_test_state.py
 
       - name: Run integration + endpoint tests (impact selected)
-        run: pytest --testmon --reruns 1 -q -m "integration or endpoint" --junitxml=artifacts/junit/stage2-integration-endpoint.xml
+        run: |
+          TESTMON_ARGS=""
+          if pytest --help | grep -q -- "--testmon"; then
+            TESTMON_ARGS="--testmon"
+          else
+            echo "pytest-testmon not available; running full integration/endpoint selection"
+          fi
+
+          RERUN_ARGS=""
+          if pytest --help | grep -q -- "--reruns"; then
+            RERUN_ARGS="--reruns 1"
+          else
+            echo "pytest-rerunfailures not available; running without reruns"
+          fi
+
+          pytest ${TESTMON_ARGS} ${RERUN_ARGS} -q -m "integration or endpoint" --junitxml=artifacts/junit/stage2-integration-endpoint.xml
 
       - name: Ensure Stage 2 JUnit artifact exists
         if: always()
@@ -348,18 +370,18 @@ jobs:
           path: artifacts/from-jobs/stage1
 
       - name: Download Stage 2 artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: stage2-artifacts-${{ github.run_id }}
           path: artifacts/from-jobs/stage2
-          if-no-artifact-found: ignore
 
       - name: Download Stage 3 artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: stage3-artifacts-${{ github.run_id }}
           path: artifacts/from-jobs/stage3
-          if-no-artifact-found: ignore
 
 
       - name: Ensure fallback Stage 2/3 JUnit files exist
