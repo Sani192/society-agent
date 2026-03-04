@@ -7,6 +7,8 @@ Created on Sun Jan 25 12:01:17 2026
 """
 
 REPORT_PERMISSIONS = {
+    # committee_member intentionally excluded from exports by default
+
     "GOVERNANCE_AUDIT": {"chairman"},
     "EVENT_FINANCIAL_SUMMARY": {"chairman", "treasurer"},
     "FLAT_PAYMENTS": {"chairman", "treasurer"},

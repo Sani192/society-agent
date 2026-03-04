@@ -66,7 +66,7 @@ class CommitteeMember(Base):
     role = Column(
         String(50),
         nullable=False
-        # chairman | secretary | treasurer
+        # chairman | secretary | treasurer | committee_member
     )
 
     is_active = Column(Boolean, nullable=False, default=True)

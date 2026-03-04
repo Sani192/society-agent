@@ -901,19 +901,19 @@ def test_committee_add_event_wizard_reprompts_on_invalid_date():
             "ADD_EXPENSE",
             "expense water 1200 override closed correction",
             "app.handlers.shared.committee.ExpenseService.add_expense",
-            ["chairman", "secretary", "treasurer"],
+            ["chairman", "secretary", "treasurer", "committee_member"],
         ),
         (
             "ADD_SPONSOR",
             "add sponsor ABC Corp 5000 override closed correction",
             "app.handlers.shared.committee.ContributionService.add_contribution",
-            ["chairman", "secretary", "treasurer"],
+            ["chairman", "secretary", "treasurer", "committee_member"],
         ),
         (
             "REFUND_SPONSOR",
             "refund sponsor SP-001 500 reason duplicate charge override closed correction",
             "app.handlers.shared.committee.ContributionRefundService.process_refund",
-            ["chairman", "secretary", "treasurer"],
+            ["chairman", "secretary", "treasurer", "committee_member"],
         ),
     ],
 )
@@ -965,6 +965,46 @@ def test_closed_override_still_blocks_missing_reason(monkeypatch):
 
     assert response.startswith("⚠️")
 
+
+
+
+def test_committee_member_can_announce_event(monkeypatch):
+    member = SimpleNamespace(id="member-1", role="committee_member", society_id="soc-1")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.AnnouncementManager.queue",
+        lambda **kwargs: SimpleNamespace(
+            accepted_count=2,
+            skipped_count=0,
+            announcement_id="ann-cm-1",
+        ),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ANNOUNCE_EVENT",
+        message="announce event Welcome all",
+        event=SimpleNamespace(id="event-1", society_id="soc-1"),
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Accepted: 2" in response
+
+
+def test_committee_member_cannot_add_expense_without_override():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="committee_member")
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EXPENSE",
+        message="expense water 1200",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("⚠️")
 
 def test_committee_announce_event_requires_committee_role():
     member = SimpleNamespace(id="member-1", role="member", society_id="soc-1")
