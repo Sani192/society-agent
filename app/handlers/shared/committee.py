@@ -164,7 +164,8 @@ INTENT_ROLE_WARNINGS = {
 }
 
 CLOSED_OVERRIDE_INTENTS = {"ADD_EXPENSE", "ADD_SPONSOR", "REFUND_SPONSOR"}
-COMMITTEE_ROLES = {"chairman", "secretary", "treasurer"}
+COMMITTEE_MEMBER_ROLES = {"chairman", "secretary", "treasurer", "committee_member"}
+COMMITTEE_ADMIN_ROLES = {"chairman", "secretary", "treasurer"}
 ANNOUNCE_INTENTS = {"ANNOUNCE_EVENT", "ANNOUNCE_SOCIETY"}
 ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH = 1024
 
@@ -237,7 +238,7 @@ def can_execute_intent(*, member, intent: str, event_state: str | None, override
     if not action:
         return True, None
 
-    if intent in ANNOUNCE_INTENTS and member.role in COMMITTEE_ROLES:
+    if intent in ANNOUNCE_INTENTS and member.role in COMMITTEE_MEMBER_ROLES:
         return True, None
 
     if is_action_allowed(member.role, action):
@@ -246,7 +247,7 @@ def can_execute_intent(*, member, intent: str, event_state: str | None, override
     is_closed_override = (
         intent in CLOSED_OVERRIDE_INTENTS
         and event_state == "CLOSED"
-        and member.role in COMMITTEE_ROLES
+        and member.role in COMMITTEE_MEMBER_ROLES
         and bool((override_reason or "").strip())
     )
     if is_closed_override:

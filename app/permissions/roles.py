@@ -32,5 +32,10 @@ ROLE_ACTIONS = {
         "ADD_SPONSOR",
         "REFUND_SPONSOR",
         "CLOSE_EVENT"
+    },
+    "committee_member": {
+        "SUMMARY",
+        "PENDING_PAYMENTS",
+        "ONBOARDING_PENDING",
     }
 }
