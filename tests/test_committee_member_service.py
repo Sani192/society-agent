@@ -73,6 +73,46 @@ def test_add_member_duplicate_active_same_society():
         )
 
 
+def test_add_member_success_creates_active_member():
+    db = MagicMock()
+    db.query.side_effect = [
+        _Query(first_result=SimpleNamespace(role="chairman", is_active=True)),
+        _Query(first_result=None),
+        _Query(first_result=None),
+    ]
+
+    result = CommitteeMemberService.add_member(
+        db=db,
+        society_id="soc",
+        name="New Member",
+        phone_number="+91 99999 00002",
+        role="committee_member",
+        performed_by="actor",
+    )
+
+    assert result.is_active is True
+    assert result.role == "committee_member"
+    assert result.name == "New Member"
+
+
+
+def test_add_member_invalid_role_rejected():
+    db = MagicMock()
+    db.query.side_effect = [
+        _Query(first_result=SimpleNamespace(role="chairman", is_active=True)),
+    ]
+
+    with pytest.raises(ValueError, match="Invalid role"):
+        CommitteeMemberService.add_member(
+            db=db,
+            society_id="soc",
+            name="N",
+            phone_number="+91 99999 00000",
+            role="invalid-role",
+            performed_by="actor",
+        )
+
+
 def test_add_member_reactivate_inactive():
     inactive = SimpleNamespace(id="m2", is_active=False, society_id="soc")
     db = MagicMock()
@@ -114,6 +154,25 @@ def test_remove_member_last_chairman_guard():
         )
 
 
+def test_remove_member_soft_deactivation_success():
+    target = SimpleNamespace(id="m5", role="secretary", is_active=True, name="Sec")
+    db = MagicMock()
+    db.query.side_effect = [
+        _Query(first_result=SimpleNamespace(role="chairman", is_active=True)),
+        _Query(first_result=target),
+    ]
+
+    result = CommitteeMemberService.remove_member(
+        db=db,
+        society_id="soc",
+        member_id="m5",
+        performed_by="actor",
+    )
+
+    assert result is target
+    assert target.is_active is False
+
+
 def test_change_role_success():
     target = SimpleNamespace(id="m4", role="secretary", is_active=True, name="S")
     db = MagicMock()
@@ -132,3 +191,22 @@ def test_change_role_success():
 
     assert result is target
     assert target.role == "treasurer"
+
+
+def test_change_role_last_chairman_guard():
+    target = SimpleNamespace(id="m6", role="chairman", is_active=True, name="Chair")
+    db = MagicMock()
+    db.query.side_effect = [
+        _Query(first_result=SimpleNamespace(role="chairman", is_active=True)),
+        _Query(first_result=target),
+        _Query(count_result=1),
+    ]
+
+    with pytest.raises(ValueError, match="Cannot remove last active chairman"):
+        CommitteeMemberService.change_role(
+            db=db,
+            society_id="soc",
+            member_id="m6",
+            role="secretary",
+            performed_by="actor",
+        )

@@ -1427,3 +1427,114 @@ def test_whatsapp_webhook_event_ui_make_payment_requests_event_selection_when_no
     session = get_finance_action_session("919999000102")
     assert session is not None
     assert session.pending_action == "MAKE_PAYMENT"
+
+
+
+def test_whatsapp_webhook_event_administration_menu_shows_manage_committee_for_authorized_user(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.admin.committee"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000083",
+        display_name="Jane",
+        text="ui::administration",
+        metadata={"message_id": "wamid.admin.committee", "canonical_sender_id": "919999000083"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr("app.api.whatsapp._get_committee_member", lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman"})())
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
+    assert "ui::administration:committee" in row_ids
+
+
+def test_whatsapp_webhook_event_committee_routes_trigger_expected_flows(monkeypatch):
+    called = {}
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            return {"messages": [{"id": "wamid.committee.route"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            return {"messages": [{"id": "wamid.committee.route.text"}]}
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    class StubDB:
+        def query(self, *args, **kwargs):
+            return self
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def order_by(self, *args, **kwargs):
+            return self
+
+        def all(self):
+            return []
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.api.whatsapp._get_committee_member", lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman", "society_id": "soc-1"})())
+
+    monkeypatch.setattr(
+        "app.channels.whatsapp.ui_router._send_add_member_selection",
+        lambda **kwargs: called.setdefault("add", True),
+    )
+    monkeypatch.setattr(
+        "app.channels.whatsapp.ui_router._send_committee_member_selection",
+        lambda **kwargs: called.setdefault("remove_or_change", kwargs["body_text"]),
+    )
+    monkeypatch.setattr(
+        "app.channels.whatsapp.ui_router._handle_committee_view",
+        lambda **kwargs: called.setdefault("view", True),
+    )
+
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [InboundMessage(channel="whatsapp", sender_id="919999000084", display_name="Jane", text="committee::add", metadata={"message_id": "wamid.add", "canonical_sender_id": "919999000084"})])
+    asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [InboundMessage(channel="whatsapp", sender_id="919999000084", display_name="Jane", text="committee::remove", metadata={"message_id": "wamid.remove", "canonical_sender_id": "919999000084"})])
+    asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [InboundMessage(channel="whatsapp", sender_id="919999000084", display_name="Jane", text="committee::view", metadata={"message_id": "wamid.view", "canonical_sender_id": "919999000084"})])
+    asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert called["add"] is True
+    assert called["remove_or_change"] == "Choose member to remove"
+    assert called["view"] is True
+
+
+
+def test_whatsapp_webhook_event_committee_flow_lists_include_back_and_menu_navigation():
+    from app.channels.whatsapp.ui_router import _build_committee_role_sections, _with_navigation
+
+    role_sections = _build_committee_role_sections(include_navigation=True)
+    role_nav_rows = role_sections[-1]["rows"]
+    assert [row["id"] for row in role_nav_rows] == ["ui::administration:committee", "menu"]
+
+    member_sections = _with_navigation(
+        sections=[{"title": "Members", "rows": [{"id": "committee-member::cm-1", "title": "Alice", "description": "919999000000 · Secretary"}]}],
+        back_id="ui::administration:committee",
+    )
+    member_nav_rows = member_sections[-1]["rows"]
+    assert [row["id"] for row in member_nav_rows] == ["ui::administration:committee", "menu"]
+
