@@ -288,13 +288,43 @@ class FoodPassService:
             entity_id=flat_id,
             action="MARK_NOT_PARTICIPATING",
             reason=(
-                f"OVERRIDE: {override_reason}"
+                f"OVERRIDE: {override_reason} | Payment expected amount reset to 0 due to opt-out"
                 if override_reason
-                else "Flat opted out"
+                else "Flat opted out | Payment expected amount reset to 0 due to opt-out"
             ),
             performed_by=performed_by
         ))
         logger.info("Captured non-participation audit log | context=%s", context)
+
+        payment = (
+            db.query(Payment)
+            .filter(
+                Payment.event_id == event_id,
+                Payment.flat_id == flat_id
+            )
+            .first()
+        )
+
+        if not payment:
+            payment = Payment(
+                event_id=event_id,
+                flat_id=flat_id,
+                expected_amount=0,
+                paid_amount=0,
+                status="pending"
+            )
+            logger.info("Created payment row while opting out | context=%s", context)
+        else:
+            payment.expected_amount = 0
+            payment.status = "refunded" if payment.paid_amount > 0 else "pending"
+            logger.info(
+                "Reset payment expectations for opt-out | paid_amount=%s status=%s context=%s",
+                payment.paid_amount,
+                payment.status,
+                context
+            )
+
+        db.add(payment)
 
         db.commit()
         logger.info("Committed food pass opt-out transaction | context=%s", context)
