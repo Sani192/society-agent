@@ -63,6 +63,8 @@ class FoodPassService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
+        if flat.society_id != event.society_id:
+            raise Exception("Flat does not belong to the event society")
         logger.info("Validated event and flat for food pass | context=%s", context)
 
         decision = WorkflowEngine.check_action(
@@ -212,6 +214,12 @@ class FoodPassService:
         logger.info("Marking flat not participating | context=%s", context)
 
         event = db.query(Event).filter(Event.id == event_id).first()
+        flat = db.query(Flat).filter(Flat.id == flat_id).first()
+
+        if not event or not flat:
+            raise Exception("Invalid event or flat")
+        if flat.society_id != event.society_id:
+            raise Exception("Flat does not belong to the event society")
 
         decision = WorkflowEngine.check_action(
             db=db,

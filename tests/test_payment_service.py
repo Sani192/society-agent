@@ -9,7 +9,7 @@ from tests.utils import QueryMock
 
 def test_record_payment_creates_payment(monkeypatch):
     event = SimpleNamespace(society_id="soc-1")
-    flat = SimpleNamespace(id="flat-1")
+    flat = SimpleNamespace(id="flat-1", society_id="soc-1")
     food_pass = SimpleNamespace(total_amount=300)
     db = MagicMock()
     db.query.side_effect = [
@@ -46,5 +46,30 @@ def test_record_payment_rejects_zero_amount():
             flat_id="flat-1",
             amount=0,
             payment_mode="cash",
+            performed_by="member-1"
+        )
+
+
+def test_record_payment_rejects_flat_from_different_society(monkeypatch):
+    event = SimpleNamespace(society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1", society_id="soc-2")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=flat),
+    ]
+
+    monkeypatch.setattr(
+        "app.modules.payments.payment_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=True)
+    )
+
+    with pytest.raises(Exception, match="Flat does not belong to the event society"):
+        PaymentService.record_payment(
+            db=db,
+            event_id="event-1",
+            flat_id="flat-1",
+            amount=300,
+            payment_mode="upi",
             performed_by="member-1"
         )
