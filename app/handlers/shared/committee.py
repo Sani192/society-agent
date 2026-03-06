@@ -194,6 +194,17 @@ def _extract_announcement_body(*, message: str, command_prefix: str) -> str:
     return ""
 
 
+def _build_food_counter_open_announcement(*, event_name: str, closes_at) -> str:
+    close_time_text = format_datetime(closes_at) if closes_at else None
+    lines = [
+        f"{event_name}: food counter is now open.",
+        "Please keep your token/QR ready for quick serving.",
+    ]
+    if close_time_text:
+        lines.append(f"Counter closes at {close_time_text}.")
+    return join_lines(lines)
+
+
 def _event_wizard_prompt(step: str) -> str:
     prompts = {
         "name": "What is the event name?",
@@ -1245,6 +1256,29 @@ def handle_committee_intent(
             )
         except Exception as exc:
             return error_response(str(exc))
+
+        announcement_message = _build_food_counter_open_announcement(
+            event_name=event.name,
+            closes_at=counter.closes_at,
+        )
+        try:
+            AnnouncementManager.queue(
+                db=db,
+                member=member,
+                event=event,
+                message_body=announcement_message,
+                scope="event",
+            )
+        except Exception:
+            logger.exception(
+                "Failed to queue food counter open announcement",
+                extra={
+                    "event_id": str(getattr(event, "id", "")),
+                    "society_id": str(getattr(member, "society_id", "")),
+                    "member_id": str(getattr(member, "id", "")),
+                },
+            )
+
         closes_at_text = format_datetime(counter.closes_at) if counter.closes_at else "N/A"
         return success_response(
             join_lines([

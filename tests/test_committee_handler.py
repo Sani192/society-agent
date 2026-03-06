@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -1292,14 +1294,21 @@ def test_committee_generate_food_tokens_invokes_notification_callback(monkeypatc
     assert callback_calls["performed_by"] == "member-1"
 
 
-def test_committee_open_food_counter(monkeypatch):
+def test_committee_open_food_counter_broadcasts_event_announcement(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
-    member = SimpleNamespace(id="member-1", role="chairman")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    queue_calls = {}
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.FoodCollectionService.open_food_counter",
         lambda **kwargs: SimpleNamespace(closes_at=None),
     )
+
+    def fake_queue(**kwargs):
+        queue_calls.update(kwargs)
+        return SimpleNamespace(announcement_id="ann-1", accepted_count=10, skipped_count=2)
+
+    monkeypatch.setattr("app.handlers.shared.committee.AnnouncementManager.queue", fake_queue)
 
     response = handle_committee_intent(
         db=MagicMock(),
@@ -1311,6 +1320,40 @@ def test_committee_open_food_counter(monkeypatch):
 
     assert response.startswith("✅")
     assert "Food counter is now open" in response
+    assert queue_calls["scope"] == "event"
+    assert queue_calls["event"] is event
+    assert queue_calls["member"] is member
+    assert "Holi: food counter is now open." in queue_calls["message_body"]
+    assert "Please keep your token/QR ready" in queue_calls["message_body"]
+    assert "Counter closes at" not in queue_calls["message_body"]
+
+
+def test_committee_open_food_counter_broadcast_includes_close_time(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
+    queue_calls = {}
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.FoodCollectionService.open_food_counter",
+        lambda **kwargs: SimpleNamespace(closes_at=datetime(2026, 3, 14, 20, 30)),
+    )
+
+    def fake_queue(**kwargs):
+        queue_calls.update(kwargs)
+        return SimpleNamespace(announcement_id="ann-1", accepted_count=10, skipped_count=2)
+
+    monkeypatch.setattr("app.handlers.shared.committee.AnnouncementManager.queue", fake_queue)
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="OPEN_FOOD_COUNTER",
+        message="open food counter 60",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Counter closes at" in queue_calls["message_body"]
 
 
 def test_committee_verify_food_token(monkeypatch):
