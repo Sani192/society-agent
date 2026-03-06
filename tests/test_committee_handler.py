@@ -1225,9 +1225,15 @@ def test_committee_generate_food_tokens(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
     member = SimpleNamespace(id="member-1", role="secretary")
 
+    callback_calls = {}
+
+    def fake_generate_tokens_for_event(**kwargs):
+        callback_calls["notify_callback"] = kwargs.get("notify_callback")
+        return [SimpleNamespace(token_code="AA22BB"), SimpleNamespace(token_code="CC33DD")]
+
     monkeypatch.setattr(
         "app.handlers.shared.committee.FoodCollectionService.generate_tokens_for_event",
-        lambda **kwargs: [SimpleNamespace(token_code="AA22BB"), SimpleNamespace(token_code="CC33DD")],
+        fake_generate_tokens_for_event,
     )
 
     response = handle_committee_intent(
@@ -1240,6 +1246,50 @@ def test_committee_generate_food_tokens(monkeypatch):
 
     assert response.startswith("✅")
     assert "Generated 2 food tokens" in response
+    assert callable(callback_calls["notify_callback"])
+
+
+def test_committee_generate_food_tokens_invokes_notification_callback(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
+    member = SimpleNamespace(id="member-1", role="secretary")
+
+    callback_calls = {}
+
+    def fake_generate_tokens_for_event(**kwargs):
+        notify_callback = kwargs["notify_callback"]
+        callback_calls["callback_present"] = callable(notify_callback)
+        generated_tokens = [SimpleNamespace(flat_id="flat-1"), SimpleNamespace(flat_id="flat-1")]
+        notify_callback(event=event, generated_tokens=generated_tokens)
+        return generated_tokens
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.FoodCollectionService.generate_tokens_for_event",
+        fake_generate_tokens_for_event,
+    )
+
+    def fake_notify_generated_food_tokens(**kwargs):
+        callback_calls["event_name"] = kwargs["event"].name
+        callback_calls["token_count"] = len(kwargs["generated_tokens"])
+        callback_calls["performed_by"] = kwargs["performed_by"]
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee._notify_generated_food_tokens",
+        fake_notify_generated_food_tokens,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="GENERATE_FOOD_TOKENS",
+        message="generate food tokens",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert callback_calls["callback_present"] is True
+    assert callback_calls["event_name"] == "Holi"
+    assert callback_calls["token_count"] == 2
+    assert callback_calls["performed_by"] == "member-1"
 
 
 def test_committee_open_food_counter(monkeypatch):
