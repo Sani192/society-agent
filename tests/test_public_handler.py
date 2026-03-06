@@ -328,6 +328,10 @@ def test_public_my_pass_success(monkeypatch):
         "app.handlers.shared.public.UserQueryService.get_my_pass",
         lambda **kwargs: food_pass
     )
+    monkeypatch.setattr(
+        "app.handlers.shared.public.FoodCollectionService.member_pass_status",
+        lambda **kwargs: {"total_passes": 2, "served": 1, "remaining": 1, "tokens": []},
+    )
 
     response = handle_public_intent(
         db=MagicMock(),
@@ -339,6 +343,41 @@ def test_public_my_pass_success(monkeypatch):
     )
 
     assert "Veg: 1" in response
+    assert "Served: 1" in response
+
+
+def test_public_my_tokens_success(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.public.resolve_flat",
+        lambda *args, **kwargs: flat
+    )
+    monkeypatch.setattr(
+        "app.handlers.shared.public.FoodCollectionService.member_pass_status",
+        lambda **kwargs: {
+            "total_passes": 2,
+            "served": 1,
+            "remaining": 1,
+            "tokens": [
+                {"token": "AB2K9M", "food_type": "veg", "served": False},
+                {"token": "CD3N7P", "food_type": "jain", "served": True},
+            ],
+        },
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="MY_TOKENS",
+        phone_number=MEMBER_PHONE,
+        message="my tokens",
+        event=event,
+        member=None,
+    )
+
+    assert "AB2K9M" in response
+    assert "Remaining: 1" in response
 
 
 def test_public_my_pass_requires_event():

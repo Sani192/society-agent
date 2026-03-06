@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -7,6 +8,7 @@ from app.channels.core.types import InboundMessage
 from app.whatsapp.finance_action_session import clear_finance_action_session, get_finance_action_session
 from app.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
 from app.whatsapp.ui import build_committee_sections
+from tests.utils import QueryMock
 
 pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
@@ -648,7 +650,41 @@ def test_whatsapp_webhook_event_administration_operations_more_menu_respects_row
     total_rows = sum(len(section["rows"]) for section in list_attempts[0]["sections"])
     assert total_rows <= 10
     row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
-    assert {"activate event", "close event", "remind", "ui::administration:operations"}.issubset(row_ids)
+    assert {"activate event", "close event", "remind", "ui::administration:food", "ui::administration:operations"}.issubset(row_ids)
+
+
+def test_whatsapp_webhook_event_food_collection_menu(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.food"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000018",
+        display_name="Jane",
+        text="ui::administration:food",
+        metadata={"message_id": "wamid.food", "canonical_sender_id": "919999000018"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr("app.api.whatsapp._get_committee_member", lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman"})())
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
+    assert {"generate food tokens", "verify food token", "food dashboard", "ui::administration:operations:more"}.issubset(row_ids)
 
 
 
@@ -1538,3 +1574,89 @@ def test_whatsapp_webhook_event_committee_flow_lists_include_back_and_menu_navig
     member_nav_rows = member_sections[-1]["rows"]
     assert [row["id"] for row in member_nav_rows] == ["ui::administration:committee", "menu"]
 
+def test_whatsapp_webhook_event_verify_food_token_opens_picker(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.food.verify"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000019",
+        display_name="Jane",
+        text="verify food token",
+        metadata={"message_id": "wamid.food.verify", "canonical_sender_id": "919999000019"},
+    )
+
+    db = type("DB", (), {"close": lambda self: None})()
+    db.query = MagicMock(side_effect=[
+        QueryMock(first_result=type("Event", (), {"id": "evt-1"})()),
+        QueryMock(all_result=[type("Token", (), {"token_code": "AB2K9M", "food_type": "veg"})()]),
+    ])
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "app.api.whatsapp._get_committee_member",
+        lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman", "society_id": "soc-1"})(),
+    )
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    row_ids = {row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]}
+    assert "food-verify-token::AB2K9M" in row_ids
+
+
+def test_whatsapp_webhook_event_verify_food_token_selection_serves(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("list message should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append(body)
+            return {"messages": [{"id": "wamid.food.serve"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000020",
+        display_name="Jane",
+        text="food-verify-token::AB2K9M",
+        metadata={"message_id": "wamid.food.serve", "canonical_sender_id": "919999000020"},
+    )
+
+    db = type("DB", (), {"close": lambda self: None})()
+    db.query = MagicMock(side_effect=[
+        QueryMock(first_result=type("Event", (), {"id": "evt-1"})()),
+    ])
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.api.whatsapp._is_committee_member", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "app.api.whatsapp._get_committee_member",
+        lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman", "society_id": "soc-1"})(),
+    )
+    monkeypatch.setattr(
+        "app.api.whatsapp.FoodCollectionService.verify_and_serve_token",
+        lambda **kwargs: type("Served", (), {"token_code": "AB2K9M", "food_type": "veg"})(),
+    )
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert any("Served token AB2K9M" in msg for msg in text_attempts)

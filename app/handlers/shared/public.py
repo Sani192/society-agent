@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:30:44 2026
 # app/whatsapp/handlers/public_handler.py
 
 from app.modules.events.food_pass_service import FoodPassService
+from app.modules.events.food_collection_service import FoodCollectionService
 from app.modules.payments.payment_service import PaymentService
 from app.modules.payments.refund_service import RefundService
 from app.modules.payments.payment_request_service import PaymentRequestService
@@ -282,14 +283,64 @@ def handle_public_intent(
                 emoji="🎫"
             )
 
+        summary = FoodCollectionService.member_pass_status(
+            db=db,
+            event_id=event.id,
+            flat_id=flat.id,
+        )
+
+        lines = [
+            f"Veg: {food_pass.veg_count}",
+            f"Jain: {food_pass.jain_count}",
+            f"Kids: {food_pass.kids_count}",
+        ]
+        if summary["total_passes"] > 0:
+            lines.extend([
+                "",
+                f"Total Plates: {summary['total_passes']}",
+                f"Served: {summary['served']}",
+                f"Remaining: {summary['remaining']}",
+                "Send *my tokens* to view token list.",
+            ])
+
+        return success_response(join_lines(lines), heading="Your Food Pass", emoji="🎫")
+
+    if intent == "MY_TOKENS":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+
+        flat = resolve_flat(
+            db,
+            phone_number=phone_number,
+            society_id=event.society_id,
+        )
+        summary = FoodCollectionService.member_pass_status(
+            db=db,
+            event_id=event.id,
+            flat_id=flat.id,
+        )
+        if not summary["tokens"]:
+            return success_response(
+                "Tokens are not generated yet. Please wait for committee update.",
+                heading="Your tokens",
+                emoji="🎟️",
+            )
+
+        token_lines = [
+            f"{row['token']} | {row['food_type']} | {'Served' if row['served'] else 'Pending'}"
+            for row in summary["tokens"]
+        ]
         return success_response(
             join_lines([
-                f"Veg: {food_pass.veg_count}",
-                f"Jain: {food_pass.jain_count}",
-                f"Kids: {food_pass.kids_count}"
+                f"Total: {summary['total_passes']}",
+                f"Served: {summary['served']}",
+                f"Remaining: {summary['remaining']}",
+                "",
+                "Tokens:",
+                *token_lines,
             ]),
-            heading="Your Food Pass",
-            emoji="🎫"
+            heading="Your tokens",
+            emoji="🎟️",
         )
 
     if intent == "MY_PAYMENT_REQUESTS":

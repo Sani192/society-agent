@@ -6,7 +6,9 @@ import pytest
 from app.api.whatsapp import WhatsAppRequest, whatsapp_webhook
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.whatsapp.ui.committee import (
+    build_committee_food_collection_sections,
     build_committee_more_sections,
+    build_committee_operations_more_sections,
     build_committee_operations_sections,
     build_committee_sections,
 )
@@ -56,6 +58,14 @@ COMMITTEE_CASES = [
     ("APPROVE_PAYMENT", "approve payment PAY-001"),
     ("APPROVE_REFUND", "approve refund REF-001"),
     ("PENDING_USERS", "pending users"),
+    ("GENERATE_FOOD_TOKENS", "generate food tokens"),
+    ("OPEN_FOOD_COUNTER", "open food counter"),
+    ("VERIFY_FOOD_TOKEN", "verify food token AB2K9M"),
+    ("SCAN_FOOD_QR", "scan food qr AB2K9M"),
+    ("SERVE_FOOD_FLAT", "serve flat A-101"),
+    ("FLAT_PASS_STATUS", "flat passes A-101"),
+    ("TOKEN_STATUS", "token status AB2K9M"),
+    ("FOOD_DASHBOARD", "food dashboard"),
 ]
 
 
@@ -100,6 +110,7 @@ PUBLIC_CASES = [
     ("PAY", "pay 500"),
     ("REFUND", "refund 200 reason guest absent"),
     ("MY_PASS", "my pass"),
+    ("MY_TOKENS", "my tokens"),
     ("MY_PAYMENT_REQUESTS", "my payment requests"),
     ("MY_REFUND_REQUESTS", "my refund requests"),
     ("MY_PAYMENTS", "my payments"),
@@ -198,6 +209,8 @@ def test_whatsapp_ui_rows_cover_whatsapp_intents():
     sections.extend(build_reports_sections(is_committee=True))
     sections.extend(build_committee_sections())
     sections.extend(build_committee_more_sections())
+    sections.extend(build_committee_operations_more_sections())
+    sections.extend(build_committee_food_collection_sections())
 
     row_ids = {
         row["id"]

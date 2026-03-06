@@ -1220,3 +1220,92 @@ def test_committee_change_role_success(monkeypatch):
 
     assert "Carl" in response
     assert "secretary" in response
+
+def test_committee_generate_food_tokens(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
+    member = SimpleNamespace(id="member-1", role="secretary")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.FoodCollectionService.generate_tokens_for_event",
+        lambda **kwargs: [SimpleNamespace(token_code="AA22BB"), SimpleNamespace(token_code="CC33DD")],
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="GENERATE_FOOD_TOKENS",
+        message="generate food tokens",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Generated 2 food tokens" in response
+
+
+def test_committee_open_food_counter(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
+    member = SimpleNamespace(id="member-1", role="chairman")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.FoodCollectionService.open_food_counter",
+        lambda **kwargs: SimpleNamespace(closes_at=None),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="OPEN_FOOD_COUNTER",
+        message="open food counter 60",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Food counter is now open" in response
+
+
+def test_committee_verify_food_token(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
+    member = SimpleNamespace(id="member-1", role="chairman")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.FoodCollectionService.verify_and_serve_token",
+        lambda **kwargs: SimpleNamespace(token_code="AB2K9M", food_type="veg"),
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="VERIFY_FOOD_TOKEN",
+        message="verify food token AB2K9M",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Served token AB2K9M" in response
+
+
+def test_committee_food_dashboard(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Holi")
+    member = SimpleNamespace(id="member-1", role="chairman")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.FoodCollectionService.dashboard",
+        lambda **kwargs: {
+            "total_plates": 10,
+            "served_plates": 4,
+            "remaining_plates": 6,
+            "by_type": {"veg": {"total": 6, "served": 3, "remaining": 3}},
+            "recent_served": [],
+        },
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="FOOD_DASHBOARD",
+        message="food dashboard",
+        event=event,
+        member=member,
+    )
+
+    assert response.startswith("✅")
+    assert "Total: 10" in response

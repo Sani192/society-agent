@@ -32,6 +32,7 @@ from app.modules.contributions.contribution_refund_service import (
 from app.modules.reports.pending_payment_report import PendingPaymentReport
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.events.service import EventService
+from app.modules.events.food_collection_service import FoodCollectionService
 from app.modules.committee.committee_member_service import CommitteeMemberService
 from app.modules.announcements.manager import AnnouncementManager
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
@@ -57,6 +58,7 @@ from app.commands.parser import (
     parse_amount,
     parse_event_creation,
     parse_reason,
+    parse_target_flat,
 )
 
 
@@ -128,6 +130,16 @@ def _parse_member_id(message: str, *, prefix: str) -> str | None:
     if not payload:
         return None
     return payload.split()[0].strip()
+
+
+def _parse_token_after_prefix(message: str, *, prefix: str) -> str | None:
+    raw = (message or "").strip()
+    if not raw.lower().startswith(prefix.lower()):
+        return None
+    payload = raw[len(prefix):].strip()
+    if not payload:
+        return None
+    return payload.split()[0].strip().upper()
 
 
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
@@ -1050,6 +1062,188 @@ def handle_committee_intent(
             f"Event day started: {event.name}",
             heading="Event started",
             emoji="🎉",
+        )
+
+    if intent == "GENERATE_FOOD_TOKENS":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        try:
+            tokens = FoodCollectionService.generate_tokens_for_event(
+                db=db,
+                event_id=event.id,
+                performed_by=member.id,
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+        return success_response(
+            f"Generated {len(tokens)} food tokens for {event.name}. Share 'my tokens' with members.",
+            heading="Food tokens generated",
+            emoji="🎟️",
+        )
+
+    if intent == "OPEN_FOOD_COUNTER":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        auto_close_minutes = parse_amount(message) or 120
+        try:
+            counter = FoodCollectionService.open_food_counter(
+                db=db,
+                event_id=event.id,
+                performed_by=member.id,
+                auto_close_minutes=auto_close_minutes,
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+        closes_at_text = format_datetime(counter.closes_at) if counter.closes_at else "N/A"
+        return success_response(
+            join_lines([
+                "Food counter is now open.",
+                f"Auto-closes at: {closes_at_text}",
+                "Ask members to keep QR or token ready.",
+            ]),
+            heading="Food counter opened",
+            emoji="🍽️",
+        )
+
+    if intent in {"VERIFY_FOOD_TOKEN", "SCAN_FOOD_QR"}:
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        prefix = "verify food token" if intent == "VERIFY_FOOD_TOKEN" else "scan food qr"
+        token_code = _parse_token_after_prefix(message, prefix=prefix)
+        if not token_code:
+            return error_response(f"Token is required. Example: {prefix} AB2K9M")
+
+        method = "MANUAL_TOKEN" if intent == "VERIFY_FOOD_TOKEN" else "QR_SCAN"
+        try:
+            served = FoodCollectionService.verify_and_serve_token(
+                db=db,
+                event_id=event.id,
+                token_code=token_code,
+                method=method,
+                performed_by=member.id,
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            f"Served token {served.token_code} ({served.food_type}).",
+            heading="Plate served",
+            emoji="✅",
+        )
+
+    if intent == "SERVE_FOOD_FLAT":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        flat_number = parse_target_flat(message)
+        if not flat_number:
+            raw = (message or "").strip()
+            flat_number = raw[len("serve flat"):].strip() if raw.lower().startswith("serve flat") else None
+        if not flat_number:
+            return error_response("Flat number is required. Example: serve flat A-101")
+
+        flat = (
+            db.query(Flat)
+            .filter(
+                Flat.society_id == event.society_id,
+                Flat.flat_number == flat_number,
+            )
+            .first()
+        )
+        if not flat:
+            return error_response("Flat not found.")
+        try:
+            served = FoodCollectionService.serve_by_flat_lookup(
+                db=db,
+                event_id=event.id,
+                flat_id=flat.id,
+                performed_by=member.id,
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+        return success_response(
+            f"Served {flat.flat_number} using fallback token {served.token_code}.",
+            heading="Plate served",
+            emoji="✅",
+        )
+
+    if intent == "FLAT_PASS_STATUS":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        raw = (message or "").strip()
+        flat_number = raw[len("flat passes"):].strip() if raw.lower().startswith("flat passes") else None
+        if not flat_number:
+            return error_response("Flat number is required. Example: flat passes A-101")
+        try:
+            summary = FoodCollectionService.committee_flat_status(
+                db=db,
+                event_id=event.id,
+                flat_number=flat_number,
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+
+        return success_response(
+            join_lines([
+                f"Flat: {summary['flat_number']}",
+                f"Total: {summary['total_passes']}",
+                f"Served: {summary['served']}",
+                f"Remaining: {summary['remaining']}",
+            ]),
+            heading="Flat pass status",
+            emoji="📊",
+        )
+
+    if intent == "TOKEN_STATUS":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        token_code = _parse_token_after_prefix(message, prefix="token status")
+        if not token_code:
+            return error_response("Token is required. Example: token status AB2K9M")
+        try:
+            token = FoodCollectionService.inspect_token(
+                db=db,
+                event_id=event.id,
+                token_code=token_code,
+            )
+        except Exception as exc:
+            return error_response(str(exc))
+        status = "Served" if token.served_at else "Not served"
+        return success_response(
+            join_lines([
+                f"Token: {token.token_code}",
+                f"Food type: {token.food_type}",
+                f"Status: {status}",
+            ]),
+            heading="Token status",
+            emoji="🔎",
+        )
+
+    if intent == "FOOD_DASHBOARD":
+        if not event:
+            return error_response("No active event found. Please contact committee.")
+        dashboard = FoodCollectionService.dashboard(db=db, event_id=event.id, recent_limit=5)
+        by_type_lines = [
+            f"{food_type.title()}: {metrics['served']}/{metrics['total']} served"
+            for food_type, metrics in dashboard["by_type"].items()
+        ]
+        recent_lines = [
+            f"{row['token']} | {row['food_type']} | {format_datetime(row['served_at'])}"
+            for row in dashboard["recent_served"]
+        ] or ["No plates served yet."]
+        return success_response(
+            join_lines([
+                f"Total: {dashboard['total_plates']}",
+                f"Served: {dashboard['served_plates']}",
+                f"Remaining: {dashboard['remaining_plates']}",
+                "",
+                "By type:",
+                *by_type_lines,
+                "",
+                "Recent served:",
+                *recent_lines,
+            ]),
+            heading="Food dashboard",
+            emoji="📈",
         )
 
     if intent == "CLOSE_EVENT":

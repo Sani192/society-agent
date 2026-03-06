@@ -5,7 +5,7 @@
 from datetime import timedelta
 
 from app.db.session import SessionLocal
-from app.db.models import CommitteeMember, Event, MemberIdentity, UserFlatMapping
+from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.commands.handlers.common import (
@@ -18,6 +18,7 @@ from app.whatsapp.response_templates import format_currency
 from app.whatsapp.ui import (
     add_or_update_pass_prompt,
     build_committee_approvals_sections,
+    build_committee_food_collection_sections,
     build_committee_operations_more_sections,
     build_committee_operations_sections,
     build_committee_reports_sections,
@@ -39,6 +40,7 @@ from app.utils.guards import ensure_committee_member, ensure_member_of_society, 
 from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
 from app.utils.time import utc_now
+from app.modules.events.food_collection_service import FoodCollectionService
 from app.whatsapp.finance_action_session import (
     FinanceActionSessionState,
     build_finance_action_session_key,
@@ -69,6 +71,11 @@ COMMITTEE_ROLE_ROW_PREFIX = "committee-role::"
 COMMITTEE_ADD_MEMBER_ROW_PREFIX = "committee-add-member::"
 COMMITTEE_MEMBER_ROW_PREFIX = "committee-member::"
 COMMITTEE_CONFIRM_ROW_PREFIX = "committee-confirm::"
+FOOD_VERIFY_TOKEN_ROW_PREFIX = "food-verify-token::"
+FOOD_SCAN_QR_ROW_PREFIX = "food-scan-qr::"
+FOOD_TOKEN_STATUS_ROW_PREFIX = "food-token-status::"
+FOOD_SERVE_FLAT_ROW_PREFIX = "food-serve-flat::"
+FOOD_FLAT_STATUS_ROW_PREFIX = "food-flat-status::"
 COMMITTEE_ROLE_OPTIONS = [
     ("chairman", "Chairman"),
     ("treasurer", "Treasurer"),
@@ -391,6 +398,85 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
     )
 
 
+def _send_food_token_picker(*, client, sender_id: str, db, event_id, row_prefix: str, header: str, body: str) -> bool:
+    tokens = (
+        db.query(EventFoodToken)
+        .filter(
+            EventFoodToken.event_id == event_id,
+            EventFoodToken.served_at.is_(None),
+        )
+        .order_by(EventFoodToken.created_at.asc())
+        .limit(8)
+        .all()
+    )
+    if not tokens:
+        client.send_text_message(sender_id, "No pending tokens available.")
+        return True
+
+    rows = [
+        {
+            "id": f"{row_prefix}{token.token_code}",
+            "title": token.token_code,
+            "description": f"{token.food_type.title()} | Pending",
+        }
+        for token in tokens
+    ]
+    client.send_list_message(
+        to_phone=sender_id,
+        header_text=header,
+        body_text=body,
+        button_text="Select",
+        sections=_with_navigation(
+            sections=[{"title": "Pending Tokens", "rows": rows}],
+            back_id="ui::administration:food",
+        ),
+    )
+    return True
+
+
+def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: str, header: str, body: str) -> bool:
+    flat_ids = (
+        db.query(EventFoodToken.flat_id)
+        .filter(
+            EventFoodToken.event_id == event_id,
+            EventFoodToken.served_at.is_(None),
+        )
+        .distinct()
+        .limit(8)
+        .all()
+    )
+    if not flat_ids:
+        client.send_text_message(sender_id, "No flats with pending tokens found.")
+        return True
+
+    ids = [row[0] for row in flat_ids]
+    flats = (
+        db.query(Flat)
+        .filter(Flat.id.in_(tuple(ids)))
+        .order_by(Flat.flat_number.asc())
+        .all()
+    )
+    rows = [
+        {
+            "id": f"{row_prefix}{flat.flat_number}",
+            "title": flat.flat_number,
+            "description": "Select to continue",
+        }
+        for flat in flats
+    ]
+    client.send_list_message(
+        to_phone=sender_id,
+        header_text=header,
+        body_text=body,
+        button_text="Select",
+        sections=_with_navigation(
+            sections=[{"title": "Flats", "rows": rows}],
+            back_id="ui::administration:food",
+        ),
+    )
+    return True
+
+
 def _committee_role_label(role: str) -> str:
     role_map = dict(COMMITTEE_ROLE_OPTIONS)
     return role_map.get(role, role.replace("_", " ").title())
@@ -555,6 +641,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         "ui::administration:approvals",
         "ui::administration:operations",
         "ui::administration:operations:more",
+        "ui::administration:food",
         "ui::administration:reports",
         "ui::administration:committee",
         "committee::view",
@@ -890,7 +977,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         finally:
             db.close()
 
-    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports", "ui::administration:committee"}:
+    if msg in {"ui::administration", "ui::administration:approvals", "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports", "ui::administration:committee", "ui::administration:food"}:
         db = SessionLocal()
         try:
             member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
@@ -913,6 +1000,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 base_sections = build_committee_reports_sections()
                 back_id = "ui::administration"
                 body_text = "Report actions"
+            elif msg == "ui::administration:food":
+                base_sections = build_committee_food_collection_sections()
+                back_id = "ui::administration:operations:more"
+                body_text = "Food collection actions"
             elif msg == "ui::administration:committee":
                 base_sections = build_committee_management_sections()
                 back_id = "ui::administration"
@@ -935,6 +1026,134 @@ def _try_handle_ui_message(*, client, message) -> bool:
 
                 ),
             )
+            return True
+        finally:
+            db.close()
+
+    if msg in {"verify food token", "scan food qr", "token status", "serve flat", "flat passes"} or msg.startswith(FOOD_VERIFY_TOKEN_ROW_PREFIX) or msg.startswith(FOOD_SCAN_QR_ROW_PREFIX) or msg.startswith(FOOD_TOKEN_STATUS_ROW_PREFIX) or msg.startswith(FOOD_SERVE_FLAT_ROW_PREFIX) or msg.startswith(FOOD_FLAT_STATUS_ROW_PREFIX):
+        db = SessionLocal()
+        try:
+            member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
+            if not member:
+                client.send_text_message(message.sender_id, "Access restricted.")
+                return True
+
+            event = get_latest_event_for_society(db, member.society_id)
+            if not event:
+                client.send_text_message(message.sender_id, "No active event found. Please contact committee.")
+                return True
+
+            if msg == "verify food token":
+                return _send_food_token_picker(
+                    client=client,
+                    sender_id=message.sender_id,
+                    db=db,
+                    event_id=event.id,
+                    row_prefix=FOOD_VERIFY_TOKEN_ROW_PREFIX,
+                    header="Verify Food Token",
+                    body="Select token to serve",
+                )
+            if msg == "scan food qr":
+                return _send_food_token_picker(
+                    client=client,
+                    sender_id=message.sender_id,
+                    db=db,
+                    event_id=event.id,
+                    row_prefix=FOOD_SCAN_QR_ROW_PREFIX,
+                    header="Scan Food QR",
+                    body="Select scanned token",
+                )
+            if msg == "token status":
+                return _send_food_token_picker(
+                    client=client,
+                    sender_id=message.sender_id,
+                    db=db,
+                    event_id=event.id,
+                    row_prefix=FOOD_TOKEN_STATUS_ROW_PREFIX,
+                    header="Token Status",
+                    body="Select token to inspect",
+                )
+            if msg == "serve flat":
+                return _send_food_flat_picker(
+                    client=client,
+                    sender_id=message.sender_id,
+                    db=db,
+                    event_id=event.id,
+                    row_prefix=FOOD_SERVE_FLAT_ROW_PREFIX,
+                    header="Serve Flat",
+                    body="Select flat for fallback serve",
+                )
+            if msg == "flat passes":
+                return _send_food_flat_picker(
+                    client=client,
+                    sender_id=message.sender_id,
+                    db=db,
+                    event_id=event.id,
+                    row_prefix=FOOD_FLAT_STATUS_ROW_PREFIX,
+                    header="Flat Passes",
+                    body="Select flat to view status",
+                )
+
+            selected_token = _parse_prefixed_row(message_text=msg, prefix=FOOD_VERIFY_TOKEN_ROW_PREFIX)
+            if selected_token:
+                served = FoodCollectionService.verify_and_serve_token(
+                    db=db,
+                    event_id=event.id,
+                    token_code=selected_token,
+                    method="MANUAL_TOKEN",
+                    performed_by=member.id,
+                )
+                client.send_text_message(message.sender_id, f"✅ Served token {served.token_code} ({served.food_type}).")
+                return True
+
+            selected_token = _parse_prefixed_row(message_text=msg, prefix=FOOD_SCAN_QR_ROW_PREFIX)
+            if selected_token:
+                served = FoodCollectionService.verify_and_serve_token(
+                    db=db,
+                    event_id=event.id,
+                    token_code=selected_token,
+                    method="QR_SCAN",
+                    performed_by=member.id,
+                )
+                client.send_text_message(message.sender_id, f"✅ Served token {served.token_code} ({served.food_type}).")
+                return True
+
+            selected_token = _parse_prefixed_row(message_text=msg, prefix=FOOD_TOKEN_STATUS_ROW_PREFIX)
+            if selected_token:
+                token = FoodCollectionService.inspect_token(db=db, event_id=event.id, token_code=selected_token)
+                status = "Served" if token.served_at else "Pending"
+                client.send_text_message(message.sender_id, f"🔎 Token {token.token_code} | {token.food_type} | {status}")
+                return True
+
+            selected_flat = _parse_prefixed_row(message_text=msg, prefix=FOOD_SERVE_FLAT_ROW_PREFIX)
+            if selected_flat:
+                flat = db.query(Flat).filter(Flat.society_id == member.society_id, Flat.flat_number == selected_flat).first()
+                if not flat:
+                    client.send_text_message(message.sender_id, "Flat not found.")
+                    return True
+                served = FoodCollectionService.serve_by_flat_lookup(
+                    db=db,
+                    event_id=event.id,
+                    flat_id=flat.id,
+                    performed_by=member.id,
+                )
+                client.send_text_message(message.sender_id, f"✅ Served {flat.flat_number} using token {served.token_code}.")
+                return True
+
+            selected_flat = _parse_prefixed_row(message_text=msg, prefix=FOOD_FLAT_STATUS_ROW_PREFIX)
+            if selected_flat:
+                summary = FoodCollectionService.committee_flat_status(
+                    db=db,
+                    event_id=event.id,
+                    flat_number=selected_flat,
+                )
+                client.send_text_message(
+                    message.sender_id,
+                    f"📊 {summary['flat_number']} | Total {summary['total_passes']} | Served {summary['served']} | Remaining {summary['remaining']}",
+                )
+                return True
+        except Exception as exc:
+            client.send_text_message(message.sender_id, f"❌ {exc}")
             return True
         finally:
             db.close()
@@ -1151,4 +1370,3 @@ def _try_handle_ui_message(*, client, message) -> bool:
             db.close()
 
     return False
-
