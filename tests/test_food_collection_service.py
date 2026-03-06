@@ -163,3 +163,42 @@ def test_serve_by_flat_lookup_rejects_if_no_token():
             flat_id="flat-1",
             performed_by="member-1",
         )
+
+
+def test_committee_flat_status_scopes_flat_lookup_to_event_society(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    flat = SimpleNamespace(id="flat-s1", flat_number="A-101", society_id="soc-1")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=flat),
+    ]
+
+    member_status = {"total_passes": 1, "served": 0, "remaining": 1, "by_type": {}, "tokens": []}
+    status_mock = MagicMock(return_value=member_status.copy())
+    monkeypatch.setattr(FoodCollectionService, "member_pass_status", status_mock)
+
+    summary = FoodCollectionService.committee_flat_status(
+        db=db,
+        event_id="event-1",
+        flat_number="A-101",
+    )
+
+    assert summary["flat_number"] == "A-101"
+    status_mock.assert_called_once_with(db=db, event_id="event-1", flat_id="flat-s1")
+
+
+def test_committee_flat_status_rejects_flat_number_from_other_society():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=None),
+    ]
+
+    with pytest.raises(Exception, match="Flat not found"):
+        FoodCollectionService.committee_flat_status(
+            db=db,
+            event_id="event-1",
+            flat_number="A-101",
+        )
