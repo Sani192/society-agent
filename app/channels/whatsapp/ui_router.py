@@ -398,36 +398,43 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
     )
 
 
-def _send_food_token_picker(*, client, sender_id: str, db, event_id, row_prefix: str, header: str, body: str) -> bool:
-    tokens = (
-        db.query(EventFoodToken)
-        .filter(
-            EventFoodToken.event_id == event_id,
-            EventFoodToken.served_at.is_(None),
-        )
-        .order_by(EventFoodToken.created_at.asc())
-        .limit(8)
-        .all()
-    )
+def _send_food_token_picker(
+    *,
+    client,
+    sender_id: str,
+    db,
+    event_id,
+    row_prefix: str,
+    header: str,
+    body: str,
+    pending_only: bool = True,
+) -> bool:
+    token_query = db.query(EventFoodToken).filter(EventFoodToken.event_id == event_id)
+    if pending_only:
+        token_query = token_query.filter(EventFoodToken.served_at.is_(None))
+
+    tokens = token_query.order_by(EventFoodToken.created_at.asc()).limit(8).all()
     if not tokens:
-        client.send_text_message(sender_id, "No pending tokens available.")
+        empty_message = "No pending tokens available." if pending_only else "No tokens available."
+        client.send_text_message(sender_id, empty_message)
         return True
 
     rows = [
         {
             "id": f"{row_prefix}{token.token_code}",
             "title": token.token_code,
-            "description": f"{token.food_type.title()} | Pending",
+            "description": f"{token.food_type.title()} | {'Served' if token.served_at else 'Pending'}",
         }
         for token in tokens
     ]
+    section_title = "Pending Tokens" if pending_only else "Tokens"
     client.send_list_message(
         to_phone=sender_id,
         header_text=header,
         body_text=body,
         button_text="Select",
         sections=_with_navigation(
-            sections=[{"title": "Pending Tokens", "rows": rows}],
+            sections=[{"title": section_title, "rows": rows}],
             back_id="ui::administration:food",
         ),
     )
@@ -1072,6 +1079,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     row_prefix=FOOD_TOKEN_STATUS_ROW_PREFIX,
                     header="Token Status",
                     body="Select token to inspect",
+                    pending_only=False,
                 )
             if msg == "serve flat":
                 return _send_food_flat_picker(
