@@ -330,7 +330,16 @@ def test_public_my_pass_success(monkeypatch):
     )
     monkeypatch.setattr(
         "app.handlers.shared.public.FoodCollectionService.member_pass_status",
-        lambda **kwargs: {"total_passes": 2, "served": 1, "remaining": 1, "tokens": []},
+        lambda **kwargs: {
+            "total_passes": 2,
+            "served": 1,
+            "remaining": 1,
+            "by_type": {
+                "veg": {"total": 1, "served": 1, "remaining": 0},
+                "kids": {"total": 1, "served": 0, "remaining": 1},
+            },
+            "tokens": [],
+        },
     )
 
     response = handle_public_intent(
@@ -343,6 +352,8 @@ def test_public_my_pass_success(monkeypatch):
     )
 
     assert "Veg: 1" in response
+    assert "Veg: served 1 / total 1 (remaining 0)" in response
+    assert "Kids: served 0 / total 1 (remaining 1)" in response
     assert "Served: 1" in response
 
 
@@ -360,6 +371,10 @@ def test_public_my_tokens_success(monkeypatch):
             "total_passes": 2,
             "served": 1,
             "remaining": 1,
+            "by_type": {
+                "veg": {"total": 1, "served": 0, "remaining": 1},
+                "jain": {"total": 1, "served": 1, "remaining": 0},
+            },
             "tokens": [
                 {"token": "AB2K9M", "food_type": "veg", "served": False},
                 {"token": "CD3N7P", "food_type": "jain", "served": True},
@@ -376,6 +391,8 @@ def test_public_my_tokens_success(monkeypatch):
         member=None,
     )
 
+    assert "Veg: served 0 / total 1 (remaining 1)" in response
+    assert "Jain: served 1 / total 1 (remaining 0)" in response
     assert "AB2K9M" in response
     assert "Remaining: 1" in response
 

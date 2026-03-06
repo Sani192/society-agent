@@ -61,6 +61,26 @@ def _pick_requester_mapping_id(mappings, flat_id):
             return mapping.id
     return mappings[0].id
 
+
+def _format_by_type_summary(summary):
+    by_type = summary.get("by_type", {})
+    if not by_type:
+        return []
+
+    label_map = {
+        "veg": "Veg",
+        "jain": "Jain",
+        "kids": "Kids",
+    }
+
+    lines = []
+    for food_type, counts in by_type.items():
+        label = label_map.get(food_type.lower(), food_type.replace("_", " ").title())
+        lines.append(
+            f"{label}: served {counts['served']} / total {counts['total']} (remaining {counts['remaining']})"
+        )
+    return lines
+
 def handle_public_intent(
     *,
     db,
@@ -294,6 +314,10 @@ def handle_public_intent(
             f"Jain: {food_pass.jain_count}",
             f"Kids: {food_pass.kids_count}",
         ]
+        by_type_lines = _format_by_type_summary(summary)
+        if by_type_lines:
+            lines.extend(["", *by_type_lines])
+
         if summary["total_passes"] > 0:
             lines.extend([
                 "",
@@ -330,15 +354,21 @@ def handle_public_intent(
             f"{row['token']} | {row['food_type']} | {'Served' if row['served'] else 'Pending'}"
             for row in summary["tokens"]
         ]
+        by_type_lines = _format_by_type_summary(summary)
+
+        summary_lines = [
+            *by_type_lines,
+            *( [""] if by_type_lines else []),
+            f"Total: {summary['total_passes']}",
+            f"Served: {summary['served']}",
+            f"Remaining: {summary['remaining']}",
+            "",
+            "Tokens:",
+            *token_lines,
+        ]
+
         return success_response(
-            join_lines([
-                f"Total: {summary['total_passes']}",
-                f"Served: {summary['served']}",
-                f"Remaining: {summary['remaining']}",
-                "",
-                "Tokens:",
-                *token_lines,
-            ]),
+            join_lines(summary_lines),
             heading="Your tokens",
             emoji="🎟️",
         )
