@@ -57,6 +57,8 @@ class PaymentService:
 
         if not event or not flat:
             raise Exception("Invalid event or flat")
+        if flat.society_id != event.society_id:
+            raise Exception("Flat does not belong to the event society")
         logger.info("Validated event and flat | context=%s", context)
 
         decision = WorkflowEngine.check_action(
