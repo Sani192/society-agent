@@ -1388,7 +1388,15 @@ def test_committee_food_dashboard(monkeypatch):
             "served_plates": 4,
             "remaining_plates": 6,
             "by_type": {"veg": {"total": 6, "served": 3, "remaining": 3}},
-            "recent_served": [],
+            "recent_served": [
+                {
+                    "token": "AB2K9M",
+                    "flat_id": "flat-1",
+                    "flat_number": "A-101",
+                    "food_type": "veg",
+                    "served_at": datetime(2026, 1, 1, 19, 0),
+                }
+            ],
         },
     )
 
@@ -1402,3 +1410,4 @@ def test_committee_food_dashboard(monkeypatch):
 
     assert response.startswith("✅")
     assert "Total: 10" in response
+    assert "AB2K9M | A-101 | veg" in response

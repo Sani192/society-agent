@@ -1412,7 +1412,10 @@ def handle_committee_intent(
             for food_type, metrics in dashboard["by_type"].items()
         ]
         recent_lines = [
-            f"{row['token']} | {row['food_type']} | {format_datetime(row['served_at'])}"
+            (
+                f"{row['token']} | {row.get('flat_number') or row.get('flat_id') or '-'} | "
+                f"{row['food_type']} | {format_datetime(row['served_at'])}"
+            )
             for row in dashboard["recent_served"]
         ] or ["No plates served yet."]
         return success_response(
