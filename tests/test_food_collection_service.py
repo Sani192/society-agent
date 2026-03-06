@@ -5,7 +5,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.db.models import EventFoodCounter, EventFoodToken
-from app.modules.events.food_collection_service import FoodCollectionService, TOKEN_ALPHABET
+from app.modules.events.food_collection_service import (
+    FoodCollectionService,
+    NO_TOKEN_FALLBACK_METHOD,
+    TOKEN_ALPHABET,
+)
 from tests.utils import QueryMock
 
 
@@ -132,9 +136,15 @@ def test_dashboard_returns_recent_served_in_descending_order():
 
 
 def test_serve_by_flat_lookup_picks_first_unserved(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
     token = SimpleNamespace(token_code="QW23RT")
     db = MagicMock()
-    db.query.side_effect = [QueryMock(first_result=token)]
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=token),
+    ]
 
     verify = MagicMock(return_value="served")
     monkeypatch.setattr(FoodCollectionService, "verify_and_serve_token", verify)
@@ -157,10 +167,84 @@ def test_serve_by_flat_lookup_picks_first_unserved(monkeypatch):
 
 
 def test_serve_by_flat_lookup_rejects_if_no_token():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
     db = MagicMock()
-    db.query.side_effect = [QueryMock(first_result=None)]
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=None),
+        QueryMock(scalar_result=0),
+        QueryMock(scalar_result=0),
+        QueryMock(scalar_result=0),
+    ]
 
-    with pytest.raises(Exception, match="No remaining tokens"):
+    with pytest.raises(Exception, match="No remaining entitlement"):
+        FoodCollectionService.serve_by_flat_lookup(
+            db=db,
+            event_id="event-1",
+            flat_id="flat-1",
+            performed_by="member-1",
+        )
+
+
+def test_serve_by_flat_lookup_allows_no_token_fallback_with_remaining_entitlement():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=None),
+        QueryMock(scalar_result=3),
+        QueryMock(scalar_result=2),
+        QueryMock(scalar_result=0),
+    ]
+
+    served = FoodCollectionService.serve_by_flat_lookup(
+        db=db,
+        event_id="event-1",
+        flat_id="flat-1",
+        performed_by="member-1",
+    )
+
+    assert served.served_method == NO_TOKEN_FALLBACK_METHOD
+    assert served.token_code == NO_TOKEN_FALLBACK_METHOD
+    db.commit.assert_called_once()
+
+
+def test_serve_by_flat_lookup_rejects_no_token_when_no_remaining_entitlement():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=None),
+        QueryMock(scalar_result=2),
+        QueryMock(scalar_result=2),
+        QueryMock(scalar_result=0),
+    ]
+
+    with pytest.raises(Exception, match="No remaining entitlement"):
+        FoodCollectionService.serve_by_flat_lookup(
+            db=db,
+            event_id="event-1",
+            flat_id="flat-1",
+            performed_by="member-1",
+        )
+
+
+def test_serve_by_flat_lookup_rejects_when_counter_closed():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=False, closes_at=None)
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=counter),
+    ]
+
+    with pytest.raises(Exception, match="Food counter is closed"):
         FoodCollectionService.serve_by_flat_lookup(
             db=db,
             event_id="event-1",

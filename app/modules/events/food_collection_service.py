@@ -13,6 +13,7 @@ from app.utils.time import utc_now
 
 TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 SERVE_METHODS = {"QR_SCAN", "MANUAL_TOKEN", "FLAT_LOOKUP"}
+NO_TOKEN_FALLBACK_METHOD = "FLAT_LOOKUP_NO_TOKEN"
 
 
 class FoodCollectionService:
@@ -249,6 +250,22 @@ class FoodCollectionService:
 
     @staticmethod
     def serve_by_flat_lookup(db: Session, *, event_id, flat_id, performed_by):
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Invalid event")
+
+        counter = db.query(EventFoodCounter).filter(EventFoodCounter.event_id == event_id).first()
+        if not counter or not counter.is_open:
+            raise Exception("Food counter is closed")
+
+        if FoodCollectionService._close_counter_if_expired(
+            db,
+            event=event,
+            counter=counter,
+            performed_by=performed_by,
+        ):
+            raise Exception("Food service has ended")
+
         token = (
             db.query(EventFoodToken)
             .filter(
@@ -259,14 +276,73 @@ class FoodCollectionService:
             .order_by(EventFoodToken.created_at.asc())
             .first()
         )
-        if not token:
-            raise Exception("No remaining tokens for this flat")
-        return FoodCollectionService.verify_and_serve_token(
-            db=db,
+        if token:
+            return FoodCollectionService.verify_and_serve_token(
+                db=db,
+                event_id=event_id,
+                token_code=token.token_code,
+                method="FLAT_LOOKUP",
+                performed_by=performed_by,
+            )
+
+        entitled_count = (
+            db.query(
+                func.coalesce(func.sum(EventFoodPass.veg_count), 0)
+                + func.coalesce(func.sum(EventFoodPass.jain_count), 0)
+                + func.coalesce(func.sum(EventFoodPass.kids_count), 0)
+            )
+            .filter(
+                EventFoodPass.event_id == event_id,
+                EventFoodPass.flat_id == flat_id,
+                EventFoodPass.is_participating.is_(True),
+            )
+            .scalar()
+            or 0
+        )
+        served_token_count = (
+            db.query(func.count(EventFoodToken.id))
+            .filter(
+                EventFoodToken.event_id == event_id,
+                EventFoodToken.flat_id == flat_id,
+                EventFoodToken.served_at.is_not(None),
+            )
+            .scalar()
+            or 0
+        )
+        served_no_token_count = (
+            db.query(func.count(AuditLog.id))
+            .filter(
+                AuditLog.entity_type == "food_collection",
+                AuditLog.entity_id == flat_id,
+                AuditLog.action == NO_TOKEN_FALLBACK_METHOD,
+            )
+            .scalar()
+            or 0
+        )
+
+        if entitled_count - (served_token_count + served_no_token_count) <= 0:
+            raise Exception("No remaining entitlement for this flat")
+
+        db.add(
+            AuditLog(
+                society_id=event.society_id,
+                entity_type="food_collection",
+                entity_id=flat_id,
+                action=NO_TOKEN_FALLBACK_METHOD,
+                reason="Manual serve via flat lookup without available token",
+                performed_by=performed_by,
+            )
+        )
+        db.commit()
+        return EventFoodToken(
             event_id=event_id,
-            token_code=token.token_code,
-            method="FLAT_LOOKUP",
-            performed_by=performed_by,
+            flat_id=flat_id,
+            food_type="manual",
+            token_code=NO_TOKEN_FALLBACK_METHOD,
+            qr_payload="",
+            served_at=utc_now(),
+            served_method=NO_TOKEN_FALLBACK_METHOD,
+            served_by=performed_by,
         )
 
     @staticmethod
