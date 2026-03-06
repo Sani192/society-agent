@@ -4,6 +4,7 @@ from __future__ import annotations
 def build_participation_sections(*, include_add_pass: bool = True) -> list[dict]:
     rows = [
         {"id": "my pass", "title": "View My Pass", "description": "Current pass details"},
+        {"id": "my tokens", "title": "View My Tokens", "description": "See active/served tokens"},
         {"id": "my status", "title": "Event Status", "description": "Participation and payment state"},
     ]
     if include_add_pass:

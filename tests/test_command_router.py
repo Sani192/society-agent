@@ -70,6 +70,17 @@ def test_detect_intent_start_event_command():
     assert detect_intent("start event") == "START_EVENT"
 
 
+def test_detect_intent_food_collection_commands():
+    assert detect_intent("generate food tokens") == "GENERATE_FOOD_TOKENS"
+    assert detect_intent("open food counter") == "OPEN_FOOD_COUNTER"
+    assert detect_intent("verify food token AB12CD") == "VERIFY_FOOD_TOKEN"
+    assert detect_intent("scan food qr ZX34KM") == "SCAN_FOOD_QR"
+    assert detect_intent("serve flat A-101") == "SERVE_FOOD_FLAT"
+    assert detect_intent("flat passes A-101") == "FLAT_PASS_STATUS"
+    assert detect_intent("token status AB12CD") == "TOKEN_STATUS"
+    assert detect_intent("food dashboard") == "FOOD_DASHBOARD"
+
+
 def test_detect_intent_pay_sentence_like_text_not_mapped():
     assert detect_intent("can you help me pay this invoice?") is None
 

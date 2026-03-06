@@ -25,6 +25,9 @@ class QueryMock:
     def group_by(self, *args, **kwargs):
         return self
 
+    def limit(self, *args, **kwargs):
+        return self
+
     def first(self):
         return self.first_result
 

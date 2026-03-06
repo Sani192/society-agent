@@ -81,6 +81,29 @@ def build_committee_operations_more_sections() -> list[dict]:
                 {"id": "lock passes", "title": "Lock Passes", "description": "Stop pass updates"},
                 {"id": "close event", "title": "Close Event", "description": "Finalize current event"},
                 {"id": "remind", "title": "Remind Flat", "description": "Send payment reminder"},
+                {
+                    "id": "ui::administration:food",
+                    "title": "Food Collection",
+                    "description": "Token verification and serving",
+                },
+            ],
+        }
+    ]
+
+
+def build_committee_food_collection_sections() -> list[dict]:
+    return [
+        {
+            "title": "Food Collection",
+            "rows": [
+                {"id": "generate food tokens", "title": "Generate Tokens", "description": "Create per-plate tokens + QR"},
+                {"id": "open food counter", "title": "Open Counter", "description": "Start serving window"},
+                {"id": "scan food qr", "title": "Scan QR", "description": "Verify by QR token text"},
+                {"id": "verify food token", "title": "Verify Token", "description": "Manual spoken token entry"},
+                {"id": "serve flat", "title": "Serve by Flat", "description": "Fallback serving for a flat"},
+                {"id": "flat passes", "title": "Flat Pass Status", "description": "View served/remaining for a flat"},
+                {"id": "token status", "title": "Token Status", "description": "Inspect token usage"},
+                {"id": "food dashboard", "title": "Live Dashboard", "description": "View live serving progress"},
             ],
         }
     ]
