@@ -52,6 +52,14 @@ INTENTS = {
     "ACTIVATE_EVENT": "activate event",
     "LOCK_PASSES": "lock passes",
     "START_EVENT": "start event",
+    "GENERATE_FOOD_TOKENS": "generate food tokens",
+    "OPEN_FOOD_COUNTER": "open food counter",
+    "VERIFY_FOOD_TOKEN": "verify food token",
+    "SCAN_FOOD_QR": "scan food qr",
+    "SERVE_FOOD_FLAT": "serve flat",
+    "FLAT_PASS_STATUS": "flat passes",
+    "TOKEN_STATUS": "token status",
+    "FOOD_DASHBOARD": "food dashboard",
     "REMIND_FLAT": "remind",
 
     # payments & refunds (generic AFTER sponsor-specific)
@@ -63,6 +71,7 @@ INTENTS = {
 
     # ========= PERSONAL (read-only, very specific) =========
     "MY_PASS": "my pass",
+    "MY_TOKENS": "my tokens",
     "MY_PAYMENT_REQUESTS": "my payment requests",
     "MY_REFUND_REQUESTS": "my refund requests",
     "MY_PAYMENTS": "my payments",

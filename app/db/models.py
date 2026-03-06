@@ -283,6 +283,46 @@ class EventFoodPass(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class EventFoodToken(Base):
+    __tablename__ = "event_food_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)
+    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False, index=True)
+
+    food_type = Column(String(20), nullable=False)
+    token_code = Column(String(20), nullable=False, index=True)
+    qr_payload = Column(String(255), nullable=False)
+
+    served_at = Column(DateTime(timezone=True), nullable=True)
+    served_method = Column(String(20), nullable=True)
+    served_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("event_id", "token_code", name="uq_event_food_tokens_event_token"),
+    )
+
+
+class EventFoodCounter(Base):
+    __tablename__ = "event_food_counters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, unique=True, index=True)
+
+    is_open = Column(Boolean, nullable=False, default=False)
+    opened_at = Column(DateTime(timezone=True), nullable=True)
+    closes_at = Column(DateTime(timezone=True), nullable=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+
+    opened_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
+    closed_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Payment(Base):
     __tablename__ = "payments"
 
