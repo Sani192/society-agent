@@ -19,6 +19,9 @@ from app.db.models import (
     Refund,
     EventFoodPass,
     WorkflowState,
+    AuditLog,
+    MemberIdentity,
+    UserFlatMapping,
 )
 from app.modules.expenses.expense_service import ExpenseService
 from app.modules.onboarding.admin_approval_service import AdminApprovalService
@@ -43,6 +46,7 @@ from app.modules.reports.common.whatsapp_report_registry import (
 from app.channels.whatsapp.client import get_whatsapp_client
 from app.utils.logger import logger
 from app.utils.time import utc_now
+from app.config import settings
 from app.permissions.guard import is_action_allowed
 from app.whatsapp.response_templates import (
     error_response,
@@ -520,6 +524,147 @@ def _dispatch_export_result(*, result, member, inbound_message):
         heading="Report exported",
         emoji="📤",
     )
+
+
+def _build_my_tokens_instruction() -> str:
+    deep_link = getattr(settings, "WHATSAPP_MY_TOKENS_DEEP_LINK", None)
+    if deep_link:
+        return f"Open this link to view your tokens: {deep_link}"
+    return "Reply with *my tokens* in this chat to view your tokens."
+
+
+def _notify_generated_food_tokens(*, db, event, generated_tokens, performed_by):
+    if not generated_tokens:
+        return
+
+    tokens_by_flat: dict = {}
+    for token in generated_tokens:
+        if not getattr(token, "flat_id", None):
+            continue
+        tokens_by_flat.setdefault(token.flat_id, []).append(token)
+
+    if not tokens_by_flat:
+        return
+
+    flat_rows = (
+        db.query(Flat.id, Flat.flat_number)
+        .filter(
+            Flat.society_id == event.society_id,
+            Flat.id.in_(list(tokens_by_flat.keys())),
+        )
+        .all()
+    )
+    flat_number_by_id = {flat_id: flat_number for flat_id, flat_number in flat_rows}
+
+    mapping_rows = (
+        db.query(
+            UserFlatMapping.flat_id,
+            MemberIdentity.id,
+            MemberIdentity.whatsapp_user_id,
+            MemberIdentity.normalized_phone,
+        )
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
+        .filter(
+            UserFlatMapping.society_id == event.society_id,
+            UserFlatMapping.is_active.is_(True),
+            UserFlatMapping.flat_id.in_(list(tokens_by_flat.keys())),
+        )
+        .all()
+    )
+
+    recipients_by_flat: dict = {}
+    for flat_id, identity_id, whatsapp_user_id, normalized_phone in mapping_rows:
+        recipient_phone = whatsapp_user_id or normalized_phone
+        if not recipient_phone:
+            continue
+        recipients = recipients_by_flat.setdefault(flat_id, {})
+        recipients[recipient_phone] = identity_id
+
+    instruction = _build_my_tokens_instruction()
+    failed_recipients: list[dict] = []
+    flat_ids_without_recipients: list[str] = []
+
+    try:
+        client = get_whatsapp_client()
+    except Exception:
+        logger.exception(
+            "Failed to initialize WhatsApp client for food token notifications",
+            extra={"event_id": str(event.id), "society_id": str(event.society_id)},
+        )
+        db.add(
+            AuditLog(
+                society_id=event.society_id,
+                entity_type="food_collection",
+                entity_id=event.id,
+                action="FOOD_TOKEN_NOTIFY_FAILED",
+                reason="WhatsApp client unavailable for food token notification",
+                performed_by=performed_by,
+            )
+        )
+        return
+
+    for flat_id, flat_tokens in tokens_by_flat.items():
+        recipients = recipients_by_flat.get(flat_id) or {}
+        if not recipients:
+            flat_ids_without_recipients.append(str(flat_id))
+            continue
+
+        message_body = join_lines([
+            f"🎟️ *{event.name}* tokens are ready.",
+            f"Total tokens for your flat: {len(flat_tokens)}",
+            instruction,
+        ])
+
+        for recipient_phone, identity_id in recipients.items():
+            try:
+                client.send_text_message(to_phone=recipient_phone, body=message_body)
+            except Exception:
+                failed_recipients.append(
+                    {
+                        "flat_id": str(flat_id),
+                        "identity_id": str(identity_id),
+                        "phone": recipient_phone,
+                    }
+                )
+                logger.exception(
+                    "Failed to send food token notification",
+                    extra={
+                        "event_id": str(event.id),
+                        "society_id": str(event.society_id),
+                        "flat_id": str(flat_id),
+                        "identity_id": str(identity_id),
+                        "recipient_phone": recipient_phone,
+                    },
+                )
+
+    if failed_recipients or flat_ids_without_recipients:
+        failure_summary = (
+            f"notify_failures={len(failed_recipients)} "
+            f"flats_without_recipients={len(flat_ids_without_recipients)}"
+        )
+        logger.warning(
+            "Food token notification completed with partial failures",
+            extra={
+                "event_id": str(event.id),
+                "society_id": str(event.society_id),
+                "failure_summary": failure_summary,
+                "failed_recipients": failed_recipients,
+                "flat_ids_without_recipients": flat_ids_without_recipients,
+            },
+        )
+        db.add(
+            AuditLog(
+                society_id=event.society_id,
+                entity_type="food_collection",
+                entity_id=event.id,
+                action="FOOD_TOKEN_NOTIFY_PARTIAL",
+                reason=(
+                    f"{failure_summary}; "
+                    f"failed_flats={[flat_number_by_id.get(flat_id) for flat_id in tokens_by_flat.keys() if str(flat_id) in flat_ids_without_recipients]}"
+                )[:255],
+                performed_by=performed_by,
+            )
+        )
 
 
 def _build_committee_action_session_key(*, member, inbound_message):
@@ -1072,6 +1217,12 @@ def handle_committee_intent(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
+                notify_callback=lambda *, event, generated_tokens: _notify_generated_food_tokens(
+                    db=db,
+                    event=event,
+                    generated_tokens=generated_tokens,
+                    performed_by=member.id,
+                ),
             )
         except Exception as exc:
             return error_response(str(exc))
