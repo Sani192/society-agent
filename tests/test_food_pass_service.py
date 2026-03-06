@@ -136,10 +136,12 @@ def test_mark_not_participating_updates_existing_pass(monkeypatch):
         is_participating=True
     )
     db = MagicMock()
+    payment = SimpleNamespace(expected_amount=600, paid_amount=200, status="partial")
     db.query.side_effect = [
         QueryMock(first_result=event),
         QueryMock(first_result=flat),
-        QueryMock(first_result=food_pass)
+        QueryMock(first_result=food_pass),
+        QueryMock(first_result=payment)
     ]
 
     monkeypatch.setattr(
@@ -156,7 +158,49 @@ def test_mark_not_participating_updates_existing_pass(monkeypatch):
 
     assert updated.total_amount == 0
     assert updated.is_participating is False
+    assert payment.expected_amount == 0
+    assert payment.status == "refunded"
     db.commit.assert_called_once()
+
+
+def test_mark_not_participating_creates_payment_when_missing(monkeypatch):
+    event = SimpleNamespace(society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1", society_id="soc-1")
+    food_pass = SimpleNamespace(
+        veg_count=1,
+        jain_count=0,
+        kids_count=1,
+        total_amount=450,
+        is_participating=True
+    )
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=flat),
+        QueryMock(first_result=food_pass),
+        QueryMock(first_result=None)
+    ]
+
+    monkeypatch.setattr(
+        "app.modules.events.food_pass_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=True)
+    )
+
+    FoodPassService.mark_not_participating(
+        db=db,
+        event_id="event-1",
+        flat_id="flat-1",
+        performed_by="member-1"
+    )
+
+    created_payment = next(
+        call.args[0]
+        for call in db.add.call_args_list
+        if isinstance(call.args[0], Payment)
+    )
+    assert created_payment.expected_amount == 0
+    assert created_payment.paid_amount == 0
+    assert created_payment.status == "pending"
 
 
 @pytest.mark.parametrize("state", ["DRAFT", "LOCKED"])
