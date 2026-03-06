@@ -307,7 +307,18 @@ class FoodCollectionService:
 
     @staticmethod
     def committee_flat_status(db: Session, *, event_id, flat_number: str):
-        flat = db.query(Flat).filter(Flat.flat_number == flat_number).first()
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Invalid event")
+
+        flat = (
+            db.query(Flat)
+            .filter(
+                Flat.flat_number == flat_number,
+                Flat.society_id == event.society_id,
+            )
+            .first()
+        )
         if not flat:
             raise Exception("Flat not found")
         summary = FoodCollectionService.member_pass_status(db=db, event_id=event_id, flat_id=flat.id)
