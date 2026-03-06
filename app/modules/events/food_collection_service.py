@@ -343,6 +343,11 @@ class FoodCollectionService:
     def dashboard(db: Session, *, event_id, recent_limit: int = 10):
         tokens = db.query(EventFoodToken).filter(EventFoodToken.event_id == event_id).all()
         served_tokens = [row for row in tokens if row.served_at is not None]
+        flat_ids = {row.flat_id for row in served_tokens if row.flat_id is not None}
+        flat_number_by_id = {}
+        if flat_ids:
+            flat_rows = db.query(Flat.id, Flat.flat_number).filter(Flat.id.in_(flat_ids)).all()
+            flat_number_by_id = {flat_id: flat_number for flat_id, flat_number in flat_rows}
 
         by_type_total = Counter(row.food_type for row in tokens)
         by_type_served = Counter(row.food_type for row in served_tokens)
@@ -369,6 +374,7 @@ class FoodCollectionService:
                 {
                     "token": row.token_code,
                     "flat_id": row.flat_id,
+                    "flat_number": flat_number_by_id.get(row.flat_id),
                     "food_type": row.food_type,
                     "served_at": row.served_at,
                 }

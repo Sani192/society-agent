@@ -117,7 +117,10 @@ def test_dashboard_returns_recent_served_in_descending_order():
         SimpleNamespace(token_code="C", flat_id="f2", food_type="kids", served_at=3),
     ]
     db = MagicMock()
-    db.query.side_effect = [QueryMock(all_result=rows)]
+    db.query.side_effect = [
+        QueryMock(all_result=rows),
+        QueryMock(all_result=[("f1", "A-101"), ("f2", "B-202")]),
+    ]
 
     dashboard = FoodCollectionService.dashboard(db=db, event_id="event-1", recent_limit=1)
 
@@ -125,6 +128,7 @@ def test_dashboard_returns_recent_served_in_descending_order():
     assert dashboard["served_plates"] == 2
     assert dashboard["remaining_plates"] == 1
     assert dashboard["recent_served"][0]["token"] == "C"
+    assert dashboard["recent_served"][0]["flat_number"] == "B-202"
 
 
 def test_serve_by_flat_lookup_picks_first_unserved(monkeypatch):
