@@ -1221,6 +1221,7 @@ def handle_committee_intent(
         )
 
     if intent == "GENERATE_FOOD_TOKENS":
+        normalized_message, override_reason = _extract_override_reason(message)
         if not event:
             return error_response("No active event found. Please contact committee.")
         try:
@@ -1228,6 +1229,7 @@ def handle_committee_intent(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
+                override_reason=override_reason,
                 notify_callback=lambda *, event, generated_tokens: _notify_generated_food_tokens(
                     db=db,
                     event=event,
@@ -1244,15 +1246,17 @@ def handle_committee_intent(
         )
 
     if intent == "OPEN_FOOD_COUNTER":
+        normalized_message, override_reason = _extract_override_reason(message)
         if not event:
             return error_response("No active event found. Please contact committee.")
-        auto_close_minutes = parse_amount(message) or 120
+        auto_close_minutes = parse_amount(normalized_message) or 120
         try:
             counter = FoodCollectionService.open_food_counter(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
                 auto_close_minutes=auto_close_minutes,
+                override_reason=override_reason,
             )
         except Exception as exc:
             return error_response(str(exc))
@@ -1291,10 +1295,11 @@ def handle_committee_intent(
         )
 
     if intent in {"VERIFY_FOOD_TOKEN", "SCAN_FOOD_QR"}:
+        normalized_message, override_reason = _extract_override_reason(message)
         if not event:
             return error_response("No active event found. Please contact committee.")
         prefix = "verify food token" if intent == "VERIFY_FOOD_TOKEN" else "scan food qr"
-        token_code = _parse_token_after_prefix(message, prefix=prefix)
+        token_code = _parse_token_after_prefix(normalized_message, prefix=prefix)
         if not token_code:
             return error_response(f"Token is required. Example: {prefix} AB2K9M")
 
@@ -1306,6 +1311,7 @@ def handle_committee_intent(
                 token_code=token_code,
                 method=method,
                 performed_by=member.id,
+                override_reason=override_reason,
             )
         except Exception as exc:
             return error_response(str(exc))
@@ -1317,11 +1323,12 @@ def handle_committee_intent(
         )
 
     if intent == "SERVE_FOOD_FLAT":
+        normalized_message, override_reason = _extract_override_reason(message)
         if not event:
             return error_response("No active event found. Please contact committee.")
-        flat_number = parse_target_flat(message)
+        flat_number = parse_target_flat(normalized_message)
         if not flat_number:
-            raw = (message or "").strip()
+            raw = (normalized_message or "").strip()
             flat_number = raw[len("serve flat"):].strip() if raw.lower().startswith("serve flat") else None
         if not flat_number:
             return error_response("Flat number is required. Example: serve flat A-101")
@@ -1342,6 +1349,7 @@ def handle_committee_intent(
                 event_id=event.id,
                 flat_id=flat.id,
                 performed_by=member.id,
+                override_reason=override_reason,
             )
         except Exception as exc:
             return error_response(str(exc))

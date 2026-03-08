@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.whatsapp.handlers.committee_handler import handle_committee_intent
+from app.permissions.command_policy import get_intent_state_warning
 from app.whatsapp.committee_action_session import clear_committee_action_session
 from tests.utils import QueryMock
 
@@ -1411,3 +1412,23 @@ def test_committee_food_dashboard(monkeypatch):
     assert response.startswith("✅")
     assert "Total: 10" in response
     assert "AB2K9M | A-101 | veg" in response
+
+
+def test_food_committee_intents_blocked_outside_allowed_state():
+    warning = get_intent_state_warning(
+        intent="OPEN_FOOD_COUNTER",
+        event_state="LOCKED",
+        is_committee=True,
+    )
+
+    assert warning == "This command is available only when event state is: EVENT_DAY."
+
+
+def test_food_committee_intents_allowed_in_event_day_state():
+    warning = get_intent_state_warning(
+        intent="FOOD_DASHBOARD",
+        event_state="EVENT_DAY",
+        is_committee=True,
+    )
+
+    assert warning is None

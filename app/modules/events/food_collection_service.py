@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, Event, EventFoodCounter, EventFoodPass, EventFoodToken, Flat
 from app.utils.time import utc_now
+from app.workflows.engine import WorkflowEngine
 
 TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 SERVE_METHODS = {"QR_SCAN", "MANUAL_TOKEN", "FLAT_LOOKUP"}
@@ -17,6 +18,41 @@ NO_TOKEN_FALLBACK_METHOD = "FLAT_LOOKUP_NO_TOKEN"
 
 
 class FoodCollectionService:
+
+    @staticmethod
+    def _ensure_workflow_action_allowed(
+        db: Session,
+        *,
+        event,
+        event_id,
+        action: str,
+        performed_by,
+        override_reason=None,
+    ):
+        decision = WorkflowEngine.check_action(
+            db=db,
+            event_id=event_id,
+            action=action,
+            performed_by=performed_by,
+            override_reason=override_reason,
+        )
+        if decision.allowed:
+            return
+        if not decision.requires_override:
+            raise Exception(decision.message)
+        if not override_reason or not str(override_reason).strip():
+            raise Exception(decision.message)
+
+        WorkflowEngine.apply_override(
+            db=db,
+            society_id=event.society_id,
+            event_id=event_id,
+            entity_type="food_collection",
+            entity_id=event_id,
+            action=action,
+            reason=override_reason,
+            performed_by=performed_by,
+        )
 
     @staticmethod
     def _build_token_code(*, existing_codes: set[str], length: int = 6) -> str:
@@ -34,10 +70,20 @@ class FoodCollectionService:
         performed_by,
         notify_callback=None,
         token_length: int = 6,
+        override_reason=None,
     ):
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+
+        FoodCollectionService._ensure_workflow_action_allowed(
+            db=db,
+            event=event,
+            event_id=event_id,
+            action="GENERATE_FOOD_TOKENS",
+            performed_by=performed_by,
+            override_reason=override_reason,
+        )
 
         existing_count = (
             db.query(func.count(EventFoodToken.id))
@@ -108,10 +154,20 @@ class FoodCollectionService:
         event_id,
         performed_by,
         auto_close_minutes: int = 120,
+        override_reason=None,
     ):
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+
+        FoodCollectionService._ensure_workflow_action_allowed(
+            db=db,
+            event=event,
+            event_id=event_id,
+            action="OPEN_FOOD_COUNTER",
+            performed_by=performed_by,
+            override_reason=override_reason,
+        )
 
         now = utc_now()
         counter = db.query(EventFoodCounter).filter(EventFoodCounter.event_id == event_id).first()
@@ -172,6 +228,7 @@ class FoodCollectionService:
         token_code: str,
         method: str,
         performed_by,
+        override_reason=None,
     ):
         normalized_method = (method or "").strip().upper()
         if normalized_method not in SERVE_METHODS:
@@ -180,6 +237,15 @@ class FoodCollectionService:
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+
+        FoodCollectionService._ensure_workflow_action_allowed(
+            db=db,
+            event=event,
+            event_id=event_id,
+            action="SERVE_FOOD_TOKEN",
+            performed_by=performed_by,
+            override_reason=override_reason,
+        )
 
         counter = db.query(EventFoodCounter).filter(EventFoodCounter.event_id == event_id).first()
         if not counter or not counter.is_open:
@@ -249,10 +315,19 @@ class FoodCollectionService:
         return token
 
     @staticmethod
-    def serve_by_flat_lookup(db: Session, *, event_id, flat_id, performed_by):
+    def serve_by_flat_lookup(db: Session, *, event_id, flat_id, performed_by, override_reason=None):
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+
+        FoodCollectionService._ensure_workflow_action_allowed(
+            db=db,
+            event=event,
+            event_id=event_id,
+            action="SERVE_FOOD_TOKEN",
+            performed_by=performed_by,
+            override_reason=override_reason,
+        )
 
         counter = db.query(EventFoodCounter).filter(EventFoodCounter.event_id == event_id).first()
         if not counter or not counter.is_open:
