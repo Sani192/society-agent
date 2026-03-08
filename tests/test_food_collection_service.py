@@ -13,6 +13,15 @@ from app.modules.events.food_collection_service import (
 from tests.utils import QueryMock
 
 
+@pytest.fixture(autouse=True)
+def allow_workflow_actions(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.events.food_collection_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=True, requires_override=False, message="Action allowed"),
+    )
+
+
+
 def test_generate_tokens_for_event_creates_one_token_per_plate(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     passes = [SimpleNamespace(flat_id="flat-1", veg_count=2, jain_count=1, kids_count=1)]
@@ -290,3 +299,57 @@ def test_committee_flat_status_rejects_flat_number_from_other_society():
             event_id="event-1",
             flat_number="A-101",
         )
+
+
+def test_generate_tokens_for_event_blocks_when_workflow_denied(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    db = MagicMock()
+    db.query.side_effect = [QueryMock(first_result=event)]
+
+    monkeypatch.setattr(
+        "app.modules.events.food_collection_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=False, requires_override=False, message="blocked"),
+    )
+
+    with pytest.raises(Exception, match="blocked"):
+        FoodCollectionService.generate_tokens_for_event(
+            db=db,
+            event_id="event-1",
+            performed_by="member-1",
+        )
+
+
+def test_serve_by_flat_lookup_allows_with_workflow_override(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
+    token = SimpleNamespace(token_code="QW23RT")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=token),
+    ]
+
+    monkeypatch.setattr(
+        "app.modules.events.food_collection_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=False, requires_override=True, message="needs override"),
+    )
+    apply_override = MagicMock()
+    monkeypatch.setattr(
+        "app.modules.events.food_collection_service.WorkflowEngine.apply_override",
+        apply_override,
+    )
+
+    verify = MagicMock(return_value="served")
+    monkeypatch.setattr(FoodCollectionService, "verify_and_serve_token", verify)
+
+    result = FoodCollectionService.serve_by_flat_lookup(
+        db=db,
+        event_id="event-1",
+        flat_id="flat-1",
+        performed_by="member-1",
+        override_reason="Emergency service",
+    )
+
+    assert result == "served"
+    apply_override.assert_called_once()

@@ -23,6 +23,9 @@ WORKFLOW_ACTION_PATHS = {
     "REQUEST_PAYMENT": "PaymentRequestService.request_payment <- PAY via handle_public_intent",
     "REQUEST_REFUND": "RefundRequestService.request_refund <- REFUND via handle_public_intent",
     "REFUND_CONTRIBUTION": "ContributionRefundService.process_refund <- REFUND_SPONSOR via handle_committee_intent",
+    "GENERATE_FOOD_TOKENS": "FoodCollectionService.generate_tokens_for_event <- GENERATE_FOOD_TOKENS via handle_committee_intent",
+    "OPEN_FOOD_COUNTER": "FoodCollectionService.open_food_counter <- OPEN_FOOD_COUNTER via handle_committee_intent",
+    "SERVE_FOOD_TOKEN": "FoodCollectionService.verify_and_serve_token/serve_by_flat_lookup <- VERIFY_FOOD_TOKEN/SCAN_FOOD_QR/SERVE_FOOD_FLAT via handle_committee_intent",
 }
 
 # What actions are allowed in each state
@@ -33,7 +36,8 @@ LOCKED_ACTIONS = {
     "REQUEST_PAYMENT",
     "REQUEST_REFUND",
     "REFUND_CONTRIBUTION",
-    "START_EVENT"
+    "START_EVENT",
+    "GENERATE_FOOD_TOKENS",
 }
 
 STATE_RULES = {
@@ -53,6 +57,9 @@ STATE_RULES = {
     },
     "LOCKED": LOCKED_ACTIONS,
     "EVENT_DAY": {
+        "GENERATE_FOOD_TOKENS",
+        "OPEN_FOOD_COUNTER",
+        "SERVE_FOOD_TOKEN",
         "ADD_EXPENSE",
         "ADD_CONTRIBUTION",
         "REQUEST_PAYMENT",
