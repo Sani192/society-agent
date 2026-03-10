@@ -17,6 +17,7 @@ env:
   OBJECT_STORE_SECRET_KEY: minioadmin
   OBJECT_STORE_BUCKET: society-agent-ci
   PYTHONUNBUFFERED: "1"
+  NIGHTLY_COV_FAIL_UNDER: "30"
 
 jobs:
   full-e2e-regression:
@@ -93,10 +94,45 @@ jobs:
         run: python scripts/ci/reset_test_state.py
 
       - name: Run full E2E regression suite
-        run: pytest --reruns 1 -q tests/e2e --junitxml=artifacts/junit/full-e2e.xml
+        run: pytest --reruns 1 -q tests/e2e --junitxml=artifacts/junit/full-e2e.xml --cov-fail-under=${NIGHTLY_COV_FAIL_UNDER}
 
       - name: Run contract drift guard
-        run: pytest -q tests/test_contract_schema_ci.py --junitxml=artifacts/junit/contract-drift.xml
+        run: pytest -q tests/test_contract_schema_ci.py --junitxml=artifacts/junit/contract-drift.xml --cov-append --cov-fail-under=${NIGHTLY_COV_FAIL_UNDER}
+
+      - name: Publish coverage trend summary
+        if: always()
+        run: |
+          python - <<'PY_SUMMARY'
+          from pathlib import Path
+          import os
+          import re
+
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          coverage_file = Path("coverage.xml")
+          threshold = float(os.environ.get("NIGHTLY_COV_FAIL_UNDER", "0"))
+
+          if not coverage_file.exists():
+              with summary_path.open("a", encoding="utf-8") as fh:
+                  fh.write("\n### Coverage trend\n\n- coverage.xml was not generated in this run.\n")
+              raise SystemExit(0)
+
+          xml = coverage_file.read_text(encoding="utf-8", errors="ignore")
+          match = re.search(r'line-rate="([0-9.]+)"', xml)
+          if not match:
+              with summary_path.open("a", encoding="utf-8") as fh:
+                  fh.write("\n### Coverage trend\n\n- Unable to parse line-rate from coverage.xml.\n")
+              raise SystemExit(0)
+
+          line_rate = float(match.group(1)) * 100
+          delta = line_rate - threshold
+          trend = "🟢 above threshold" if delta >= 0 else "🔴 below threshold"
+          with summary_path.open("a", encoding="utf-8") as fh:
+              fh.write("\n### Coverage trend\n")
+              fh.write("| Metric | Value |\n|---|---:|\n")
+              fh.write(f"| Coverage (line-rate) | {line_rate:.2f}% |\n")
+              fh.write(f"| Threshold | {threshold:.2f}% |\n")
+              fh.write(f"| Delta | {delta:+.2f}% ({trend}) |\n")
+          PY_SUMMARY
 
       - name: Build reliability dashboard + enforce flaky threshold
         run: |
@@ -115,6 +151,7 @@ jobs:
           path: |
             artifacts/junit/
             artifacts/reliability/
+            coverage.xml
 
       - name: Collect dependency logs on failure
         if: failure()

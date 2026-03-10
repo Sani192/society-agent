@@ -67,28 +67,47 @@ jobs:
 
       - name: Run fast unit tests with impact selection
         run: |
-          mkdir -p artifacts/junit
+          mkdir -p artifacts/junit artifacts/coverage
           if pytest --help | grep -q -- "--testmon"; then
-            pytest --testmon -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml
+            pytest --testmon -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml --cov-fail-under=20
           else
             echo "pytest-testmon not available; running without impact selection"
-            pytest -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml
+            pytest -q -m "not integration and not endpoint and not smoke" --junitxml=artifacts/junit/stage1-unit.xml --cov-fail-under=20
+          fi
+          if [ -f coverage.xml ]; then
+            cp coverage.xml artifacts/coverage/stage1-coverage.xml
           fi
 
-      - name: Ensure Stage 1 JUnit artifact exists
+      - name: Ensure Stage 1 test artifacts exist
         if: always()
         run: |
-          mkdir -p artifacts/junit
+          mkdir -p artifacts/junit artifacts/coverage
           if [ ! -f artifacts/junit/stage1-unit.xml ]; then
             printf '%s\n' '<testsuite name="stage1-unit" tests="0" failures="0" errors="0" skipped="0"></testsuite>' > artifacts/junit/stage1-unit.xml
           fi
+          if [ -f coverage.xml ] && [ ! -f artifacts/coverage/stage1-coverage.xml ]; then
+            cp coverage.xml artifacts/coverage/stage1-coverage.xml
+          fi
+          if [ ! -f artifacts/coverage/stage1-coverage.xml ]; then
+            cat <<'EOF' > artifacts/coverage/stage1-coverage.xml
+<?xml version="1.0" ?>
+<coverage version="7.0" timestamp="0" lines-valid="0" lines-covered="0" line-rate="0" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0">
+  <sources>
+    <source>.</source>
+  </sources>
+  <packages/>
+</coverage>
+EOF
+          fi
 
-      - name: Upload Stage 1 JUnit
+      - name: Upload Stage 1 test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: stage1-junit-${{ github.run_id }}
-          path: artifacts/junit/stage1-unit.xml
+          name: stage1-test-artifacts-${{ github.run_id }}
+          path: |
+            artifacts/junit/stage1-unit.xml
+            artifacts/coverage/stage1-coverage.xml
           if-no-files-found: error
 
   stage-2-integration-endpoints:
