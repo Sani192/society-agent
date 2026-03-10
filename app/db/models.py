@@ -668,6 +668,7 @@ class AnnouncementDelivery(Base):
     attempts = Column(Integer, nullable=False, default=0)
     last_error = Column(Text, nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
+    processing_started_at = Column(DateTime(timezone=True), nullable=True)
 
     announcement = relationship("Announcement", backref="deliveries")
     member_identity = relationship("MemberIdentity", backref="announcement_deliveries")
