@@ -9,6 +9,7 @@ Created on Sat Jan 10 14:26:38 2026
 # app/modules/events/service.py
 
 import logging
+from typing import Any
 from sqlalchemy.orm import Session
 
 from app.workflows.engine import WorkflowEngine
@@ -19,6 +20,20 @@ logger = logging.getLogger(__name__)
 
 
 class EventService:
+
+    @staticmethod
+    def _require_event_and_workflow(db: Session, event_id: Any) -> tuple[Event, WorkflowState]:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
+        if not event or not workflow:
+            raise Exception("Event or workflow state not found.")
+        return event, workflow
+
+    @staticmethod
+    def _set_workflow_state(event: Event, workflow: WorkflowState, event_state: str, next_states: list[str]) -> None:
+        setattr(event, "status", event_state)
+        setattr(workflow, "current_state", event_state)
+        setattr(workflow, "allowed_next_states", next_states)
 
     @staticmethod
     def _resolve_close_reason(reason, override_reason):
@@ -109,8 +124,7 @@ class EventService:
     ):
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Activating event | context=%s", context)
-        event = db.query(Event).filter(Event.id == event_id).first()
-        workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
+        event, workflow = EventService._require_event_and_workflow(db, event_id)
     
         decision = WorkflowEngine.check_action(
             db=db,
@@ -142,9 +156,7 @@ class EventService:
             )
             logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
     
-        event.status = "ACTIVE"
-        workflow.current_state = "ACTIVE"
-        workflow.allowed_next_states = ["LOCKED"]
+        EventService._set_workflow_state(event, workflow, "ACTIVE", ["LOCKED"])
         logger.info("Updated event workflow state to ACTIVE | context=%s", context)
     
         db.add(AuditLog(
@@ -171,8 +183,7 @@ class EventService:
     ):
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Locking passes | context=%s", context)
-        event = db.query(Event).filter(Event.id == event_id).first()
-        workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
+        event, workflow = EventService._require_event_and_workflow(db, event_id)
 
         decision = WorkflowEngine.check_action(
             db=db,
@@ -204,9 +215,7 @@ class EventService:
             )
             logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
 
-        event.status = "LOCKED"
-        workflow.current_state = "LOCKED"
-        workflow.allowed_next_states = ["EVENT_DAY"]
+        EventService._set_workflow_state(event, workflow, "LOCKED", ["EVENT_DAY"])
         logger.info("Updated event workflow state to LOCKED | context=%s", context)
 
         db.add(AuditLog(
@@ -233,8 +242,7 @@ class EventService:
     ):
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Starting event day | context=%s", context)
-        event = db.query(Event).filter(Event.id == event_id).first()
-        workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
+        event, workflow = EventService._require_event_and_workflow(db, event_id)
 
         decision = WorkflowEngine.check_action(
             db=db,
@@ -266,9 +274,7 @@ class EventService:
             )
             logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
 
-        event.status = "EVENT_DAY"
-        workflow.current_state = "EVENT_DAY"
-        workflow.allowed_next_states = ["CLOSE_EVENT"]
+        EventService._set_workflow_state(event, workflow, "EVENT_DAY", ["CLOSE_EVENT"])
         logger.info("Updated event workflow state to EVENT_DAY | context=%s", context)
 
         db.add(AuditLog(
@@ -308,10 +314,7 @@ class EventService:
             logger.warning("Close event rejected due to missing performer/source | context=%s", context)
             raise Exception("Close event requires performed_by or source.")
 
-        event = db.query(Event).filter(Event.id == event_id).first()
-        workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event_id).first()
-        if not event or not workflow:
-            raise Exception("Event or workflow state not found.")
+        event, workflow = EventService._require_event_and_workflow(db, event_id)
 
         decision = WorkflowEngine.check_action(
             db=db,
@@ -344,9 +347,7 @@ class EventService:
             logger.info("Applied workflow override | reason=%s context=%s", close_reason, context)
 
         try:
-            event.status = "CLOSED"
-            workflow.current_state = "CLOSED"
-            workflow.allowed_next_states = []
+            EventService._set_workflow_state(event, workflow, "CLOSED", [])
             logger.info("Updated event workflow state to CLOSED | context=%s", context)
 
             audit_reason = close_reason
