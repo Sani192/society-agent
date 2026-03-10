@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.api.contracts import TelegramWebhookPayload, WhatsAppWebhookPayload
-from app.api.health import health_check
+from app.api.health import health_check, router as health_router
 from app.api.telegram import telegram_webhook_event
 from app.api.whatsapp import whatsapp_webhook_event, whatsapp_webhook_verify
 
@@ -37,8 +37,16 @@ def _sign(body: bytes, secret: str) -> str:
 
 def test_health_contract_success():
     response = health_check()
-    assert response["status"] == "ok"
-    assert response["message"]
+    assert response.status == "ok"
+    assert response.message
+
+
+def test_health_endpoint_response_shape():
+    assert any(route.path == "/health" for route in health_router.routes)
+
+    payload = health_check().model_dump()
+    assert set(payload) == {"status", "message"}
+    assert payload["status"] == "ok"
 
 
 def test_whatsapp_verify_success_validation_and_auth(monkeypatch):

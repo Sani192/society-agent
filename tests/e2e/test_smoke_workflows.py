@@ -150,7 +150,8 @@ def _seed_base_entities(db):
 @pytest.mark.smoke
 def test_health_route_smoke():
     response = health_check()
-    assert response == {"status": "ok", "message": "Society Agent running locally"}
+    assert response.status == "ok"
+    assert response.message == "Society Agent running locally"
 
 
 @pytest.mark.smoke

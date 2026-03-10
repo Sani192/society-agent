@@ -1,4 +1,3 @@
-app/api/health.py:20: error: Incompatible return value type (got "dict[str, str]", expected "HealthResponse")  [return-value]
 app/api/reports/common.py:21: error: Argument 1 to "ensure_committee_member" has incompatible type "str | None"; expected "str"  [arg-type]
 app/api/reports/common.py:22: error: Argument "role" to "ensure_report_access" has incompatible type "Column[str]"; expected "str"  [arg-type]
 app/api/reports/public.py:42: error: Item "None" of "Any | None" has no attribute "config_json"  [union-attr]
