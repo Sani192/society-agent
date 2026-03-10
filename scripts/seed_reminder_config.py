@@ -1,38 +1,43 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sat Jan 17 12:08:46 2026
+"""Create reminder config if absent."""
 
-@author: anonymous
-"""
-
-# scripts/seed_reminder_config.py
-
+from app.db.models import ReminderConfig, Society
 from app.db.session import SessionLocal
-from app.db.models import Society, ReminderConfig
 
-db = SessionLocal()
 
-society = db.query(Society).first()
+def seed_reminder_config(db) -> bool:
+    society = db.query(Society).first()
+    if society is None:
+        raise ValueError("No society found")
 
-existing = (
-    db.query(ReminderConfig)
-    .filter(ReminderConfig.society_id == society.id)
-    .first()
-)
+    existing = db.query(ReminderConfig).filter(ReminderConfig.society_id == society.id).first()
+    if existing is not None:
+        return False
 
-if not existing:
     config = ReminderConfig(
         society_id=society.id,
         enabled=True,
         run_hour=10,
         run_minute=0,
-        frequency="daily"
+        frequency="daily",
     )
     db.add(config)
     db.commit()
-    print("✅ Reminder config created")
-else:
-    print("ℹ️ Reminder config already exists")
+    return True
 
-db.close()
+
+def main() -> None:
+    db = SessionLocal()
+    try:
+        created = seed_reminder_config(db)
+        if created:
+            print("✅ Reminder config created")
+        else:
+            print("ℹ️ Reminder config already exists")
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

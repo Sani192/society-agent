@@ -1,43 +1,53 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Jan 11 20:55:31 2026
+"""Seed flats for the first society when missing."""
 
-@author: anonymous
-"""
+from collections.abc import Sequence
 
-# scripts/seed_flats.py
-# python -m scripts.seed_flats
-
+from app.db.models import Flat, Society
 from app.db.session import SessionLocal
-from app.db.models import Society, Flat
 
-db = SessionLocal()
-
-society = db.query(Society).first()
+DEFAULT_FLATS: tuple[tuple[str, str, str], ...] = (("A-804", "A", "JK"),)
 
 
-flats = [
-    ("A-804", "A", "JK")
-]
+def seed_flats(db, flats: Sequence[tuple[str, str, str]] = DEFAULT_FLATS) -> int:
+    society = db.query(Society).first()
+    if society is None:
+        raise ValueError("No society found")
 
-for flat_no, block, owner_name in flats:
-    exists = (
-        db.query(Flat)
-        .filter(Flat.flat_number == flat_no, Flat.society_id == society.id)
-        .first()
-    )
-    if not exists:
-        db.add(
-            Flat(
-                society_id=society.id,
-                flat_number=flat_no,
-                block=block,
-                owner_name=owner_name
-            )
+    created_count = 0
+    for flat_no, block, owner_name in flats:
+        exists = (
+            db.query(Flat)
+            .filter(Flat.flat_number == flat_no, Flat.society_id == society.id)
+            .first()
         )
+        if exists is None:
+            db.add(
+                Flat(
+                    society_id=society.id,
+                    flat_number=flat_no,
+                    block=block,
+                    owner_name=owner_name,
+                )
+            )
+            created_count += 1
 
-db.commit()
-db.close()
+    db.commit()
+    return created_count
 
-print("✅ Flats seeded")
+
+def main() -> None:
+    db = SessionLocal()
+    try:
+        created = seed_flats(db)
+        if created:
+            print("✅ Flats seeded")
+        else:
+            print("ℹ️ Flats already seeded")
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()
