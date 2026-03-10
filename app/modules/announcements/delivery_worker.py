@@ -11,7 +11,7 @@ from typing import Any, cast
 
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlalchemy import func, text
+from sqlalchemy import func, text, tuple_
 from sqlalchemy.orm import joinedload
 
 from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_client
@@ -31,6 +31,7 @@ MAX_SENDS_PER_BATCH = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_BATCH", 
 MAX_SENDS_PER_MINUTE = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_MINUTE", "60"))
 ERROR_RATE_THRESHOLD = float(getattr(settings, "ANNOUNCEMENT_ERROR_RATE_THRESHOLD", "0.4"))
 CIRCUIT_BREAKER_MIN_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_CIRCUIT_BREAKER_MIN_ATTEMPTS", "10"))
+PROCESSING_TIMEOUT_SECONDS = int(getattr(settings, "ANNOUNCEMENT_PROCESSING_TIMEOUT_SECONDS", "300"))
 
 announcement_delivery_scheduler = BackgroundScheduler()
 
@@ -142,6 +143,77 @@ def _refresh_announcement_summary(db, *, announcement_id) -> dict[str, int]:
     }
 
 
+def _claim_pending_deliveries(db, *, batch_size: int) -> list[AnnouncementDelivery]:
+    now = datetime.now(timezone.utc)
+    stuck_before = datetime.fromtimestamp(now.timestamp() - PROCESSING_TIMEOUT_SECONDS, tz=timezone.utc)
+
+    claimed_rows = db.execute(
+        text(
+            """
+            WITH candidates AS (
+                SELECT announcement_id, member_identity_id, channel
+                FROM announcement_deliveries
+                WHERE sent_at IS NULL
+                  AND (
+                    status = 'pending'
+                    OR (status = 'processing' AND processing_started_at < :stuck_before)
+                  )
+                ORDER BY announcement_id
+                LIMIT :batch_size
+                FOR UPDATE SKIP LOCKED
+            )
+            UPDATE announcement_deliveries AS ad
+            SET status = 'processing',
+                processing_started_at = :now
+            FROM candidates
+            WHERE ad.announcement_id = candidates.announcement_id
+              AND ad.member_identity_id = candidates.member_identity_id
+              AND ad.channel = candidates.channel
+            RETURNING ad.announcement_id, ad.member_identity_id, ad.channel
+            """
+        ),
+        {"batch_size": batch_size, "now": now, "stuck_before": stuck_before},
+    ).fetchall()
+    db.commit()
+
+    if not claimed_rows:
+        return []
+
+    claimed_keys = [
+        {
+            "announcement_id": row.announcement_id,
+            "member_identity_id": row.member_identity_id,
+            "channel": row.channel,
+        }
+        for row in claimed_rows
+    ]
+
+    return (
+        db.query(AnnouncementDelivery)
+        .options(
+            joinedload(AnnouncementDelivery.announcement),
+            joinedload(AnnouncementDelivery.member_identity),
+        )
+        .filter(
+            tuple_(
+                AnnouncementDelivery.announcement_id,
+                AnnouncementDelivery.member_identity_id,
+                AnnouncementDelivery.channel,
+            ).in_(
+                [
+                    (
+                        row["announcement_id"],
+                        row["member_identity_id"],
+                        row["channel"],
+                    )
+                    for row in claimed_keys
+                ]
+            )
+        )
+        .all()
+    )
+
+
 def run_pending_announcement_deliveries(
     *,
     batch_size: int = BATCH_SIZE,
@@ -158,18 +230,7 @@ def run_pending_announcement_deliveries(
     per_announcement_outcomes: dict[str, dict[str, int]] = {}
 
     try:
-        pending_deliveries = (
-            db.query(AnnouncementDelivery)
-            .options(
-                joinedload(AnnouncementDelivery.announcement),
-                joinedload(AnnouncementDelivery.member_identity),
-            )
-            .filter(AnnouncementDelivery.status == "pending")
-            .filter(AnnouncementDelivery.sent_at.is_(None))
-            .order_by(AnnouncementDelivery.announcement_id)
-            .limit(batch_size)
-            .all()
-        )
+        pending_deliveries = _claim_pending_deliveries(db, batch_size=batch_size)
 
         for delivery in pending_deliveries:
             if processed_count >= MAX_SENDS_PER_BATCH:
@@ -179,124 +240,123 @@ def run_pending_announcement_deliveries(
                 )
                 break
 
-            if delivery.status == "sent" or delivery.sent_at is not None:
+            if delivery.status != "processing" or delivery.sent_at is not None:
                 continue
 
-            while delivery.attempts < max_attempts and delivery.status != "sent":
-                if sent_in_current_minute >= MAX_SENDS_PER_MINUTE:
-                    elapsed = time.monotonic() - minute_window_start
-                    if elapsed < 60:
-                        time.sleep(60 - elapsed)
-                    minute_window_start = time.monotonic()
-                    sent_in_current_minute = 0
+            if sent_in_current_minute >= MAX_SENDS_PER_MINUTE:
+                elapsed = time.monotonic() - minute_window_start
+                if elapsed < 60:
+                    time.sleep(60 - elapsed)
+                minute_window_start = time.monotonic()
+                sent_in_current_minute = 0
 
-                try:
-                    attempt_count += 1
-                    policy_outcome, reason = _send_delivery(delivery)
+            try:
+                attempt_count += 1
+                policy_outcome, reason = _send_delivery(delivery)
 
-                    delivery.attempts += 1
-                    announcement_key = str(delivery.announcement_id)
-                    per_announcement_outcomes.setdefault(
-                        announcement_key,
-                        {"sent": 0, "failed": 0, "skipped": 0},
-                    )
-                    if policy_outcome.startswith("sent_"):
-                        delivery.status = "sent"
-                        delivery.last_error = None
-                        delivery.sent_at = datetime.now(timezone.utc)
-                        processed_count += 1
-                        sent_in_current_minute += 1
-                        per_announcement_outcomes[announcement_key]["sent"] += 1
-                        time.sleep(send_interval_seconds)
-                    elif policy_outcome.startswith("skipped_"):
-                        delivery.status = "skipped"
-                        delivery.last_error = reason
-                        per_announcement_outcomes[announcement_key]["skipped"] += 1
-                    else:
-                        delivery.status = "failed"
-                        delivery.last_error = reason
-                        per_announcement_outcomes[announcement_key]["failed"] += 1
+                delivery.attempts += 1
+                delivery.processing_started_at = None
+                announcement_key = str(delivery.announcement_id)
+                per_announcement_outcomes.setdefault(
+                    announcement_key,
+                    {"sent": 0, "failed": 0, "skipped": 0},
+                )
+                if policy_outcome.startswith("sent_"):
+                    delivery.status = "sent"
+                    delivery.last_error = None
+                    delivery.sent_at = datetime.now(timezone.utc)
+                    processed_count += 1
+                    sent_in_current_minute += 1
+                    per_announcement_outcomes[announcement_key]["sent"] += 1
+                    time.sleep(send_interval_seconds)
+                elif policy_outcome.startswith("skipped_"):
+                    delivery.status = "skipped"
+                    delivery.last_error = reason
+                    per_announcement_outcomes[announcement_key]["skipped"] += 1
+                else:
+                    delivery.status = "failed"
+                    delivery.last_error = reason
+                    per_announcement_outcomes[announcement_key]["failed"] += 1
 
-                    summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
-                    db.commit()
-                    logger.info(
-                        "Announcement delivery policy outcome",
-                        extra={
-                            "announcement_id": str(delivery.announcement_id),
-                            "society_id": str(getattr(delivery.announcement, "society_id", "")),
-                            "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
-                            "member_identity_id": str(delivery.member_identity_id),
-                            "channel": delivery.channel,
-                            "batch_size": batch_size,
-                            "policy_outcome": policy_outcome,
-                            "reason": reason,
-                            "outcomes": summary,
-                        },
-                    )
-                    break
-                except Exception as exc:  # intentionally broad for delivery safety
-                    error_count += 1
-                    delivery.attempts += 1
-                    is_transient = _is_transient_error(exc)
-                    delivery.last_error = str(exc)[:2000]
+                summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+                db.commit()
+                logger.info(
+                    "Announcement delivery policy outcome",
+                    extra={
+                        "announcement_id": str(delivery.announcement_id),
+                        "society_id": str(getattr(delivery.announcement, "society_id", "")),
+                        "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
+                        "member_identity_id": str(delivery.member_identity_id),
+                        "channel": delivery.channel,
+                        "batch_size": batch_size,
+                        "policy_outcome": policy_outcome,
+                        "reason": reason,
+                        "outcomes": summary,
+                    },
+                )
+            except Exception as exc:  # intentionally broad for delivery safety
+                error_count += 1
+                delivery.attempts += 1
+                is_transient = _is_transient_error(exc)
+                delivery.last_error = str(exc)[:2000]
+                delivery.processing_started_at = None
 
-                    if attempt_count >= CIRCUIT_BREAKER_MIN_ATTEMPTS:
-                        error_rate = error_count / attempt_count if attempt_count else 0.0
-                        if error_rate >= ERROR_RATE_THRESHOLD:
-                            logger.error(
-                                "Announcement delivery circuit breaker opened",
-                                extra={
-                                    "attempt_count": attempt_count,
-                                    "error_count": error_count,
-                                    "error_rate": error_rate,
-                                    "threshold": ERROR_RATE_THRESHOLD,
-                                },
-                            )
-                            db.commit()
-                            return processed_count
-
-                    if is_transient and delivery.attempts < max_attempts:
-                        delivery.status = "pending"
-                        db.commit()
-                        retry_after_seconds = None
-                        if isinstance(exc, WhatsAppRetryableError):
-                            retry_after_seconds = exc.retry_after_seconds
-                        sleep_for = retry_after_seconds if retry_after_seconds is not None else backoff_seconds * (2 ** (delivery.attempts - 1))
-                        logger.warning(
-                            "Announcement delivery retry scheduled",
+                if attempt_count >= CIRCUIT_BREAKER_MIN_ATTEMPTS:
+                    error_rate = error_count / attempt_count if attempt_count else 0.0
+                    if error_rate >= ERROR_RATE_THRESHOLD:
+                        logger.error(
+                            "Announcement delivery circuit breaker opened",
                             extra={
-                                "announcement_id": str(delivery.announcement_id),
-                                "society_id": str(getattr(delivery.announcement, "society_id", "")),
-                                "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
-                                "batch_size": batch_size,
-                                "attempts": delivery.attempts,
-                                "sleep_for_seconds": max(sleep_for, 0),
-                                "outcomes": per_announcement_outcomes.get(str(delivery.announcement_id), {"sent": 0, "failed": 0, "skipped": 0}),
+                                "attempt_count": attempt_count,
+                                "error_count": error_count,
+                                "error_rate": error_rate,
+                                "threshold": ERROR_RATE_THRESHOLD,
                             },
                         )
-                        time.sleep(max(sleep_for, 0))
-                        continue
+                        db.commit()
+                        return processed_count
 
-                    delivery.status = "failed"
-                    announcement_key = str(delivery.announcement_id)
-                    per_announcement_outcomes.setdefault(announcement_key, {"sent": 0, "failed": 0, "skipped": 0})
-                    per_announcement_outcomes[announcement_key]["failed"] += 1
-                    summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+                if is_transient and delivery.attempts < max_attempts:
+                    delivery.status = "pending"
                     db.commit()
-                    logger.exception(
-                        "Announcement delivery failed",
+                    retry_after_seconds = None
+                    if isinstance(exc, WhatsAppRetryableError):
+                        retry_after_seconds = exc.retry_after_seconds
+                    sleep_for = retry_after_seconds if retry_after_seconds is not None else backoff_seconds * (2 ** (delivery.attempts - 1))
+                    logger.warning(
+                        "Announcement delivery retry scheduled",
                         extra={
                             "announcement_id": str(delivery.announcement_id),
                             "society_id": str(getattr(delivery.announcement, "society_id", "")),
                             "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
-                            "member_identity_id": str(delivery.member_identity_id),
-                            "channel": delivery.channel,
-                            "attempts": delivery.attempts,
                             "batch_size": batch_size,
-                            "outcomes": summary,
+                            "attempts": delivery.attempts,
+                            "sleep_for_seconds": max(sleep_for, 0),
+                            "outcomes": per_announcement_outcomes.get(str(delivery.announcement_id), {"sent": 0, "failed": 0, "skipped": 0}),
                         },
                     )
-                    break
+                    time.sleep(max(sleep_for, 0))
+                    continue
+
+                delivery.status = "failed"
+                announcement_key = str(delivery.announcement_id)
+                per_announcement_outcomes.setdefault(announcement_key, {"sent": 0, "failed": 0, "skipped": 0})
+                per_announcement_outcomes[announcement_key]["failed"] += 1
+                summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+                db.commit()
+                logger.exception(
+                    "Announcement delivery failed",
+                    extra={
+                        "announcement_id": str(delivery.announcement_id),
+                        "society_id": str(getattr(delivery.announcement, "society_id", "")),
+                        "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
+                        "member_identity_id": str(delivery.member_identity_id),
+                        "channel": delivery.channel,
+                        "attempts": delivery.attempts,
+                        "batch_size": batch_size,
+                        "outcomes": summary,
+                    },
+                )
 
         logger.info(
             "Announcement dispatch batch completed",

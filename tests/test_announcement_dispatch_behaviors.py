@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from uuid import uuid4
+import threading
 
 from app.channels.whatsapp.client import WhatsAppRetryableError
 from app.modules.announcements import delivery_worker
@@ -121,6 +122,8 @@ def test_rate_limit_retry_uses_retry_after(monkeypatch):
     delivery = _delivery()
     db = _FakeDB([delivery])
     monkeypatch.setattr(delivery_worker, "SessionLocal", lambda: db)
+    monkeypatch.setattr(delivery_worker, "_claim_pending_deliveries", lambda *_args, **_kwargs: [delivery])
+    delivery.status = "processing"
     sleeps = []
     monkeypatch.setattr(delivery_worker.time, "sleep", lambda value: sleeps.append(value))
 
@@ -136,7 +139,9 @@ def test_rate_limit_retry_uses_retry_after(monkeypatch):
 
     processed = delivery_worker.run_pending_announcement_deliveries(batch_size=1, send_interval_seconds=0)
 
-    assert processed == 1
+    assert processed == 0
+    assert delivery.status == "pending"
+    assert delivery.attempts == 1
     assert any(abs(value - 1.75) < 1e-9 for value in sleeps)
 
 
@@ -162,11 +167,51 @@ def test_dispatch_is_idempotent_for_already_sent_delivery(monkeypatch):
     delivery.sent_at = object()
     db = _FakeDB([delivery])
     monkeypatch.setattr(delivery_worker, "SessionLocal", lambda: db)
+    monkeypatch.setattr(delivery_worker, "_claim_pending_deliveries", lambda *_args, **_kwargs: [delivery])
     monkeypatch.setattr(delivery_worker, "_send_delivery", lambda d: (_ for _ in ()).throw(AssertionError("must not send")))
 
     processed = delivery_worker.run_pending_announcement_deliveries(batch_size=1)
 
     assert processed == 0
+
+
+def test_concurrent_workers_claim_unique_deliveries(monkeypatch):
+    deliveries = [_delivery() for _ in range(6)]
+    queue_lock = threading.Lock()
+    sends = []
+
+    def _claim(_db, *, batch_size):
+        with queue_lock:
+            batch = deliveries[:batch_size]
+            del deliveries[:batch_size]
+        for item in batch:
+            item.status = "processing"
+        return batch
+
+    def _send(d):
+        with queue_lock:
+            sends.append((d.announcement_id, d.member_identity_id, d.channel))
+        return "sent_template", None
+
+    monkeypatch.setattr(delivery_worker, "_claim_pending_deliveries", _claim)
+    monkeypatch.setattr(delivery_worker, "_send_delivery", _send)
+    monkeypatch.setattr(delivery_worker.time, "sleep", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(delivery_worker, "_refresh_announcement_summary", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        delivery_worker,
+        "SessionLocal",
+        lambda: SimpleNamespace(commit=lambda: None, close=lambda: None),
+    )
+
+    thread_one = threading.Thread(target=delivery_worker.run_pending_announcement_deliveries, kwargs={"batch_size": 3})
+    thread_two = threading.Thread(target=delivery_worker.run_pending_announcement_deliveries, kwargs={"batch_size": 3})
+    thread_one.start()
+    thread_two.start()
+    thread_one.join()
+    thread_two.join()
+
+    assert len(sends) == 6
+    assert len(set(sends)) == 6
 
 
 def test_create_announcement_writes_audit_log(db_session):
