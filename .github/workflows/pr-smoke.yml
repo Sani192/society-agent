@@ -5,7 +5,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
-      - "**"
+      - '**'
+  create:
+    branches:
+      - '**'
   workflow_dispatch:
 
 concurrency:
@@ -94,15 +97,15 @@ jobs:
             cp coverage.xml artifacts/coverage/stage1-coverage.xml
           fi
           if [ ! -f artifacts/coverage/stage1-coverage.xml ]; then
-            cat <<'EOF' > artifacts/coverage/stage1-coverage.xml
-<?xml version="1.0" ?>
-<coverage version="7.0" timestamp="0" lines-valid="0" lines-covered="0" line-rate="0" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0">
-  <sources>
-    <source>.</source>
-  </sources>
-  <packages/>
-</coverage>
-EOF
+            printf '%s\n' \
+              '<?xml version="1.0" ?>' \
+              '<coverage version="7.0" timestamp="0" lines-valid="0" lines-covered="0" line-rate="0" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0">' \
+              '  <sources>' \
+              '    <source>.</source>' \
+              '  </sources>' \
+              '  <packages/>' \
+              '</coverage>' \
+              > artifacts/coverage/stage1-coverage.xml
           fi
 
       - name: Upload Stage 1 test artifacts
