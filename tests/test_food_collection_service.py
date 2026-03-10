@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.db.models import EventFoodCounter, EventFoodToken
+from app.db.models import EventFoodCounter
 from app.modules.events.food_collection_service import (
     FoodCollectionService,
     NO_TOKEN_FALLBACK_METHOD,

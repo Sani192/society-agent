@@ -403,7 +403,7 @@ EOF
       - name: Download Stage 1 JUnit artifact
         uses: actions/download-artifact@v4
         with:
-          name: stage1-junit-${{ github.run_id }}
+          name: stage1-test-artifacts-${{ github.run_id }}
           path: artifacts/from-jobs/stage1
 
       - name: Download Stage 2 artifacts

@@ -564,7 +564,7 @@ class FoodCollectionService:
                 "flat_id": audit.entity_id,
                 "flat_number": flat_number_by_id.get(audit.entity_id),
                 "food_type": "fallback",
-                "served_at": audit.performed_at,
+                "served_at": getattr(audit, "performed_at", None) or getattr(audit, "created_at", None),
                 "is_fallback": True,
             }
             for audit in fallback_audits
