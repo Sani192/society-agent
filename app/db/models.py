@@ -9,6 +9,7 @@ Created on Sat Jan 10 13:22:14 2026
 # app/db/models.py
 
 import uuid
+from datetime import datetime
 from sqlalchemy import (
     Column,
     String,
@@ -24,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -245,42 +246,45 @@ class Flat(Base):
 class Event(Base):
     __tablename__ = "events"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
 
-    name = Column(String(255), nullable=False)
-    event_date = Column(DateTime(timezone=True), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    charge_per_adult = Column(Integer, nullable=True)
-    charge_per_child = Column(Integer, nullable=True)
+    charge_per_adult: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    charge_per_child: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    food_types = Column(JSONB, nullable=False)
-    payment_deadline = Column(DateTime(timezone=True), nullable=True)
+    food_types: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    payment_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    status = Column(String(50), nullable=False)  # DRAFT / ACTIVE / LOCKED / EVENT_DAY / CLOSED
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # DRAFT / ACTIVE / LOCKED / EVENT_DAY / CLOSED
 
-    created_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    society = relationship("Society", backref="events")
+    society: Mapped["Society"] = relationship("Society", backref="events")
 
 
 class EventFoodPass(Base):
     __tablename__ = "event_food_passes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
-    veg_count = Column(Integer, default=0)
-    jain_count = Column(Integer, default=0)
-    kids_count = Column(Integer, default=0)
+    veg_count: Mapped[int] = mapped_column(Integer, default=0)
+    jain_count: Mapped[int] = mapped_column(Integer, default=0)
+    kids_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    total_amount = Column(Integer, nullable=False)
-    is_participating = Column(Boolean, nullable=False, default=True)
-    is_locked = Column(Boolean, nullable=False, default=False)
+    total_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_participating: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped["Event"] = relationship("Event", backref="food_passes")
+    flat: Mapped["Flat"] = relationship("Flat")
 
     __table_args__ = (
         UniqueConstraint("event_id", "flat_id", name="uq_event_food_passes_event_flat"),
@@ -290,19 +294,22 @@ class EventFoodPass(Base):
 class EventFoodToken(Base):
     __tablename__ = "event_food_tokens"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True)
+    flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False, index=True)
 
-    food_type = Column(String(20), nullable=False)
-    token_code = Column(String(20), nullable=False, index=True)
-    qr_payload = Column(String(255), nullable=False)
+    food_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    token_code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    qr_payload: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    served_at = Column(DateTime(timezone=True), nullable=True)
-    served_method = Column(String(20), nullable=True)
-    served_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
+    served_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    served_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    served_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped["Event"] = relationship("Event", backref="food_tokens")
+    flat: Mapped["Flat"] = relationship("Flat")
 
     __table_args__ = (
         UniqueConstraint("event_id", "token_code", name="uq_event_food_tokens_event_token"),
@@ -312,148 +319,153 @@ class EventFoodToken(Base):
 class EventFoodCounter(Base):
     __tablename__ = "event_food_counters"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, unique=True, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, unique=True, index=True)
 
-    is_open = Column(Boolean, nullable=False, default=False)
-    opened_at = Column(DateTime(timezone=True), nullable=True)
-    closes_at = Column(DateTime(timezone=True), nullable=True)
-    closed_at = Column(DateTime(timezone=True), nullable=True)
+    is_open: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closes_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    opened_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
-    closed_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
+    opened_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"), nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped["Event"] = relationship("Event", backref="food_counter", uselist=False)
 
 
 class Payment(Base):
     __tablename__ = "payments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
-    expected_amount = Column(Integer, nullable=False)
-    paid_amount = Column(Integer, nullable=False, default=0)
+    expected_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    paid_amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    status = Column(String(50), nullable=False)  # pending / partial / paid / refunded
-    payment_mode = Column(String(50), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # pending / partial / paid / refunded
+    payment_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    paid_at = Column(DateTime(timezone=True))
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped["Event"] = relationship("Event", backref="payments")
+    flat: Mapped["Flat"] = relationship("Flat")
 
 
 class Refund(Base):
     __tablename__ = "refunds"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
-    amount = Column(Integer, nullable=False)
-    reason = Column(String(255), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    status = Column(String(50), nullable=False)  # requested / approved / refunded / rejected
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # requested / approved / refunded / rejected
 
-    created_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PaymentRequest(Base):
     __tablename__ = "payment_requests"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
-    request_code = Column(String(50), nullable=False, index=True)
-    amount = Column(Integer, nullable=False)
-    payment_mode = Column(String(50), nullable=True)
+    request_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    payment_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    status = Column(String(50), nullable=False)  # requested / approved / rejected
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # requested / approved / rejected
 
-    requested_by_mapping_id = Column(
+    requested_by_mapping_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("user_flat_mappings.id"),
         nullable=False,
         index=True
     )
-    member_identity_id = Column(
+    member_identity_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("member_identities.id"),
         nullable=False,
         index=True,
     )
-    requested_at = Column(DateTime(timezone=True), server_default=func.now())
-    approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
-    approved_at = Column(DateTime(timezone=True))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class RefundRequest(Base):
     __tablename__ = "refund_requests"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
-    request_code = Column(String(50), nullable=False, index=True)
-    amount = Column(Integer, nullable=False)
-    reason = Column(String(255), nullable=False)
+    request_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    status = Column(String(50), nullable=False)  # requested / approved / rejected
+    status: Mapped[str] = mapped_column(String(50), nullable=False)  # requested / approved / rejected
 
-    requested_by_mapping_id = Column(
+    requested_by_mapping_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("user_flat_mappings.id"),
         nullable=False,
         index=True
     )
-    member_identity_id = Column(
+    member_identity_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("member_identities.id"),
         nullable=False,
         index=True,
     )
-    requested_at = Column(DateTime(timezone=True), server_default=func.now())
-    approved_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
-    approved_at = Column(DateTime(timezone=True))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EventContribution(Base):
     __tablename__ = "event_contributions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
-    contribution_code = Column(String(20), nullable=False, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
+    contribution_code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     # example: SP-001
 
-    contribution_type = Column(String(50), nullable=False)
-    source_name = Column(String(255), nullable=False)
+    contribution_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=True)
+    flat_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=True)
 
-    amount = Column(Integer, nullable=True)
-    in_kind_details = Column(JSONB, nullable=True)
+    amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    in_kind_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    notes = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    notes: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ContributionRefund(Base):
     __tablename__ = "contribution_refunds"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    contribution_id = Column(UUID(as_uuid=True), ForeignKey("event_contributions.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contribution_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("event_contributions.id"), nullable=False)
 
-    amount = Column(Integer, nullable=False)
-    reason = Column(String(255), nullable=False)
-    status = Column(String(50), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
 
-    processed_at = Column(DateTime(timezone=True))
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EventExpense(Base):
@@ -487,13 +499,15 @@ class SocietyBalance(Base):
 class WorkflowState(Base):
     __tablename__ = "workflow_state"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
 
-    current_state = Column(String(50), nullable=False)
-    allowed_next_states = Column(JSONB, nullable=False)
+    current_state: Mapped[str] = mapped_column(String(50), nullable=False)
+    allowed_next_states: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
 
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    event: Mapped["Event"] = relationship("Event", backref="workflow_states")
 
 
 class AuditLog(Base):
