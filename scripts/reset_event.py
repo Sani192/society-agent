@@ -1,45 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Jan 11 20:55:02 2026
+"""Reset the latest event state and transactional data."""
 
-@author: anonymous
-"""
-
-# scripts/reset_event.py
-
+from app.db.models import Event, EventExpense, EventFoodPass, Payment, Refund, WorkflowState
 from app.db.session import SessionLocal
-from app.db.models import (
-    Event,
-    EventFoodPass,
-    Payment,
-    Refund,
-    EventExpense,
-    WorkflowState
-)
 
 
-db = SessionLocal()
+def reset_latest_event(db) -> None:
+    event = db.query(Event).order_by(Event.created_at.desc()).first()
+    if event is None:
+        raise ValueError("No event found")
 
-event = db.query(Event).order_by(Event.created_at.desc()).first()
+    db.query(EventFoodPass).filter(EventFoodPass.event_id == event.id).delete()
+    db.query(Payment).filter(Payment.event_id == event.id).delete()
+    db.query(Refund).filter(Refund.event_id == event.id).delete()
+    db.query(EventExpense).filter(EventExpense.event_id == event.id).delete()
 
-if not event:
-    raise Exception("No event found")
+    workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event.id).first()
+    if workflow is None:
+        raise ValueError(f"No workflow state found for event {event.id}")
 
-# Delete transactional data ONLY
-db.query(EventFoodPass).filter(EventFoodPass.event_id == event.id).delete()
-db.query(Payment).filter(Payment.event_id == event.id).delete()
-db.query(Refund).filter(Refund.event_id == event.id).delete()
-db.query(EventExpense).filter(EventExpense.event_id == event.id).delete()
+    workflow.current_state = "DRAFT"
+    workflow.allowed_next_states = ["ACTIVE"]
+    event.status = "DRAFT"
 
-# Reset workflow
-workflow = db.query(WorkflowState).filter(WorkflowState.event_id == event.id).first()
-workflow.current_state = "DRAFT"
-workflow.allowed_next_states = ["ACTIVE"]
+    db.commit()
 
-event.status = "DRAFT"
 
-db.commit()
-db.close()
+def main() -> None:
+    db = SessionLocal()
+    try:
+        reset_latest_event(db)
+        print("✅ Event reset to DRAFT (history preserved)")
+    finally:
+        db.close()
 
-print("✅ Event reset to DRAFT (history preserved)")
+
+if __name__ == "__main__":
+    main()
