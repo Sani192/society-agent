@@ -9,6 +9,7 @@ concurrency:
 
 env:
   PYTHONUNBUFFERED: "1"
+  MYPY_BASELINE_TARGET_DATE: "2026-06-30"
 
 jobs:
   stage-1-fast-feedback:
@@ -43,6 +44,23 @@ jobs:
 
       - name: Type checks (repo-wide with baseline guard)
         run: python scripts/ci/mypy_regression_guard.py app scripts
+
+      - name: Enforce mypy baseline sunset milestone
+        run: |
+          set -euo pipefail
+          if [ ! -f ci/mypy-baseline.txt ]; then
+            exit 0
+          fi
+          baseline_count=$(rg -cve '^\s*$' ci/mypy-baseline.txt || true)
+          if [ "$baseline_count" -eq 0 ]; then
+            exit 0
+          fi
+          today=$(date -u +%F)
+          if [ "$today" \> "${MYPY_BASELINE_TARGET_DATE}" ]; then
+            echo "mypy baseline must be empty after ${MYPY_BASELINE_TARGET_DATE}, found ${baseline_count} entries."
+            exit 1
+          fi
+          echo "mypy baseline entries remaining (${baseline_count}); deadline is ${MYPY_BASELINE_TARGET_DATE}."
 
       - name: Enforce integration/endpoint marker policy
         run: python scripts/ci/check_test_markers.py

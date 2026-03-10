@@ -7,6 +7,7 @@ Created on Fri Jan 23 16:57:57 2026
 """
 
 from fastapi import APIRouter, Depends, Query, Response
+from typing import Any, cast
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -35,6 +36,24 @@ from app.modules.reports.pdf.member_refund_pdf import generate_member_refund_pdf
 from app.modules.reports.pdf.ledger_pdf import generate_ledger_pdf
 from app.utils.response import success, error_envelope
 
+
+
+def _require_society(db: Session, society_id: int) -> Society:
+    society = db.query(Society).get(society_id)
+    if society is None:
+        raise Exception("Society not found")
+    return society
+
+
+def _society_name(society: Society) -> str:
+    return str(getattr(society, "name"))
+
+
+def _society_logo_path(society: Society) -> str | None:
+    config_json = cast(dict[str, Any] | None, getattr(society, "config_json"))
+    branding = cast(dict[str, Any], (config_json or {}).get("branding") or {})
+    logo_path = branding.get("logo_path")
+    return str(logo_path) if logo_path else None
 router = APIRouter(prefix="/reports/financial", tags=["Reports | Financial"])
 
 @router.get("/event-summary")
@@ -122,16 +141,15 @@ def export_event_financial_summary(
         )
     
     if format == "pdf":
-        society = db.query(Society).get(event.society_id)
+        society = _require_society(db, event.society_id)
 
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        logo_path = _society_logo_path(society)
 
         pdf_data = generate_event_financial_summary_pdf(
-            society_name=society.name,
+            society_name=_society_name(society),
             event_name=event.name,
             summary=report,
-            logo_path=logo_path
+            logo_path=logo_path or ""
         )
 
         return Response(
@@ -230,17 +248,16 @@ def export_flat_payment_report(
         )
     
     if format == "pdf":
-        society = db.query(Society).get(event.society_id)
-        
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        society = _require_society(db, event.society_id)
+
+        logo_path = _society_logo_path(society)
 
         pdf_data = generate_flat_payment_pdf(
-            society_name=society.name,
+            society_name=_society_name(society),
             event_name=event.name,
             headers=report["headers"],
             rows=report["rows"],
-            logo_path=logo_path
+            logo_path=logo_path or ""
         )
     
         return Response(
@@ -341,17 +358,16 @@ def export_block_payment_report(
     if format == "pdf":
         report = BlockPaymentReport.generate(db, event.id)
     
-        society = db.query(Society).get(event.society_id)
-    
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        society = _require_society(db, event.society_id)
+
+        logo_path = _society_logo_path(society)
     
         pdf_data = generate_block_payment_pdf(
-            society_name=society.name,
+            society_name=_society_name(society),
             event_name=event.name,
             headers=report["headers"],
             rows=report["rows"],
-            logo_path=logo_path
+            logo_path=logo_path or ""
         )
     
         return Response(
@@ -417,15 +433,14 @@ def export_sponsor_contributions(
         )
 
     if format == "pdf":
-        society = db.query(Society).get(event.society_id)
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        society = _require_society(db, event.society_id)
+        logo_path = _society_logo_path(society)
 
         pdf_data = generate_sponsor_contribution_pdf(
-            society_name=society.name,
+            society_name=_society_name(society),
             event_name=event.name,
             report=report,
-            logo_path=logo_path
+            logo_path=logo_path or ""
         )
 
         return Response(
@@ -489,16 +504,15 @@ def export_contribution_refunds(
         )
 
     if format == "pdf":
-        society = db.query(Society).get(event.society_id)
+        society = _require_society(db, event.society_id)
 
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        logo_path = _society_logo_path(society)
 
         pdf_data = generate_contribution_refund_pdf(
-            society_name=society.name,
+            society_name=_society_name(society),
             event_name=event.name,
             report=report,
-            logo_path=logo_path
+            logo_path=logo_path or ""
         )
 
         return Response(
@@ -562,15 +576,14 @@ def export_balance_continuity(
         )
 
     if format == "pdf":
-        society = db.query(Society).get(member.society_id)
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        society = _require_society(db, member.society_id)
+        logo_path = _society_logo_path(society)
 
         return Response(
             generate_balance_continuity_pdf(
-                society_name=society.name,
+                society_name=_society_name(society),
                 report=report,
-                logo_path=logo_path
+                logo_path=logo_path or ""
             ),
             media_type="application/pdf",
             headers={
@@ -636,16 +649,15 @@ def export_member_refunds(
         )
 
     if format == "pdf":
-        society = db.query(Society).get(member.society_id)
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        society = _require_society(db, member.society_id)
+        logo_path = _society_logo_path(society)
 
         return Response(
             generate_member_refund_pdf(
-                society_name=society.name,
+                society_name=_society_name(society),
                 event_name=event.name,
                 report=report,
-                logo_path=logo_path
+                logo_path=logo_path or ""
             ),
             media_type="application/pdf",
             headers={
@@ -712,16 +724,15 @@ def export_ledger(
         )
 
     if format == "pdf":
-        society = db.query(Society).get(member.society_id)
-        branding = (society.config_json or {}).get("branding", {})
-        logo_path = branding.get("logo_path")
+        society = _require_society(db, member.society_id)
+        logo_path = _society_logo_path(society)
 
         return Response(
             generate_ledger_pdf(
-                society_name=society.name,
+                society_name=_society_name(society),
                 event_name=event.name,
                 report=report,
-                logo_path=logo_path
+                logo_path=logo_path or ""
             ),
             media_type="application/pdf",
             headers={

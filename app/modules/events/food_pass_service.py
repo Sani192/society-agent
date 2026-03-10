@@ -61,7 +61,7 @@ class FoodPassService:
         event = db.query(Event).filter(Event.id == event_id).first()
         flat = db.query(Flat).filter(Flat.id == flat_id).first()
 
-        if not event or not flat:
+        if event is None or flat is None:
             raise Exception("Invalid event or flat")
         if flat.society_id != event.society_id:
             raise Exception("Flat does not belong to the event society")
@@ -118,12 +118,12 @@ class FoodPassService:
         )
 
         if food_pass:
-            food_pass.veg_count = veg_count
-            food_pass.jain_count = jain_count
-            food_pass.kids_count = kids_count
-            food_pass.total_amount = total_amount
-            food_pass.is_participating = True
-            food_pass.updated_at = utc_now()
+            setattr(food_pass, "veg_count", veg_count)
+            setattr(food_pass, "jain_count", jain_count)
+            setattr(food_pass, "kids_count", kids_count)
+            setattr(food_pass, "total_amount", total_amount)
+            setattr(food_pass, "is_participating", True)
+            setattr(food_pass, "updated_at", utc_now())
             action = "UPDATE_PASS"
             logger.info("Updated existing food pass | context=%s", context)
         else:
@@ -174,11 +174,11 @@ class FoodPassService:
             )
             logger.info("Initialized payment tracking for pass | context=%s", context)
         else:
-            payment.expected_amount = total_amount
+            setattr(payment, "expected_amount", total_amount)
             if payment.paid_amount >= total_amount:
-                payment.status = "paid"
+                setattr(payment, "status", "paid")
             else:
-                payment.status = "partial" if payment.paid_amount > 0 else "pending"
+                setattr(payment, "status", "partial" if payment.paid_amount > 0 else "pending")
             logger.info(
                 "Updated payment expectations | expected_amount=%s status=%s context=%s",
                 total_amount,
@@ -216,7 +216,7 @@ class FoodPassService:
         event = db.query(Event).filter(Event.id == event_id).first()
         flat = db.query(Flat).filter(Flat.id == flat_id).first()
 
-        if not event or not flat:
+        if event is None or flat is None:
             raise Exception("Invalid event or flat")
         if flat.society_id != event.society_id:
             raise Exception("Flat does not belong to the event society")
@@ -261,12 +261,12 @@ class FoodPassService:
         )
 
         if food_pass:
-            food_pass.veg_count = 0
-            food_pass.jain_count = 0
-            food_pass.kids_count = 0
-            food_pass.total_amount = 0
-            food_pass.is_participating = False
-            food_pass.updated_at = utc_now()
+            setattr(food_pass, "veg_count", 0)
+            setattr(food_pass, "jain_count", 0)
+            setattr(food_pass, "kids_count", 0)
+            setattr(food_pass, "total_amount", 0)
+            setattr(food_pass, "is_participating", False)
+            setattr(food_pass, "updated_at", utc_now())
             logger.info("Updated existing food pass to not participating | context=%s", context)
         else:
             food_pass = EventFoodPass(
@@ -315,8 +315,8 @@ class FoodPassService:
             )
             logger.info("Created payment row while opting out | context=%s", context)
         else:
-            payment.expected_amount = 0
-            payment.status = "refunded" if payment.paid_amount > 0 else "pending"
+            setattr(payment, "expected_amount", 0)
+            setattr(payment, "status", "refunded" if payment.paid_amount > 0 else "pending")
             logger.info(
                 "Reset payment expectations for opt-out | paid_amount=%s status=%s context=%s",
                 payment.paid_amount,
