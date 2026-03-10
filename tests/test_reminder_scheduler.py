@@ -98,3 +98,27 @@ def test_start_scheduler_registers_auto_close_with_config_timing(monkeypatch):
 
     scheduler_mock.start.assert_called_once()
     db.close.assert_called_once()
+
+
+def test_acquire_scheduler_leader_lock_returns_session_when_lock_acquired(monkeypatch):
+    db = MagicMock()
+    db.execute.return_value.scalar.return_value = True
+
+    monkeypatch.setattr(reminder_scheduler, "SessionLocal", lambda: db)
+
+    lock_session = reminder_scheduler.acquire_scheduler_leader_lock()
+
+    assert lock_session is db
+    db.close.assert_not_called()
+
+
+def test_acquire_scheduler_leader_lock_closes_session_when_not_leader(monkeypatch):
+    db = MagicMock()
+    db.execute.return_value.scalar.return_value = False
+
+    monkeypatch.setattr(reminder_scheduler, "SessionLocal", lambda: db)
+
+    lock_session = reminder_scheduler.acquire_scheduler_leader_lock()
+
+    assert lock_session is None
+    db.close.assert_called_once()

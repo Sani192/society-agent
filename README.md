@@ -120,7 +120,11 @@ TELEGRAM_WEBHOOK_SECRET=
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
-4. Open:
+4. Run scheduler worker (separate process):
+   ```bash
+   python scripts/run_scheduler.py
+   ```
+5. Open:
    - API base: `http://localhost:8000`
    - Swagger UI: `http://localhost:8000/docs`
 
@@ -141,6 +145,13 @@ TELEGRAM_WEBHOOK_SECRET=
 - `GET /reports/public/event-summary/pdf`
 
 For full request/response schemas, use Swagger UI (`/docs`) or the OpenAPI contract file at `contracts/openapi.v1.json`.
+
+### Single-server deployment (API + scheduler together)
+If you run only one server/VM, start both processes with:
+```bash
+./scripts/run_single_server.sh
+```
+This starts the scheduler worker first, then the API server. On shutdown, it also stops the scheduler process.
 
 ## 7. Testing/development commands
 Run from repository root:
@@ -221,6 +232,55 @@ The system is designed with **full transparency** and **audit safety**.
 
 ```bash
 source venv/bin/activate
-The system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+This system helps the society managing committee manage:
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 - Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
