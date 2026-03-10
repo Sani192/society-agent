@@ -25,8 +25,13 @@ Society Event Management Agent is a FastAPI backend for society operations acros
 - `app/main.py`
   - Boots FastAPI app
   - Creates DB schema on startup
-  - Starts reminder + announcement delivery schedulers
+  - API process starts only HTTP routes (no background schedulers)
   - Mounts webhook/report/health APIs
+- `scripts/run_scheduler.py`
+  - Dedicated scheduler worker process
+  - Acquires advisory-lock leadership and starts reminder + announcement schedulers only for leader role
+- `scripts/run_single_server.sh`
+  - Single-host launcher that starts both scheduler worker and API process together
 - `app/api/*`
   - `health.py`: health endpoint
   - `whatsapp/webhook.py`: WhatsApp webhook HTTP entrypoint

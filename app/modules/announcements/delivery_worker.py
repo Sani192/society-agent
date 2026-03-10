@@ -11,7 +11,7 @@ from typing import Any, cast
 
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 
 from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_client
@@ -328,3 +328,18 @@ def start_announcement_delivery_scheduler() -> None:
         "Announcement delivery scheduler loaded at %s-second interval",
         SCHEDULER_INTERVAL_SECONDS,
     )
+
+
+def acquire_announcement_scheduler_leader_lock(lock_key: int = 937452):
+    """Acquire and hold a session-scoped PostgreSQL advisory lock."""
+    db = SessionLocal()
+    try:
+        result = db.execute(text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key})
+        if bool(result.scalar()):
+            return db
+        db.close()
+        return None
+    except Exception:
+        logger.exception("Failed to acquire announcement scheduler advisory lock")
+        db.close()
+        return None

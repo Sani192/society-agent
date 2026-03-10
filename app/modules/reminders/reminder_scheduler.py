@@ -11,6 +11,7 @@ Created on Sat Jan 17 12:03:14 2026
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import text
 from app.db.session import SessionLocal
 from app.db.models import Event, ReminderConfig, WorkflowState
 from app.modules.events.service import EventService
@@ -136,3 +137,18 @@ def start_scheduler():
         scheduler.start()
     finally:
         db.close()
+
+
+def acquire_scheduler_leader_lock(lock_key: int = 937451):
+    """Acquire and hold a session-scoped PostgreSQL advisory lock."""
+    db = SessionLocal()
+    try:
+        result = db.execute(text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key})
+        if bool(result.scalar()):
+            return db
+        db.close()
+        return None
+    except Exception:
+        logger.exception("Failed to acquire reminder scheduler advisory lock")
+        db.close()
+        return None

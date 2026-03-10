@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: society-agent-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: society-agent-scheduler
+  template:
+    metadata:
+      labels:
+        app: society-agent-scheduler
+    spec:
+      containers:
+        - name: scheduler
+          image: society-agent:latest
+          command: ["python", "scripts/run_scheduler.py"]
