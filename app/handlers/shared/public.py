@@ -324,8 +324,10 @@ def handle_public_intent(
                 f"Total Plates: {summary['total_passes']}",
                 f"Served: {summary['served']}",
                 f"Remaining: {summary['remaining']}",
-                "Send *my tokens* to view token list.",
             ])
+            if summary.get("fallback_served"):
+                lines.append(f"Fallback served (no-token): {summary['fallback_served']}")
+            lines.append("Send *my tokens* to view token list.")
 
         return success_response(join_lines(lines), heading="Your Food Pass", emoji="🎫")
 
@@ -351,7 +353,10 @@ def handle_public_intent(
             )
 
         token_lines = [
-            f"{row['token']} | {row['food_type']} | {'Served' if row['served'] else 'Pending'}"
+            (
+                f"{row['token']} | {row['food_type']} | {'Served' if row['served'] else 'Pending'}"
+                + (" | Fallback serve" if row.get('is_fallback') else "")
+            )
             for row in summary["tokens"]
         ]
         by_type_lines = _format_by_type_summary(summary)
@@ -362,6 +367,7 @@ def handle_public_intent(
             f"Total: {summary['total_passes']}",
             f"Served: {summary['served']}",
             f"Remaining: {summary['remaining']}",
+            *( [f"Fallback served (no-token): {summary['fallback_served']}"] if summary.get('fallback_served') else []),
             "",
             "Tokens:",
             *token_lines,

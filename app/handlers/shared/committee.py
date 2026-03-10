@@ -1354,7 +1354,7 @@ def handle_committee_intent(
         except Exception as exc:
             return error_response(str(exc))
         return success_response(
-            f"Served {flat.flat_number} using fallback token {served.token_code}.",
+            f"Served {flat.flat_number} via no-token fallback ({served.token_code}).",
             heading="Plate served",
             emoji="✅",
         )
@@ -1381,6 +1381,7 @@ def handle_committee_intent(
                 f"Total: {summary['total_passes']}",
                 f"Served: {summary['served']}",
                 f"Remaining: {summary['remaining']}",
+                *( [f"Fallback served (no-token): {summary['fallback_served']}"] if summary.get('fallback_served') else []),
             ]),
             heading="Flat pass status",
             emoji="📊",
@@ -1423,6 +1424,7 @@ def handle_committee_intent(
             (
                 f"{row['token']} | {row.get('flat_number') or row.get('flat_id') or '-'} | "
                 f"{row['food_type']} | {format_datetime(row['served_at'])}"
+                + (" | Fallback serve" if row.get('is_fallback') else "")
             )
             for row in dashboard["recent_served"]
         ] or ["No plates served yet."]
