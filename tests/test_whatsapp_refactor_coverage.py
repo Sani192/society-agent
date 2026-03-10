@@ -5,17 +5,15 @@ from app.api.whatsapp import webhook as webhook_module
 from app.channels.whatsapp import report_flow
 
 
-def test_sync_compat_symbols_propagates_patched_values():
+def test_sync_compat_symbols_propagates_patched_values(monkeypatch):
     def sentinel():
         return None
 
-    original = webhook_module._ensure_channel_enabled
-    try:
-        whatsapp_api._ensure_channel_enabled = sentinel
-        whatsapp_api._sync_compat_symbols()
-        assert webhook_module._ensure_channel_enabled is sentinel
-    finally:
-        webhook_module._ensure_channel_enabled = original
+    monkeypatch.setattr(whatsapp_api, "_ensure_channel_enabled", sentinel)
+
+    whatsapp_api._sync_compat_symbols()
+
+    assert webhook_module._ensure_channel_enabled is sentinel
 
 
 def test_whatsapp_webhook_event_wrapper_syncs_before_delegate(monkeypatch):
