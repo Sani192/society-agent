@@ -28,6 +28,9 @@ class QueryMock:
     def limit(self, *args, **kwargs):
         return self
 
+    def distinct(self, *args, **kwargs):
+        return self
+
     def first(self):
         return self.first_result
 

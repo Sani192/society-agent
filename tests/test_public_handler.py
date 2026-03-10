@@ -339,6 +339,7 @@ def test_public_my_pass_success(monkeypatch):
                 "kids": {"total": 1, "served": 0, "remaining": 1},
             },
             "tokens": [],
+            "fallback_served": 1,
         },
     )
 
@@ -355,6 +356,7 @@ def test_public_my_pass_success(monkeypatch):
     assert "Veg: served 1 / total 1 (remaining 0)" in response
     assert "Kids: served 0 / total 1 (remaining 1)" in response
     assert "Served: 1" in response
+    assert "Fallback served (no-token): 1" in response
 
 
 def test_public_my_tokens_success(monkeypatch):
@@ -378,7 +380,9 @@ def test_public_my_tokens_success(monkeypatch):
             "tokens": [
                 {"token": "AB2K9M", "food_type": "veg", "served": False},
                 {"token": "CD3N7P", "food_type": "jain", "served": True},
+                {"token": "FLAT_LOOKUP_NO_TOKEN", "food_type": "fallback", "served": True, "is_fallback": True},
             ],
+            "fallback_served": 1,
         },
     )
 
@@ -395,6 +399,8 @@ def test_public_my_tokens_success(monkeypatch):
     assert "Jain: served 1 / total 1 (remaining 0)" in response
     assert "AB2K9M" in response
     assert "Remaining: 1" in response
+    assert "Fallback served (no-token): 1" in response
+    assert "Fallback serve" in response
 
 
 def test_public_my_pass_requires_event():

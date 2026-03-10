@@ -433,11 +433,25 @@ class FoodCollectionService:
 
         totals = Counter(row.food_type for row in rows)
         served = Counter(row.food_type for row in rows if row.served_at is not None)
+        fallback_served_count = (
+            db.query(func.count(AuditLog.id))
+            .filter(
+                AuditLog.entity_type == "food_collection",
+                AuditLog.entity_id == flat_id,
+                AuditLog.action == NO_TOKEN_FALLBACK_METHOD,
+            )
+            .scalar()
+            or 0
+        )
+
+        total_passes = len(rows) + fallback_served_count
+        served_total = sum(served.values()) + fallback_served_count
 
         return {
-            "total_passes": len(rows),
-            "served": sum(served.values()),
-            "remaining": len(rows) - sum(served.values()),
+            "total_passes": total_passes,
+            "served": served_total,
+            "remaining": max(total_passes - served_total, 0),
+            "fallback_served": fallback_served_count,
             "by_type": {
                 food_type: {
                     "total": totals[food_type],
@@ -453,7 +467,15 @@ class FoodCollectionService:
                     "served": row.served_at is not None,
                 }
                 for row in rows
-            ],
+            ]
+            + ([
+                {
+                    "token": NO_TOKEN_FALLBACK_METHOD,
+                    "food_type": "fallback",
+                    "served": True,
+                    "is_fallback": True,
+                }
+            ] * fallback_served_count),
         }
 
     @staticmethod
@@ -494,7 +516,16 @@ class FoodCollectionService:
     def dashboard(db: Session, *, event_id, recent_limit: int = 10):
         tokens = db.query(EventFoodToken).filter(EventFoodToken.event_id == event_id).all()
         served_tokens = [row for row in tokens if row.served_at is not None]
-        flat_ids = {row.flat_id for row in served_tokens if row.flat_id is not None}
+        flat_ids = {row.flat_id for row in tokens if row.flat_id is not None}
+        pass_flat_ids = {
+            flat_id
+            for flat_id, in db.query(EventFoodPass.flat_id)
+            .filter(EventFoodPass.event_id == event_id)
+            .distinct()
+            .all()
+            if flat_id is not None
+        }
+        flat_ids.update(pass_flat_ids)
         flat_number_by_id = {}
         if flat_ids:
             flat_rows = db.query(Flat.id, Flat.flat_number).filter(Flat.id.in_(flat_ids)).all()
@@ -503,16 +534,55 @@ class FoodCollectionService:
         by_type_total = Counter(row.food_type for row in tokens)
         by_type_served = Counter(row.food_type for row in served_tokens)
 
+        fallback_audits = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_type == "food_collection",
+                AuditLog.action == NO_TOKEN_FALLBACK_METHOD,
+                AuditLog.entity_id.in_(flat_ids),
+            )
+            .all()
+        )
+
+        for _ in fallback_audits:
+            by_type_total["fallback"] += 1
+            by_type_served["fallback"] += 1
+
+        recent_events = [
+            {
+                "token": row.token_code,
+                "flat_id": row.flat_id,
+                "flat_number": flat_number_by_id.get(row.flat_id),
+                "food_type": row.food_type,
+                "served_at": row.served_at,
+                "is_fallback": False,
+            }
+            for row in served_tokens
+        ] + [
+            {
+                "token": NO_TOKEN_FALLBACK_METHOD,
+                "flat_id": audit.entity_id,
+                "flat_number": flat_number_by_id.get(audit.entity_id),
+                "food_type": "fallback",
+                "served_at": audit.created_at,
+                "is_fallback": True,
+            }
+            for audit in fallback_audits
+        ]
+
         recent = (
-            sorted(served_tokens, key=lambda row: row.served_at, reverse=True)[:recent_limit]
-            if served_tokens
+            sorted(recent_events, key=lambda row: row["served_at"], reverse=True)[:recent_limit]
+            if recent_events
             else []
         )
 
+        served_plates = len(served_tokens) + len(fallback_audits)
+        total_plates = len(tokens) + len(fallback_audits)
+
         return {
-            "total_plates": len(tokens),
-            "served_plates": len(served_tokens),
-            "remaining_plates": len(tokens) - len(served_tokens),
+            "total_plates": total_plates,
+            "served_plates": served_plates,
+            "remaining_plates": max(total_plates - served_plates, 0),
             "by_type": {
                 food_type: {
                     "total": by_type_total[food_type],
@@ -521,14 +591,5 @@ class FoodCollectionService:
                 }
                 for food_type in sorted(by_type_total.keys())
             },
-            "recent_served": [
-                {
-                    "token": row.token_code,
-                    "flat_id": row.flat_id,
-                    "flat_number": flat_number_by_id.get(row.flat_id),
-                    "food_type": row.food_type,
-                    "served_at": row.served_at,
-                }
-                for row in recent
-            ],
+            "recent_served": recent,
         }

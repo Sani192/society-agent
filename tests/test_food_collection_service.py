@@ -112,13 +112,17 @@ def test_member_pass_status_builds_totals_and_remaining():
         SimpleNamespace(token_code="C", food_type="kids", served_at=None),
     ]
     db = MagicMock()
-    db.query.side_effect = [QueryMock(all_result=rows)]
+    db.query.side_effect = [
+        QueryMock(all_result=rows),
+        QueryMock(scalar_result=0),
+    ]
 
     summary = FoodCollectionService.member_pass_status(db=db, event_id="event-1", flat_id="flat-1")
 
     assert summary["total_passes"] == 3
     assert summary["served"] == 1
     assert summary["remaining"] == 2
+    assert summary["fallback_served"] == 0
     assert summary["by_type"]["veg"]["remaining"] == 1
     assert summary["by_type"]["kids"]["remaining"] == 1
 
@@ -132,7 +136,9 @@ def test_dashboard_returns_recent_served_in_descending_order():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(all_result=rows),
+        QueryMock(all_result=[("f1",), ("f2",)]),
         QueryMock(all_result=[("f1", "A-101"), ("f2", "B-202")]),
+        QueryMock(all_result=[]),
     ]
 
     dashboard = FoodCollectionService.dashboard(db=db, event_id="event-1", recent_limit=1)
@@ -353,3 +359,43 @@ def test_serve_by_flat_lookup_allows_with_workflow_override(monkeypatch):
 
     assert result == "served"
     apply_override.assert_called_once()
+
+
+def test_member_pass_status_includes_fallback_served_entries():
+    rows = [
+        SimpleNamespace(token_code="A", food_type="veg", served_at="done"),
+    ]
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(all_result=rows),
+        QueryMock(scalar_result=2),
+    ]
+
+    summary = FoodCollectionService.member_pass_status(db=db, event_id="event-1", flat_id="flat-1")
+
+    assert summary["total_passes"] == 3
+    assert summary["served"] == 3
+    assert summary["fallback_served"] == 2
+    fallback_tokens = [row for row in summary["tokens"] if row.get("is_fallback")]
+    assert len(fallback_tokens) == 2
+
+
+def test_dashboard_includes_fallback_serves_in_totals_and_recent():
+    rows = [
+        SimpleNamespace(token_code="A", flat_id="f1", food_type="veg", served_at=1),
+    ]
+    fallback = SimpleNamespace(entity_id="f2", created_at=3)
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(all_result=rows),
+        QueryMock(all_result=[("f1",), ("f2",)]),
+        QueryMock(all_result=[("f1", "A-101"), ("f2", "B-202")]),
+        QueryMock(all_result=[fallback]),
+    ]
+
+    dashboard = FoodCollectionService.dashboard(db=db, event_id="event-1", recent_limit=2)
+
+    assert dashboard["total_plates"] == 2
+    assert dashboard["served_plates"] == 2
+    assert dashboard["by_type"]["fallback"]["served"] == 1
+    assert dashboard["recent_served"][0]["is_fallback"] is True
