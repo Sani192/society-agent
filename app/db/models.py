@@ -282,6 +282,10 @@ class EventFoodPass(Base):
 
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint("event_id", "flat_id", name="uq_event_food_passes_event_flat"),
+    )
+
 
 class EventFoodToken(Base):
     __tablename__ = "event_food_tokens"

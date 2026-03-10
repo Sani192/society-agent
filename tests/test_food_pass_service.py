@@ -2,6 +2,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.schema import UniqueConstraint
 
 from app.db.models import EventFoodPass, Payment
 from app.modules.events.food_pass_service import FoodPassService
@@ -286,3 +288,99 @@ def test_add_or_update_pass_requires_performer_before_override(monkeypatch):
         )
 
     apply_override.assert_not_called()
+
+
+def test_event_food_pass_model_declares_event_flat_uniqueness():
+    constraints = [
+        c
+        for c in EventFoodPass.__table__.constraints
+        if isinstance(c, UniqueConstraint)
+    ]
+
+    assert any(
+        c.name == "uq_event_food_passes_event_flat"
+        and set(c.columns.keys()) == {"event_id", "flat_id"}
+        for c in constraints
+    )
+
+
+def test_add_or_update_pass_duplicate_insert_raises_integrity_error(monkeypatch):
+    event = SimpleNamespace(society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1", society_id="soc-1")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=flat),
+        QueryMock(first_result=None),
+        QueryMock(first_result=None),
+    ]
+
+    monkeypatch.setattr(
+        "app.modules.events.food_pass_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=True),
+    )
+
+    db.commit.side_effect = IntegrityError("insert", {}, Exception("duplicate key"))
+
+    with pytest.raises(IntegrityError):
+        FoodPassService.add_or_update_pass(
+            db=db,
+            event_id="event-1",
+            flat_id="flat-1",
+            veg_count=2,
+            jain_count=0,
+            kids_count=0,
+            charge_per_adult=300,
+            charge_per_child=150,
+            performed_by="member-1",
+        )
+
+
+def test_add_or_update_pass_updates_existing_row(monkeypatch):
+    event = SimpleNamespace(society_id="soc-1")
+    flat = SimpleNamespace(id="flat-1", society_id="soc-1")
+    existing_food_pass = SimpleNamespace(
+        veg_count=1,
+        jain_count=0,
+        kids_count=0,
+        total_amount=300,
+        is_participating=True,
+        updated_at=None,
+    )
+    payment = SimpleNamespace(expected_amount=300, paid_amount=100, status="partial")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=flat),
+        QueryMock(first_result=existing_food_pass),
+        QueryMock(first_result=payment),
+    ]
+
+    monkeypatch.setattr(
+        "app.modules.events.food_pass_service.WorkflowEngine.check_action",
+        lambda **kwargs: SimpleNamespace(allowed=True),
+    )
+
+    updated = FoodPassService.add_or_update_pass(
+        db=db,
+        event_id="event-1",
+        flat_id="flat-1",
+        veg_count=2,
+        jain_count=1,
+        kids_count=1,
+        charge_per_adult=300,
+        charge_per_child=150,
+        performed_by="member-1",
+    )
+
+    assert updated is existing_food_pass
+    assert updated.total_amount == 1050
+    assert updated.is_participating is True
+    assert payment.expected_amount == 1050
+    assert payment.status == "partial"
+    added_food_passes = [
+        call.args[0]
+        for call in db.add.call_args_list
+        if isinstance(call.args[0], EventFoodPass)
+    ]
+    assert added_food_passes == []
