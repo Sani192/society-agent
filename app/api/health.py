@@ -17,7 +17,4 @@ router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse)
 def health_check() -> HealthResponse:
-    return {
-        "status": "ok",
-        "message": "Society Agent running locally"
-    }
+    return HealthResponse(status="ok", message="Society Agent running locally")
