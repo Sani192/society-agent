@@ -105,28 +105,28 @@ def test_override_report_listing():
 
 def test_governance_audit_report_includes_system_and_committee_rows():
     db = MagicMock()
-    db.query.side_effect = [
-        QueryMock(
-            all_result=[
-                (
-                    datetime(2026, 1, 10, 9, 30),
-                    "ROLE_CHANGE",
-                    "Assigned moderator",
-                    "member-1",
-                    "Alex",
-                    "secretary",
-                ),
-                (
-                    datetime(2026, 1, 10, 8, 0),
-                    "POLICY_SYNC",
-                    None,
-                    None,
-                    None,
-                    None,
-                ),
-            ]
-        )
-    ]
+    query = QueryMock(
+        all_result=[
+            (
+                datetime(2026, 1, 10, 9, 30),
+                "ROLE_CHANGE",
+                "Assigned moderator",
+                "member-1",
+                "Alex",
+                "secretary",
+            ),
+            (
+                datetime(2026, 1, 10, 8, 0),
+                "POLICY_SYNC",
+                None,
+                None,
+                None,
+                None,
+            ),
+        ]
+    )
+    query.outerjoin = lambda *args, **kwargs: query
+    db.query.side_effect = [query]
 
     report = GovernanceAuditReport.generate(db=db, society_id="soc-1")
 
