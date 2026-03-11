@@ -8,6 +8,7 @@ Created on Sun Feb  8 17:23:45 2026
 
 import logging
 from datetime import datetime
+from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -34,11 +35,9 @@ class LedgerReport:
     @log_service_call(logger, "LedgerReport.generate")
     def generate(db: Session, *, event_id, society_id, start_date: datetime | None = None, end_date: datetime | None = None):
         context = build_log_context(event_id=event_id, society_id=society_id)
-        ledger = []
+        ledger: list[list[Any]] = []
+        running_total = 0
 
-        # --------------------------------------------------
-        # OPENING BALANCE
-        # --------------------------------------------------
         opening = (
             db.query(SocietyBalance.opening_balance)
             .filter(
@@ -48,23 +47,10 @@ class LedgerReport:
             .scalar()
         ) or 0
 
-        ledger.append([
-            "Opening Balance",
-            "-",
-            opening,
-            "-",
-            "System"
-        ])
+        ledger.append(["Opening Balance", "-", opening, "-", "System"])
 
-        # --------------------------------------------------
-        # MEMBER PAYMENTS
-        # --------------------------------------------------
         payments_query = (
-            db.query(
-                Flat.flat_number,
-                Payment.paid_amount,
-                Payment.paid_at
-            )
+            db.query(Flat.flat_number, Payment.paid_amount, Payment.paid_at)
             .join(Flat, Flat.id == Payment.flat_id)
             .filter(Payment.event_id == event_id)
         )
@@ -72,164 +58,76 @@ class LedgerReport:
             payments_query = payments_query.filter(Payment.paid_at >= start_date)
         if end_date:
             payments_query = payments_query.filter(Payment.paid_at <= end_date)
-        payments = payments_query.all()
 
-        for flat, amount, paid_at in payments:
-            ledger.append([
-                "Member Payment",
-                f"Flat {flat}",
-                amount,
-                format_timestamp(paid_at),
-                "System"
-            ])
+        for flat, amount, paid_at in payments_query.all():
+            ledger.append(["Member Payment", f"Flat {flat}", amount, format_timestamp(paid_at), "System"])
+            running_total += int(amount or 0)
 
-        # --------------------------------------------------
-        # SPONSOR CONTRIBUTIONS (CASH)
-        # --------------------------------------------------
         sponsors_query = (
-            db.query(
-                EventContribution.source_name,
-                EventContribution.amount,
-                EventContribution.created_at
-            )
-            .filter(
-                EventContribution.event_id == event_id,
-                EventContribution.amount.isnot(None)
-            )
+            db.query(EventContribution.source_name, EventContribution.amount, EventContribution.created_at)
+            .filter(EventContribution.event_id == event_id, EventContribution.amount.isnot(None))
         )
         if start_date:
             sponsors_query = sponsors_query.filter(EventContribution.created_at >= start_date)
         if end_date:
             sponsors_query = sponsors_query.filter(EventContribution.created_at <= end_date)
-        sponsors = sponsors_query.all()
 
-        for name, amount, created_at in sponsors:
-            ledger.append([
-                "Sponsor Contribution",
-                name,
-                amount,
-                format_timestamp(created_at),
-                "System"
-            ])
+        for name, amount, created_at in sponsors_query.all():
+            ledger.append(["Sponsor Contribution", name, amount, format_timestamp(created_at), "System"])
+            running_total += int(amount or 0)
 
-        # --------------------------------------------------
-        # MEMBER REFUNDS
-        # --------------------------------------------------
         refunds_query = (
-            db.query(
-                Flat.flat_number,
-                Refund.amount,
-                Refund.created_at,
-                CommitteeMember.name
-            )
+            db.query(Flat.flat_number, Refund.amount, Refund.created_at, CommitteeMember.name)
             .join(Flat, Flat.id == Refund.flat_id)
             .outerjoin(CommitteeMember, CommitteeMember.id == Refund.created_by)
-            .filter(
-                Refund.event_id == event_id,
-                Refund.status.in_(["approved", "refunded"])
-            )
+            .filter(Refund.event_id == event_id, Refund.status.in_(["approved", "refunded"]))
         )
         if start_date:
             refunds_query = refunds_query.filter(Refund.created_at >= start_date)
         if end_date:
             refunds_query = refunds_query.filter(Refund.created_at <= end_date)
-        refunds = refunds_query.all()
 
-        for flat, amount, created_at, created_by in refunds:
-            ledger.append([
-                "Member Refund",
-                f"Flat {flat}",
-                -amount,
-                format_timestamp(created_at),
-                created_by or "System"
-            ])
+        for flat, amount, created_at, created_by in refunds_query.all():
+            ledger.append(["Member Refund", f"Flat {flat}", -amount, format_timestamp(created_at), created_by or "System"])
+            running_total -= int(amount or 0)
 
-        # --------------------------------------------------
-        # SPONSOR REFUNDS
-        # --------------------------------------------------
         sponsor_refunds_query = (
-            db.query(
-                EventContribution.source_name,
-                ContributionRefund.amount,
-                ContributionRefund.processed_at
-            )
-            .join(
-                ContributionRefund,
-                ContributionRefund.contribution_id == EventContribution.id
-            )
+            db.query(EventContribution.source_name, ContributionRefund.amount, ContributionRefund.processed_at)
+            .join(ContributionRefund, ContributionRefund.contribution_id == EventContribution.id)
             .filter(EventContribution.event_id == event_id)
         )
         if start_date:
             sponsor_refunds_query = sponsor_refunds_query.filter(ContributionRefund.processed_at >= start_date)
         if end_date:
             sponsor_refunds_query = sponsor_refunds_query.filter(ContributionRefund.processed_at <= end_date)
-        sponsor_refunds = sponsor_refunds_query.all()
 
-        for name, amount, processed_at in sponsor_refunds:
-            ledger.append([
-                "Sponsor Refund",
-                name,
-                -amount,
-                format_timestamp(processed_at),
-                "System"
-            ])
+        for name, amount, processed_at in sponsor_refunds_query.all():
+            ledger.append(["Sponsor Refund", name, -amount, format_timestamp(processed_at), "System"])
+            running_total -= int(amount or 0)
 
-        # --------------------------------------------------
-        # EXPENSES
-        # --------------------------------------------------
         expenses_query = (
-            db.query(
-                EventExpense.description,
-                EventExpense.amount,
-                EventExpense.created_at
-            )
+            db.query(EventExpense.description, EventExpense.amount, EventExpense.created_at)
             .filter(EventExpense.event_id == event_id)
         )
         if start_date:
             expenses_query = expenses_query.filter(EventExpense.created_at >= start_date)
         if end_date:
             expenses_query = expenses_query.filter(EventExpense.created_at <= end_date)
-        expenses = expenses_query.all()
 
-        for desc, amount, created_at in expenses:
-            ledger.append([
-                "Expense",
-                desc,
-                -amount,
-                format_timestamp(created_at),
-                "System"
-            ])
+        for desc, amount, created_at in expenses_query.all():
+            ledger.append(["Expense", desc, -amount, format_timestamp(created_at), "System"])
+            running_total -= int(amount or 0)
+
         if len(ledger) <= 1:
-            logger.info(
-                "Workflow decision: ledger has only opening entries | context=%s",
-                context
-            )
+            logger.info("Workflow decision: ledger has only opening entries | context=%s", context)
 
-        # --------------------------------------------------
-        # CLOSING BALANCE
-        # --------------------------------------------------
-        closing = opening + sum(row[2] for row in ledger)
+        closing = int(opening) + running_total
 
-        ledger.append([
-            "Closing Balance",
-            "-",
-            closing,
-            "-",
-            "System"
-        ])
+        ledger.append(["Closing Balance", "-", closing, "-", "System"])
         if len(ledger) <= 2:
-            logger.info(
-                "Workflow decision: ledger has no transaction rows | context=%s",
-                context
-            )
-        
+            logger.info("Workflow decision: ledger has no transaction rows | context=%s", context)
+
         return {
-            "headers": [
-                "Type",
-                "Reference",
-                "Amount",
-                "Created At",
-                "Created By"
-            ],
+            "headers": ["Type", "Reference", "Amount", "Created At", "Created By"],
             "rows": ledger
         }
