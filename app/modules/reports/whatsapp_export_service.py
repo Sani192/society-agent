@@ -22,6 +22,7 @@ from app.modules.reports.financial.ledger_report import LedgerReport
 from app.modules.reports.financial.member_refund_report import MemberRefundReport
 from app.modules.reports.financial.sponsor_contribution_report import SponsorContributionReport
 from app.modules.reports.governance.audit_report import GovernanceAuditReport
+from app.modules.reports.operations.food_pass_report import FoodPassOperationsReport
 from app.modules.reports.pdf.balance_continuity_pdf import generate_balance_continuity_pdf
 from app.modules.reports.pdf.block_payment_pdf import generate_block_payment_pdf
 from app.modules.reports.pdf.contribution_refund_pdf import generate_contribution_refund_pdf
@@ -54,6 +55,7 @@ class WhatsAppReportExportService:
             "ONBOARDING_STATUS": WhatsAppReportExportService._export_onboarding_status,
             "ANNOUNCEMENT_HISTORY": WhatsAppReportExportService._export_announcement_history,
             "GOVERNANCE_AUDIT": WhatsAppReportExportService._export_governance_audit,
+            "FOOD_PASS_OPERATIONS": WhatsAppReportExportService._export_food_pass_operations,
         }
 
     @staticmethod
@@ -429,6 +431,26 @@ class WhatsAppReportExportService:
             event=None,
             row_count=len(report_data["rows"]),
             filename_stem="governance_audit",
+            payload=payload,
+        )
+
+    @staticmethod
+    def _export_food_pass_operations(*, db, member, event, normalized_format, event_id):
+        target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
+        report_data = FoodPassOperationsReport.generate(db=db, event_id=target_event.id)
+
+        if normalized_format == "csv":
+            payload = export_csv(report_data["headers"], report_data["rows"])
+        else:
+            payload = export_excel("Food Pass Operations", report_data["headers"], report_data["rows"])
+
+        return WhatsAppReportExportService._build_result(
+            category="operations",
+            report="food-pass",
+            normalized_format=normalized_format,
+            event=target_event,
+            row_count=len(report_data["rows"]),
+            filename_stem="food_pass_operations",
             payload=payload,
         )
 

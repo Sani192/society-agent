@@ -20,5 +20,6 @@ REPORT_PERMISSIONS = {
     "MEMBER_DIRECTORY": {"chairman", "secretary"},
     "ONBOARDING_STATUS": {"chairman", "secretary"},
     "ANNOUNCEMENT_HISTORY": {"chairman", "secretary"},
-    "LEDGER": {"chairman", "secretary", "treasurer"}
+    "LEDGER": {"chairman", "secretary", "treasurer"},
+    "FOOD_PASS_OPERATIONS": {"chairman", "secretary", "committee_member"},
 }

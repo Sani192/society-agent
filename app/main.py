@@ -27,6 +27,7 @@ from app.api.reports.financial import router as financial_reports_router
 from app.api.reports.administrative import router as administrative_reports_router
 from app.api.reports.governance import router as governance_reports_router
 from app.api.reports.public import router as public_reports_router
+from app.api.reports.operations import router as operations_reports_router
 
 
 @asynccontextmanager
@@ -69,3 +70,4 @@ app.include_router(financial_reports_router)
 app.include_router(administrative_reports_router)
 app.include_router(governance_reports_router)
 app.include_router(public_reports_router)
+app.include_router(operations_reports_router)
