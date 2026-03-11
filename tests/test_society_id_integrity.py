@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.db.models import EventContribution, PaymentReminder
+from app.db.models import EventContribution
 from app.modules.contributions.contribution_service import ContributionService
 from app.modules.payments.payment_request_service import PaymentRequestService
 from app.modules.payments.refund_request_service import RefundRequestService
@@ -78,20 +78,17 @@ def test_contribution_uses_authoritative_event_society(monkeypatch):
 
 def test_reminder_uses_authoritative_event_society_for_writes():
     db = MagicMock()
+    db.get_bind.return_value = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+    db.execute.return_value = SimpleNamespace(rowcount=1)
     db.query.side_effect = [
         QueryMock(first_result=SimpleNamespace(id="event-1", society_id="soc-1")),
         QueryMock(all_result=[SimpleNamespace(flat_id="flat-1", expected_amount=400, paid_amount=100)]),
         QueryMock(first_result=None),
     ]
 
-    ReminderService.generate_pending_payment_reminders(
+    generated = ReminderService.generate_pending_payment_reminders(
         db=db,
         event_id="event-1",
     )
 
-    reminder = next(
-        call.args[0]
-        for call in db.add.call_args_list
-        if isinstance(call.args[0], PaymentReminder)
-    )
-    assert reminder.society_id == "soc-1"
+    assert generated[0].society_id == "soc-1"

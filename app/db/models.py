@@ -641,6 +641,14 @@ class ReminderConfig(Base):
 
 class PaymentReminder(Base):
     __tablename__ = "payment_reminders"
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id",
+            "flat_id",
+            "reminder_date",
+            name="uq_payment_reminders_event_flat_date",
+        ),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
