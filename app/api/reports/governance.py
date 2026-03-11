@@ -109,6 +109,18 @@ def read_protected_audit_events(
     if role not in settings.AUDIT_READ_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for secure audit read")
 
+    record_report_access(
+        db=db,
+        member=member,
+        report_code="GOVERNANCE_AUDIT",
+        format=(
+            f"json; channel={channel or 'all'}; "
+            f"event_type={event_type or 'all'}; "
+            f"limit={limit}"
+        ),
+        society_id=member.society_id,
+    )
+
     query = db.query(ChannelMessageEvent).order_by(ChannelMessageEvent.occurred_at.desc())
     if channel:
         query = query.filter(ChannelMessageEvent.channel == channel)
