@@ -10,6 +10,10 @@ Created on Sat Jan 17 12:01:15 2026
 
 from datetime import date
 import logging
+from typing import Any, cast
+
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.db.models import Event, Payment, Flat, PaymentReminder
@@ -59,6 +63,9 @@ class ReminderService:
                 context
             )
 
+        bind = db.get_bind()
+        dialect_name = bind.dialect.name if bind is not None else ""
+
         for payment in pending_payments:
             exists = (
                 db.query(PaymentReminder)
@@ -80,16 +87,52 @@ class ReminderService:
                 )
                 continue
 
-            reminder = PaymentReminder(
-                society_id=authoritative_society_id,
-                event_id=event_id,
-                flat_id=payment.flat_id,
-                pending_amount=payment.expected_amount - payment.paid_amount,
-                reminder_date=today
-            )
+            reminder_values = {
+                "society_id": authoritative_society_id,
+                "event_id": event_id,
+                "flat_id": payment.flat_id,
+                "pending_amount": payment.expected_amount - payment.paid_amount,
+                "reminder_date": today,
+            }
 
-            db.add(reminder)
-            generated.append(reminder)
+            if dialect_name == "sqlite":
+                insert_result = db.execute(
+                    sqlite_insert(PaymentReminder)
+                    .values(**reminder_values)
+                    .on_conflict_do_nothing(
+                        index_elements=["event_id", "flat_id", "reminder_date"]
+                    )
+                )
+            else:
+                insert_result = db.execute(
+                    pg_insert(PaymentReminder)
+                    .values(**reminder_values)
+                    .on_conflict_do_nothing(
+                        index_elements=["event_id", "flat_id", "reminder_date"]
+                    )
+                )
+
+            rowcount = getattr(insert_result, "rowcount", 0)
+            inserted = bool(cast(Any, rowcount) and cast(Any, rowcount) > 0)
+
+            if inserted:
+                generated.append(
+                    PaymentReminder(
+                        society_id=authoritative_society_id,
+                        event_id=event_id,
+                        flat_id=payment.flat_id,
+                        pending_amount=payment.expected_amount - payment.paid_amount,
+                        reminder_date=today,
+                    )
+                )
+            else:
+                logger.info(
+                    "Workflow decision: reminder conflicted and was ignored | context=%s",
+                    {
+                        **context,
+                        "flat_id": payment.flat_id,
+                    },
+                )
 
         if generated:
             logger.info(
