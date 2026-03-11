@@ -1569,14 +1569,15 @@ def handle_committee_intent(
         return success_response(join_lines(lines))
 
 
+    export_sender_id = (
+        inbound_message.metadata.get("canonical_sender_id")
+        if inbound_message is not None and inbound_message.metadata
+        else None
+    ) or (inbound_message.sender_id if inbound_message is not None else None)
+
     session_key = build_export_session_key(
-        member_id=str(getattr(member, "id", "")) if member else None,
-        sender_id=(
-            inbound_message.metadata.get("canonical_sender_id")
-            if inbound_message is not None and inbound_message.metadata
-            else None
-        )
-        or (inbound_message.sender_id if inbound_message is not None else None),
+        member_id=(str(getattr(member, "id", "")) if export_sender_id else None) if member else None,
+        sender_id=export_sender_id,
     )
 
     if intent == "REPORT_OPTIONS":
