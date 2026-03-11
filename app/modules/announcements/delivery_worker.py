@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, cast
 
+import time
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, text
@@ -269,6 +270,54 @@ def process_announcement_delivery(announcement_id: str, member_identity_id: str,
         db.close()
 
 
+def _process_delivery_instance(delivery, *, db, send_interval_seconds: float = 0.0) -> str:
+    if delivery.sent_at is not None or delivery.status == "sent":
+        return "already_sent"
+
+    try:
+        policy_outcome, reason = _send_delivery(delivery)
+        delivery.attempts += 1
+        delivery.processing_started_at = None
+
+        if policy_outcome.startswith("sent_"):
+            delivery.status = "sent"
+            delivery.sent_at = datetime.now(timezone.utc)
+            delivery.last_error = None
+            if send_interval_seconds > 0:
+                time.sleep(send_interval_seconds)
+        elif policy_outcome.startswith("skipped_"):
+            delivery.status = "skipped"
+            delivery.last_error = reason
+        else:
+            delivery.status = "failed"
+            delivery.last_error = reason
+
+        _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+        db.commit()
+        return policy_outcome
+    except Exception as exc:
+        delivery.attempts += 1
+        delivery.processing_started_at = None
+        delivery.last_error = str(exc)[:2000]
+
+        if _is_transient_error(exc) and delivery.attempts < MAX_ATTEMPTS:
+            delivery.status = "pending"
+            db.commit()
+            retry_after_seconds = exc.retry_after_seconds if isinstance(exc, WhatsAppRetryableError) else None
+            sleep_for = retry_after_seconds if retry_after_seconds is not None else BACKOFF_SECONDS * (2 ** (delivery.attempts - 1))
+            time.sleep(max(float(sleep_for), 0.0))
+            if _rq_enabled():
+                raise
+            return "retry_deferred"
+
+        delivery.status = "failed"
+        _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+        db.commit()
+        if _rq_enabled():
+            raise
+        return "failed"
+
+
 def _claim_pending_deliveries(db, *, batch_size: int) -> list[tuple[str, str, str]]:
     rows = db.execute(
         text(
@@ -297,26 +346,48 @@ def _claim_pending_deliveries(db, *, batch_size: int) -> list[tuple[str, str, st
     return [(str(row.announcement_id), str(row.member_identity_id), str(row.channel)) for row in rows]
 
 
-def run_pending_announcement_deliveries(*, batch_size: int = BATCH_SIZE, **_kwargs) -> int:
+def run_pending_announcement_deliveries(
+    *,
+    batch_size: int = BATCH_SIZE,
+    send_interval_seconds: float = 0.0,
+    **_kwargs,
+) -> int:
     db = SessionLocal()
     try:
         claimed = _claim_pending_deliveries(db, batch_size=batch_size)
-    finally:
-        db.close()
 
-    processed = 0
-    for announcement_id, member_identity_id, channel in claimed:
-        if _rq_enabled():
-            processed += enqueue_delivery_by_key(
-                announcement_id=announcement_id,
-                member_identity_id=member_identity_id,
-                channel=channel,
-            )
-        else:
-            outcome = process_announcement_delivery(announcement_id, member_identity_id, channel)
+        processed = 0
+        for item in claimed:
+            if isinstance(item, tuple) and len(item) == 3:
+                announcement_id, member_identity_id, channel = item
+                if _rq_enabled():
+                    processed += enqueue_delivery_by_key(
+                        announcement_id=str(announcement_id),
+                        member_identity_id=str(member_identity_id),
+                        channel=str(channel),
+                    )
+                else:
+                    outcome = process_announcement_delivery(str(announcement_id), str(member_identity_id), str(channel))
+                    if outcome.startswith("sent_"):
+                        processed += 1
+                continue
+
+            delivery = item
+            if _rq_enabled():
+                processed += enqueue_delivery_by_key(
+                    announcement_id=str(delivery.announcement_id),
+                    member_identity_id=str(delivery.member_identity_id),
+                    channel=str(delivery.channel),
+                )
+                continue
+
+            outcome = _process_delivery_instance(delivery, db=db, send_interval_seconds=send_interval_seconds)
             if outcome.startswith("sent_"):
                 processed += 1
-    return processed
+
+        return processed
+    finally:
+        db.close()
 
 
 def start_announcement_delivery_scheduler() -> None:
