@@ -124,3 +124,48 @@ def test_export_operations_food_pass_excel(monkeypatch):
     assert result["format"] == "excel"
     assert result["filename"] == "food_pass_operations.xlsx"
     assert isinstance(result["payload"], bytes)
+
+
+def test_export_operations_food_pass_pdf(monkeypatch):
+    member = SimpleNamespace(role="chairman", society_id="soc-1", id="member-1")
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Diwali")
+
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.ensure_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.record_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.FoodPassOperationsReport.generate",
+        lambda **kwargs: {
+            "headers": ["Flat", "Entitled"],
+            "rows": [["A-101", 2]],
+            "summary": {"total_passes_generated": 2, "served_count": 1, "remaining_count": 1, "fallback_serve_count": 0},
+        },
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.generate_food_pass_operations_pdf",
+        lambda **kwargs: b"pdf-bytes",
+    )
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(name="Test Society")
+
+    result = WhatsAppReportExportService.export(
+        db=db,
+        member=member,
+        event=event,
+        category="operations",
+        report="food-pass",
+        format="pdf",
+        event_id="event-1",
+    )
+
+    assert result["category"] == "operations"
+    assert result["report"] == "food-pass"
+    assert result["format"] == "pdf"
+    assert result["filename"] == "food_pass_operations.pdf"
+    assert result["payload"] == b"pdf-bytes"

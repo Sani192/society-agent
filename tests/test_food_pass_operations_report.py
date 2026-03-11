@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -6,31 +5,44 @@ from app.modules.reports.operations.food_pass_report import FoodPassOperationsRe
 from tests.utils import QueryMock
 
 
-def test_food_pass_operations_report_mixed_token_and_fallback_serving():
+def test_food_pass_operations_report_mixed_token_and_fallback_serving(monkeypatch):
     passes = [
         SimpleNamespace(flat_id="flat-1", veg_count=2, jain_count=1, kids_count=0),
         SimpleNamespace(flat_id="flat-2", veg_count=1, jain_count=0, kids_count=1),
     ]
-    tokens = [
-        SimpleNamespace(flat_id="flat-1", food_type="veg", served_at=datetime.now(timezone.utc)),
-        SimpleNamespace(flat_id="flat-1", food_type="veg", served_at=None),
-        SimpleNamespace(flat_id="flat-1", food_type="jain", served_at=datetime.now(timezone.utc)),
-        SimpleNamespace(flat_id="flat-2", food_type="veg", served_at=datetime.now(timezone.utc)),
-        SimpleNamespace(flat_id="flat-2", food_type="kids", served_at=None),
-    ]
-    fallback_audits = [
-        SimpleNamespace(entity_id="flat-1"),
-    ]
+    token_flat_ids = [("flat-1",), ("flat-2",)]
     flat_rows = [
         ("flat-1", "A-101", "A"),
         ("flat-2", "B-202", "B"),
     ]
 
+    monkeypatch.setattr(
+        "app.modules.reports.operations.food_pass_report.FoodCollectionService.dashboard",
+        lambda **kwargs: {
+            "served_plates": 4,
+            "by_type": {
+                "veg": {"total": 3, "served": 2, "remaining": 1},
+                "jain": {"total": 1, "served": 1, "remaining": 0},
+                "kids": {"total": 1, "served": 0, "remaining": 1},
+                "fallback": {"total": 1, "served": 1, "remaining": 0},
+            },
+        },
+    )
+
+    statuses = {
+        "flat-1": {"served": 3, "fallback_served": 1},
+        "flat-2": {"served": 1, "fallback_served": 0},
+    }
+
+    monkeypatch.setattr(
+        "app.modules.reports.operations.food_pass_report.FoodCollectionService.member_pass_status",
+        lambda **kwargs: statuses[kwargs["flat_id"]],
+    )
+
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(all_result=passes),
-        QueryMock(all_result=tokens),
-        QueryMock(all_result=fallback_audits),
+        QueryMock(all_result=token_flat_ids),
         QueryMock(all_result=flat_rows),
     ]
 

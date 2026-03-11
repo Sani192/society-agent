@@ -28,6 +28,7 @@ from app.modules.reports.pdf.block_payment_pdf import generate_block_payment_pdf
 from app.modules.reports.pdf.contribution_refund_pdf import generate_contribution_refund_pdf
 from app.modules.reports.pdf.event_financial_summary_pdf import generate_event_financial_summary_pdf
 from app.modules.reports.pdf.flat_payment_pdf import generate_flat_payment_pdf
+from app.modules.reports.pdf.food_pass_operations_pdf import generate_food_pass_operations_pdf
 from app.modules.reports.pdf.governance_audit_pdf import generate_governance_audit_pdf
 from app.modules.reports.pdf.ledger_pdf import generate_ledger_pdf
 from app.modules.reports.pdf.member_directory_pdf import generate_member_directory_pdf
@@ -438,11 +439,19 @@ class WhatsAppReportExportService:
     def _export_food_pass_operations(*, db, member, event, normalized_format, event_id):
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = FoodPassOperationsReport.generate(db=db, event_id=target_event.id)
+        _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
 
-        if normalized_format == "csv":
-            payload = export_csv(report_data["headers"], report_data["rows"])
-        else:
-            payload = export_excel("Food Pass Operations", report_data["headers"], report_data["rows"])
+        payload = WhatsAppReportExportService._render_tabular_export(
+            normalized_format=normalized_format,
+            report_data=report_data,
+            excel_sheet_name="Food Pass Operations",
+            pdf_renderer=lambda data: generate_food_pass_operations_pdf(
+                society_name=society_name,
+                event_name=target_event.name,
+                report=data,
+                logo_path=None,
+            ),
+        )
 
         return WhatsAppReportExportService._build_result(
             category="operations",

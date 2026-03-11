@@ -102,7 +102,7 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         report_key="food-pass",
         label="Food Pass Operations",
         requires_event_id=True,
-        supported_formats=("csv", "excel"),
+        supported_formats=("csv", "excel", "pdf"),
     ),
     WhatsAppReportDefinition(
         category="governance",

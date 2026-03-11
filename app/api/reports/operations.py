@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
+from typing import Any, cast
+
 from app.api.reports.common import authorize_committee_member_report, record_report_access, require_event
+from app.db.models import Society
 from app.db.session import get_read_db
 from app.modules.reports.common.exporters import export_csv, export_excel
 from app.modules.reports.operations.food_pass_report import FoodPassOperationsReport
+from app.modules.reports.pdf.food_pass_operations_pdf import generate_food_pass_operations_pdf
 from app.utils.response import error_envelope, success
 
 router = APIRouter(prefix="/reports/operations", tags=["Reports | Operations"])
@@ -89,4 +93,23 @@ def export_food_pass_operations_report(
             headers={"Content-Disposition": "attachment; filename=food_pass_operations.xlsx"},
         )
 
-    return error_envelope("Supported formats: csv, excel")
+    if format == "pdf":
+        society = db.query(Society).get(event.society_id)
+        if society is None:
+            return error_envelope("Society not found")
+
+        branding = cast(dict[str, Any], (society.config_json or {}).get("branding", {}))
+        logo_path = branding.get("logo_path")
+
+        return Response(
+            content=generate_food_pass_operations_pdf(
+                society_name=society.name,
+                event_name=event.name,
+                report=report,
+                logo_path=logo_path,
+            ),
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=food_pass_operations.pdf"},
+        )
+
+    return error_envelope("Supported formats: csv, excel, pdf")
