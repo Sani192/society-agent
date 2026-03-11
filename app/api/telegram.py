@@ -186,7 +186,7 @@ def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> Normal
     )
 
 
-def process_telegram_envelope(*, envelope_id: str, payload_dict: dict) -> None:
+def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_idempotency: bool = True) -> None:
     inbound_messages = parse_webhook_payload(payload_dict)
     if not inbound_messages:
         logger.info("Telegram webhook received with no inbound messages")
@@ -202,7 +202,7 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict) -> None:
         message.metadata["trace_id"] = trace_id
         if correlation_id is not None:
             message.metadata["correlation_id"] = correlation_id_str
-        if not _claim_idempotency_key(
+        if enforce_idempotency and not _claim_idempotency_key(
             channel="telegram",
             message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
             update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
@@ -316,9 +316,9 @@ async def telegram_webhook_event(
 
     envelope_id = _persist_inbound_envelope(payload_hash=_hash_payload(raw_body), payload=payload_dict)
     if background_tasks is not None:
-        background_tasks.add_task(process_telegram_envelope, envelope_id=envelope_id, payload_dict=payload_dict)
+        background_tasks.add_task(process_telegram_envelope, envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=True)
     else:
-        process_telegram_envelope(envelope_id=envelope_id, payload_dict=payload_dict)
+        process_telegram_envelope(envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=False)
 
     logger.info("Telegram webhook accepted for asynchronous processing")
     return {"status": "ok"}

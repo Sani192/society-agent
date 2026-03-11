@@ -260,7 +260,7 @@ def whatsapp_webhook_verify(
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
-def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict) -> None:
+def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_idempotency: bool = True) -> None:
     inbound_messages = parse_webhook_payload(payload_dict)
     if not inbound_messages:
         logger.info("WhatsApp webhook received with no inbound messages")
@@ -281,7 +281,7 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict) -> None:
         if correlation_id is not None:
             message.metadata["correlation_id"] = correlation_id_str
 
-        if not _claim_idempotency_key(
+        if enforce_idempotency and not _claim_idempotency_key(
             channel="whatsapp",
             message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
             update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
@@ -416,8 +416,8 @@ async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundT
 
     envelope_id = _persist_inbound_envelope(payload_hash=payload_hash, payload=payload_dict)
     if background_tasks is not None:
-        background_tasks.add_task(process_whatsapp_envelope, envelope_id=envelope_id, payload_dict=payload_dict)
+        background_tasks.add_task(process_whatsapp_envelope, envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=True)
     else:
-        process_whatsapp_envelope(envelope_id=envelope_id, payload_dict=payload_dict)
+        process_whatsapp_envelope(envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=False)
 
     return {"status": "ok"}
