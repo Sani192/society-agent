@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -22,7 +23,7 @@ class FoodPassOperationsReport:
             .all()
         )
 
-        entitled_by_flat = defaultdict(int)
+        entitled_by_flat: dict[Any, int] = defaultdict(int)
         for food_pass in passes:
             entitled_by_flat[food_pass.flat_id] += int(food_pass.veg_count or 0)
             entitled_by_flat[food_pass.flat_id] += int(food_pass.jain_count or 0)

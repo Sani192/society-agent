@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import io
+from typing import Any
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Spacer
@@ -36,7 +37,7 @@ def generate_food_pass_operations_pdf(
         bottomMargin=60,
     )
 
-    elements = []
+    elements: list[Any] = []
     summary = report.get("summary", {})
 
     pdf.report_meta(
