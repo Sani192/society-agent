@@ -7,6 +7,7 @@ Created on Sun Feb  8 17:23:45 2026
 """
 
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -31,7 +32,7 @@ class LedgerReport:
 
     @staticmethod
     @log_service_call(logger, "LedgerReport.generate")
-    def generate(db: Session, *, event_id, society_id):
+    def generate(db: Session, *, event_id, society_id, start_date: datetime | None = None, end_date: datetime | None = None):
         context = build_log_context(event_id=event_id, society_id=society_id)
         ledger = []
 
@@ -58,7 +59,7 @@ class LedgerReport:
         # --------------------------------------------------
         # MEMBER PAYMENTS
         # --------------------------------------------------
-        payments = (
+        payments_query = (
             db.query(
                 Flat.flat_number,
                 Payment.paid_amount,
@@ -66,8 +67,12 @@ class LedgerReport:
             )
             .join(Flat, Flat.id == Payment.flat_id)
             .filter(Payment.event_id == event_id)
-            .all()
         )
+        if start_date:
+            payments_query = payments_query.filter(Payment.paid_at >= start_date)
+        if end_date:
+            payments_query = payments_query.filter(Payment.paid_at <= end_date)
+        payments = payments_query.all()
 
         for flat, amount, paid_at in payments:
             ledger.append([
@@ -81,7 +86,7 @@ class LedgerReport:
         # --------------------------------------------------
         # SPONSOR CONTRIBUTIONS (CASH)
         # --------------------------------------------------
-        sponsors = (
+        sponsors_query = (
             db.query(
                 EventContribution.source_name,
                 EventContribution.amount,
@@ -91,8 +96,12 @@ class LedgerReport:
                 EventContribution.event_id == event_id,
                 EventContribution.amount.isnot(None)
             )
-            .all()
         )
+        if start_date:
+            sponsors_query = sponsors_query.filter(EventContribution.created_at >= start_date)
+        if end_date:
+            sponsors_query = sponsors_query.filter(EventContribution.created_at <= end_date)
+        sponsors = sponsors_query.all()
 
         for name, amount, created_at in sponsors:
             ledger.append([
@@ -106,7 +115,7 @@ class LedgerReport:
         # --------------------------------------------------
         # MEMBER REFUNDS
         # --------------------------------------------------
-        refunds = (
+        refunds_query = (
             db.query(
                 Flat.flat_number,
                 Refund.amount,
@@ -119,8 +128,12 @@ class LedgerReport:
                 Refund.event_id == event_id,
                 Refund.status.in_(["approved", "refunded"])
             )
-            .all()
         )
+        if start_date:
+            refunds_query = refunds_query.filter(Refund.created_at >= start_date)
+        if end_date:
+            refunds_query = refunds_query.filter(Refund.created_at <= end_date)
+        refunds = refunds_query.all()
 
         for flat, amount, created_at, created_by in refunds:
             ledger.append([
@@ -134,7 +147,7 @@ class LedgerReport:
         # --------------------------------------------------
         # SPONSOR REFUNDS
         # --------------------------------------------------
-        sponsor_refunds = (
+        sponsor_refunds_query = (
             db.query(
                 EventContribution.source_name,
                 ContributionRefund.amount,
@@ -145,8 +158,12 @@ class LedgerReport:
                 ContributionRefund.contribution_id == EventContribution.id
             )
             .filter(EventContribution.event_id == event_id)
-            .all()
         )
+        if start_date:
+            sponsor_refunds_query = sponsor_refunds_query.filter(ContributionRefund.processed_at >= start_date)
+        if end_date:
+            sponsor_refunds_query = sponsor_refunds_query.filter(ContributionRefund.processed_at <= end_date)
+        sponsor_refunds = sponsor_refunds_query.all()
 
         for name, amount, processed_at in sponsor_refunds:
             ledger.append([
@@ -160,15 +177,19 @@ class LedgerReport:
         # --------------------------------------------------
         # EXPENSES
         # --------------------------------------------------
-        expenses = (
+        expenses_query = (
             db.query(
                 EventExpense.description,
                 EventExpense.amount,
                 EventExpense.created_at
             )
             .filter(EventExpense.event_id == event_id)
-            .all()
         )
+        if start_date:
+            expenses_query = expenses_query.filter(EventExpense.created_at >= start_date)
+        if end_date:
+            expenses_query = expenses_query.filter(EventExpense.created_at <= end_date)
+        expenses = expenses_query.all()
 
         for desc, amount, created_at in expenses:
             ledger.append([

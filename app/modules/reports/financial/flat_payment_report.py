@@ -8,7 +8,7 @@ Created on Fri Jan 23 16:54:23 2026
 
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from app.db.models import Flat, Payment, Refund
 from app.utils.logging_helpers import build_log_context, log_service_call
 
@@ -25,45 +25,52 @@ class FlatPaymentReport:
         context = build_log_context(event_id=event_id)
         rows = []
 
-        flats = db.query(Flat).all()
-        if not flats:
+        records = (
+            db.query(
+                Flat.flat_number,
+                Flat.block,
+                func.coalesce(func.max(Payment.expected_amount), 0).label("expected"),
+                func.coalesce(func.sum(Payment.paid_amount), 0).label("paid"),
+                func.coalesce(
+                    func.sum(Refund.amount).filter(
+                        Refund.status.in_(["approved", "refunded"])
+                    ),
+                    0,
+                ).label("refunded"),
+                func.max(Payment.paid_at).label("paid_at"),
+                func.max(Payment.updated_at).label("updated_at"),
+            )
+            .outerjoin(
+                Payment,
+                and_(Payment.flat_id == Flat.id, Payment.event_id == event_id),
+            )
+            .outerjoin(
+                Refund,
+                and_(Refund.flat_id == Flat.id, Refund.event_id == event_id),
+            )
+            .group_by(Flat.id, Flat.flat_number, Flat.block)
+            .order_by(Flat.block.asc(), Flat.flat_number.asc())
+            .all()
+        )
+        if not records:
             logger.info(
                 "Workflow decision: no flats found for flat payment report | context=%s",
                 context
             )
-        for flat in flats:
-            payment = db.query(Payment).filter(
-                Payment.event_id == event_id,
-                Payment.flat_id == flat.id
-            ).first()
-
-            paid = payment.paid_amount if payment else 0
-            expected = payment.expected_amount if payment else 0
-            
-            # sum of refunds
-            refunded = (
-                db.query(func.coalesce(func.sum(Refund.amount), 0))
-                .filter(
-                    Refund.event_id == event_id,
-                    Refund.flat_id == flat.id,
-                    Refund.status.in_(["approved", "refunded"])
-                )
-                .scalar()
-            )
-
+        for flat_number, block, expected, paid, refunded, paid_at, updated_at in records:
             net_paid = paid - refunded
             pending = expected - net_paid
 
             rows.append([
-                flat.flat_number,
-                flat.block,
+                flat_number,
+                block,
                 expected,
                 paid,
                 refunded,
                 pending,
-                format_timestamp(payment.paid_at if payment else None),
+                format_timestamp(paid_at),
                 "System",
-                format_timestamp(payment.updated_at if payment else None),
+                format_timestamp(updated_at),
                 "System"
             ])
 
