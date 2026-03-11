@@ -5,11 +5,13 @@
 import hashlib
 import hmac
 import json
+from typing import cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
 from app.channels.core.handler import handle_inbound_message
@@ -36,10 +38,13 @@ from app.channels.whatsapp.ui_router import (
     _try_handle_ui_message,
 )
 from app.config import settings
+from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
+from app.db.session import SessionLocal
 from app.utils.logger import logger
 from app.whatsapp.handler import handle_message
 
 router = APIRouter()
+
 
 class WhatsAppRequest(BaseModel):
     phone_number: str
@@ -89,12 +94,79 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature",
         )
-    logger.info("WhatsApp webhook signature verification passed")
-
 
 
 def _hash_payload(raw_body: bytes) -> str:
     return hashlib.sha256(raw_body).hexdigest()
+
+
+def _persist_inbound_envelope(*, payload_hash: str, payload: dict) -> str:
+    db = SessionLocal()
+    try:
+        envelope = InboundWebhookEnvelope(
+            channel="whatsapp",
+            payload_json=payload,
+            payload_hash=payload_hash,
+            status="queued",
+        )
+        db.add(envelope)
+        db.commit()
+        db.refresh(envelope)
+        return str(envelope.id)
+    except Exception:
+        getattr(db, "rollback", lambda: None)()
+        logger.warning("Failed to persist WhatsApp envelope; continuing without envelope persistence")
+        return f"transient-{uuid4()}"
+    finally:
+        db.close()
+
+
+def _mark_envelope_status(*, envelope_id: str, status: str) -> None:
+    db = SessionLocal()
+    try:
+        db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).update(
+            {
+                InboundWebhookEnvelope.status: status,
+                InboundWebhookEnvelope.processed_at: datetime.now(timezone.utc),
+            },
+            synchronize_session=False,
+        )
+        db.commit()
+    except Exception:
+        getattr(db, "rollback", lambda: None)()
+    finally:
+        db.close()
+
+
+def _claim_idempotency_key(*, channel: str, message_id: str | None, update_id: str | None) -> bool:
+    if message_id:
+        key = f"message:{message_id}"
+    elif update_id:
+        key = f"update:{update_id}"
+    else:
+        return True
+
+    db = SessionLocal()
+    try:
+        db.add(
+            WebhookIdempotencyKey(
+                channel=channel,
+                provider_message_id=message_id,
+                provider_update_id=update_id,
+                idempotency_key=key,
+            )
+        )
+        db.commit()
+        return True
+    except IntegrityError:
+        getattr(db, "rollback", lambda: None)()
+        return False
+    except Exception:
+        getattr(db, "rollback", lambda: None)()
+        logger.warning("Idempotency store unavailable; proceeding without dedupe", extra={"channel": channel})
+        return True
+    finally:
+        db.close()
 
 
 def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> NormalizedAuditEvent:
@@ -110,8 +182,6 @@ def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> Normal
         payload_json={"payload_hash": payload_hash, "selected": selected_fields},
         occurred_at=datetime.now(timezone.utc),
     )
-
-
 
 
 def _build_processing_completed_event(*, trace_id: str, correlation_id: str | None, message, status: str = "completed") -> NormalizedAuditEvent:
@@ -147,6 +217,7 @@ def _build_exception_event(*, trace_id: str, correlation_id: str | None, message
         occurred_at=datetime.now(timezone.utc),
     )
 
+
 def _build_reports_list_sections(
     options: list[dict],
     *,
@@ -163,6 +234,7 @@ def _build_reports_list_sections(
         include_more_row=include_more_row,
     )
 
+
 @router.get(
     "/whatsapp",
     responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
@@ -175,7 +247,6 @@ def whatsapp_webhook_verify(
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook verification request")
     if not settings.WHATSAPP_VERIFY_TOKEN:
-        logger.error("WhatsApp verify token not configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="WhatsApp verify token not configured",
@@ -184,60 +255,17 @@ def whatsapp_webhook_verify(
         hub_mode == WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE
         and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN
     ):
-        logger.info("WhatsApp webhook verification successful")
         return Response(content=hub_challenge or "", media_type="text/plain")
 
-    logger.warning("WhatsApp webhook verification failed")
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
-@router.post(
-    "/whatsapp",
-    response_model=WebhookStatusResponse,
-    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
-    openapi_extra={
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "object": {"type": "string"},
-                            "entry": {"type": "array", "items": {"type": "object"}},
-                        },
-                        "additionalProperties": True,
-                    }
-                }
-            },
-        }
-    },
-)
-async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
-    _ensure_channel_enabled()
-    logger.info("Received WhatsApp webhook event")
-    if hasattr(request, "body"):
-        raw_body = await request.body()
-    else:
-        payload_for_body = await request.json()
-        raw_body = json.dumps(payload_for_body, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
-    _verify_signature(raw_body, signature)
-
-    payload_data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
-    payload = WhatsAppWebhookPayload.model_validate(payload_data)
-    payload_dict = payload.model_dump(exclude_none=True)
-
-    payload_hash = _hash_payload(raw_body)
-    parsed_events = parse_webhook_events(payload_dict)
-    normalized_events = [_build_webhook_received_event(payload_hash=payload_hash, payload=payload_dict)]
-    normalized_events.extend(to_normalized_audit_events(parsed_events))
-    persist_audit_events(normalized_events)
-
+def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_idempotency: bool = True) -> None:
     inbound_messages = parse_webhook_payload(payload_dict)
     if not inbound_messages:
         logger.info("WhatsApp webhook received with no inbound messages")
-        return {"status": "ignored"}
+        _mark_envelope_status(envelope_id=envelope_id, status="ignored")
+        return
 
     client = get_whatsapp_client()
     for message in inbound_messages:
@@ -252,23 +280,25 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
         message.metadata["trace_id"] = trace_id
         if correlation_id is not None:
             message.metadata["correlation_id"] = correlation_id_str
+
+        if enforce_idempotency and not _claim_idempotency_key(
+            channel="whatsapp",
+            message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
+            update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
+        ):
+            persist_audit_events([
+                _build_processing_completed_event(
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                    message=message,
+                    status="duplicate_skipped",
+                )
+            ])
+            continue
+
         try:
-            logger.info(
-                "Processing inbound WhatsApp message",
-                extra={
-                    "sender_id": message.sender_id,
-                    "channel": message.channel,
-                    "message_id": message.metadata.get("message_id"),
-                    "trace_id": trace_id,
-                    "correlation_id": correlation_id,
-                },
-            )
             handled = False
             if _try_handle_ui_message(client=client, message=message):
-                logger.info(
-                    "WhatsApp premium UI response sent",
-                    extra={"sender_id": message.sender_id, "message_id": message.metadata.get("message_id")},
-                )
                 handled = True
             elif handle_session_flow(client=client, message=message):
                 handled = True
@@ -311,14 +341,7 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
                         )
                     except TypeError:
                         send_response = client.send_text_message(message.sender_id, reply_text)
-                logger.info(
-                    "WhatsApp text reply sent",
-                    extra={
-                        "sender_id": message.sender_id,
-                        "message_id": message.metadata.get("message_id"),
-                        "response_keys": sorted(send_response.keys()),
-                    },
-                )
+                logger.info("WhatsApp text reply sent", extra={"response_keys": sorted(send_response.keys())})
 
             terminal_event = _build_processing_completed_event(
                 trace_id=trace_id,
@@ -326,15 +349,6 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
                 message=message,
             )
         except Exception as exc:
-            logger.exception(
-                "WhatsApp message processing failed",
-                extra={
-                    "sender_id": message.sender_id,
-                    "message_id": message.metadata.get("message_id"),
-                    "trace_id": trace_id,
-                    "correlation_id": correlation_id,
-                },
-            )
             terminal_event = _build_exception_event(
                 trace_id=trace_id,
                 correlation_id=correlation_id_str,
@@ -351,5 +365,59 @@ async def whatsapp_webhook_event(request: Request) -> dict[str, str]:
                 )
             persist_audit_events([terminal_event])
 
-    logger.info("WhatsApp webhook processing completed")
+    _mark_envelope_status(envelope_id=envelope_id, status="processed")
+
+
+@router.post(
+    "/whatsapp",
+    response_model=WebhookStatusResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "object": {"type": "string"},
+                            "entry": {"type": "array", "items": {"type": "object"}},
+                        },
+                        "additionalProperties": True,
+                    }
+                }
+            },
+        }
+    },
+)
+async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundTasks = cast(BackgroundTasks, None)) -> dict[str, str]:
+    _ensure_channel_enabled()
+    if hasattr(request, "body"):
+        raw_body = await request.body()
+    else:
+        payload_for_body = await request.json()
+        raw_body = json.dumps(payload_for_body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
+    _verify_signature(raw_body, signature)
+
+    payload_data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    payload = WhatsAppWebhookPayload.model_validate(payload_data)
+    payload_dict = payload.model_dump(exclude_none=True)
+
+    payload_hash = _hash_payload(raw_body)
+    parsed_events = parse_webhook_events(payload_dict)
+    normalized_events = [_build_webhook_received_event(payload_hash=payload_hash, payload=payload_dict)]
+    normalized_events.extend(to_normalized_audit_events(parsed_events))
+    persist_audit_events(normalized_events)
+
+    if not parse_webhook_payload(payload_dict):
+        logger.info("WhatsApp webhook received with no inbound messages")
+        return {"status": "ignored"}
+
+    envelope_id = _persist_inbound_envelope(payload_hash=payload_hash, payload=payload_dict)
+    if background_tasks is not None:
+        background_tasks.add_task(process_whatsapp_envelope, envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=True)
+    else:
+        process_whatsapp_envelope(envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=False)
+
     return {"status": "ok"}

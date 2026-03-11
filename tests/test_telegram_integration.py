@@ -91,6 +91,9 @@ def test_telegram_webhook_event_uses_shared_handler_and_sends_reply(monkeypatch)
         return "Here are commands"
 
     monkeypatch.setattr("app.api.telegram.get_telegram_client", lambda: StubTelegramClient())
+    monkeypatch.setattr("app.api.telegram._persist_inbound_envelope", lambda **_kwargs: "env-1")
+    monkeypatch.setattr("app.api.telegram._mark_envelope_status", lambda **_kwargs: None)
+    monkeypatch.setattr("app.api.telegram._claim_idempotency_key", lambda **_kwargs: True)
     monkeypatch.setattr("app.api.telegram.handle_inbound_message", fake_handle_inbound_message)
 
     response = asyncio.run(telegram_webhook_event(StubRequest(_build_text_update())))
