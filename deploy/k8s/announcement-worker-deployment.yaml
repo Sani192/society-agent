@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: society-agent-announcement-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: society-agent-announcement-worker
+  template:
+    metadata:
+      labels:
+        app: society-agent-announcement-worker
+    spec:
+      containers:
+        - name: announcement-worker
+          image: society-agent:latest
+          command: ["python", "scripts/run_announcement_worker.py"]
+          env:
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: ANNOUNCEMENT_WORKER_CONCURRENCY_WHATSAPP
+              value: "2"
+            - name: ANNOUNCEMENT_WORKER_CONCURRENCY_DEFAULT
+              value: "1"
+            - name: ANNOUNCEMENT_QUEUE_WHATSAPP
+              value: "announcement-whatsapp"
+            - name: ANNOUNCEMENT_QUEUE_DEFAULT
+              value: "announcement-default"
+            - name: ANNOUNCEMENT_RETRY_MAX
+              value: "3"
+            - name: ANNOUNCEMENT_RETRY_BASE_SECONDS
+              value: "2"

@@ -11,16 +11,11 @@ import time
 from app.db.base import Base
 from app.db.models import Society
 from app.db.session import SessionLocal, engine
-from app.modules.announcements.delivery_worker import (
-    acquire_announcement_scheduler_leader_lock,
-    start_announcement_delivery_scheduler,
-)
 from app.modules.reminders.reminder_scheduler import (
     acquire_scheduler_leader_lock,
     scheduler,
     start_scheduler,
 )
-from app.modules.announcements.delivery_worker import announcement_delivery_scheduler
 from app.utils.logger import logger
 
 
@@ -57,21 +52,14 @@ def main() -> int:
         return 1
 
     reminder_lock = acquire_scheduler_leader_lock()
-    announcement_lock = acquire_announcement_scheduler_leader_lock()
-
-    if reminder_lock and announcement_lock:
-        _lock_sessions.extend([reminder_lock, announcement_lock])
+    if reminder_lock:
+        _lock_sessions.append(reminder_lock)
         logger.info(
             "Scheduler worker startup",
             extra={"scheduler_role": "leader"},
         )
         start_scheduler()
-        start_announcement_delivery_scheduler()
     else:
-        if reminder_lock:
-            reminder_lock.close()
-        if announcement_lock:
-            announcement_lock.close()
         logger.info(
             "Scheduler worker startup",
             extra={"scheduler_role": "follower"},
@@ -82,9 +70,6 @@ def main() -> int:
 
     if scheduler.running:
         scheduler.shutdown(wait=False)
-    if announcement_delivery_scheduler.running:
-        announcement_delivery_scheduler.shutdown(wait=False)
-
     for session in _lock_sessions:
         session.close()
 

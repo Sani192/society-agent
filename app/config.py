@@ -47,6 +47,16 @@ def _env_choice(name: str, default: str, *, choices: set[str]) -> str:
         return candidate
     return default
 
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
 class Settings:
     APP_ENV = os.getenv("APP_ENV", "local")
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
@@ -95,6 +105,15 @@ class Settings:
         for phone in os.getenv("ADMIN_PHONE_WHITELIST", "").split(",")
         if phone.strip()
     ]
+
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    ANNOUNCEMENT_QUEUE_DEFAULT = os.getenv("ANNOUNCEMENT_QUEUE_DEFAULT", "announcement-default")
+    ANNOUNCEMENT_QUEUE_WHATSAPP = os.getenv("ANNOUNCEMENT_QUEUE_WHATSAPP", "announcement-whatsapp")
+    ANNOUNCEMENT_JOB_TIMEOUT_SECONDS = _env_int("ANNOUNCEMENT_JOB_TIMEOUT_SECONDS", 120)
+    ANNOUNCEMENT_RETRY_MAX = _env_int("ANNOUNCEMENT_RETRY_MAX", 3)
+    ANNOUNCEMENT_RETRY_BASE_SECONDS = _env_int("ANNOUNCEMENT_RETRY_BASE_SECONDS", 2)
+    ANNOUNCEMENT_WORKER_CONCURRENCY_WHATSAPP = _env_int("ANNOUNCEMENT_WORKER_CONCURRENCY_WHATSAPP", 2)
+    ANNOUNCEMENT_WORKER_CONCURRENCY_DEFAULT = _env_int("ANNOUNCEMENT_WORKER_CONCURRENCY_DEFAULT", 1)
 
     _WHATSAPP_SETTINGS = {
         config.attr_name: os.getenv(config.env_key, config.default)
