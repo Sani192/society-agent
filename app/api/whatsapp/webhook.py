@@ -5,6 +5,7 @@
 import hashlib
 import hmac
 import json
+from typing import cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -123,11 +124,13 @@ def _persist_inbound_envelope(*, payload_hash: str, payload: dict) -> str:
 def _mark_envelope_status(*, envelope_id: str, status: str) -> None:
     db = SessionLocal()
     try:
-        envelope = db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).one_or_none()
-        if envelope is None:
-            return
-        envelope.status = status
-        envelope.processed_at = datetime.now(timezone.utc)
+        db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).update(
+            {
+                InboundWebhookEnvelope.status: status,
+                InboundWebhookEnvelope.processed_at: datetime.now(timezone.utc),
+            },
+            synchronize_session=False,
+        )
         db.commit()
     except Exception:
         getattr(db, "rollback", lambda: None)()
@@ -387,7 +390,7 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict) -> None:
         }
     },
 )
-async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundTasks = None) -> dict[str, str]:
+async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundTasks = cast(BackgroundTasks, None)) -> dict[str, str]:
     _ensure_channel_enabled()
     if hasattr(request, "body"):
         raw_body = await request.body()

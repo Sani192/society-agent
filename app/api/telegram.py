@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -118,11 +119,13 @@ def _claim_idempotency_key(*, channel: str, message_id: str | None, update_id: s
 def _mark_envelope_status(*, envelope_id: str, status: str) -> None:
     db = SessionLocal()
     try:
-        envelope = db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).one_or_none()
-        if envelope is None:
-            return
-        envelope.status = status
-        envelope.processed_at = datetime.now(timezone.utc)
+        db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).update(
+            {
+                InboundWebhookEnvelope.status: status,
+                InboundWebhookEnvelope.processed_at: datetime.now(timezone.utc),
+            },
+            synchronize_session=False,
+        )
         db.commit()
     except Exception:
         getattr(db, "rollback", lambda: None)()
@@ -286,7 +289,7 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict) -> None:
 async def telegram_webhook_event(
     request: Request,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks = cast(BackgroundTasks, None),
 ) -> dict[str, str]:
     _ensure_channel_enabled()
     logger.info("Received Telegram webhook event")
