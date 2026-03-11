@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Jan 25 16:53:39 2026
-
-@author: anonymous
-"""
 
 import logging
+from datetime import datetime
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from app.db.models import (
-    ContributionRefund,
-    EventContribution
-)
+from app.db.models import ContributionRefund, EventContribution
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -21,66 +15,57 @@ def format_timestamp(value):
 
 
 class ContributionRefundReport:
+    headers = [
+        "Contribution Type",
+        "Source",
+        "Refund Amount",
+        "Reason",
+        "Status",
+        "Created At",
+        "Created By"
+    ]
 
     @staticmethod
-    @log_service_call(logger, "ContributionRefundReport.generate")
-    def generate(db: Session, event_id):
-        context = build_log_context(event_id=event_id)
-        records = (
+    def iter_rows(db: Session, event_id, *, start_date: datetime | None = None, end_date: datetime | None = None, chunk_size: int = 500):
+        query = (
             db.query(
                 EventContribution.contribution_type,
                 EventContribution.source_name,
                 ContributionRefund.amount,
                 ContributionRefund.reason,
                 ContributionRefund.status,
-                ContributionRefund.processed_at
+                ContributionRefund.processed_at,
             )
-            .join(
-                EventContribution,
-                EventContribution.id == ContributionRefund.contribution_id
-            )
+            .join(EventContribution, EventContribution.id == ContributionRefund.contribution_id)
             .filter(EventContribution.event_id == event_id)
-            .all()
+            .order_by(ContributionRefund.processed_at.asc())
         )
-        if not records:
-            logger.info(
-                "Workflow decision: no contribution refunds found | context=%s",
-                context
-            )
+        if start_date:
+            query = query.filter(ContributionRefund.processed_at >= start_date)
+        if end_date:
+            query = query.filter(ContributionRefund.processed_at <= end_date)
 
-        rows = []
-        total_refunded = 0
+        for ctype, source, amount, reason, status, processed_at in query.yield_per(chunk_size):
+            yield [ctype, source, amount or 0, reason, status, format_timestamp(processed_at), "System"]
 
-        for ctype, source, amount, reason, status, processed_at in records:
-            refunded_amount = amount or 0
-            if status == "refunded":
-                total_refunded += refunded_amount
+    @staticmethod
+    @log_service_call(logger, "ContributionRefundReport.generate")
+    def generate(db: Session, event_id, *, start_date: datetime | None = None, end_date: datetime | None = None):
+        context = build_log_context(event_id=event_id)
+        rows = list(ContributionRefundReport.iter_rows(db, event_id, start_date=start_date, end_date=end_date))
 
-            rows.append([
-                ctype,
-                source,
-                refunded_amount,
-                reason,
-                status,
-                format_timestamp(processed_at),
-                "System"
-            ])
+        total_refunded_query = (
+            db.query(func.coalesce(func.sum(ContributionRefund.amount), 0))
+            .join(EventContribution, EventContribution.id == ContributionRefund.contribution_id)
+            .filter(EventContribution.event_id == event_id, ContributionRefund.status == "refunded")
+        )
+        if start_date:
+            total_refunded_query = total_refunded_query.filter(ContributionRefund.processed_at >= start_date)
+        if end_date:
+            total_refunded_query = total_refunded_query.filter(ContributionRefund.processed_at <= end_date)
+        total_refunded = total_refunded_query.scalar() or 0
 
         if not rows:
-            logger.info(
-                "Workflow decision: contribution refund report empty | context=%s",
-                context
-            )
-        return {
-            "headers": [
-                "Contribution Type",
-                "Source",
-                "Refund Amount",
-                "Reason",
-                "Status",
-                "Created At",
-                "Created By"
-            ],
-            "rows": rows,
-            "total_refunded": total_refunded
-        }
+            logger.info("Workflow decision: contribution refund report empty | context=%s", context)
+
+        return {"headers": ContributionRefundReport.headers, "rows": rows, "total_refunded": total_refunded}

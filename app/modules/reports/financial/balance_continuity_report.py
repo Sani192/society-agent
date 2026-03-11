@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Jan 25 17:27:31 2026
-
-@author: anonymous
-"""
 
 import logging
+from datetime import datetime
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.db.models import (
     Event,
@@ -28,18 +25,53 @@ class BalanceContinuityReport:
 
     @staticmethod
     @log_service_call(logger, "BalanceContinuityReport.generate")
-    def generate(db: Session, society_id):
+    def generate(db: Session, society_id, *, start_date: datetime | None = None, end_date: datetime | None = None):
         context = build_log_context(society_id=society_id)
-        events = (
-            db.query(Event, CommitteeMember.name)
-            .outerjoin(
-                CommitteeMember,
-                CommitteeMember.id == Event.created_by
-            )
-            .filter(Event.society_id == society_id)
-            .order_by(Event.event_date.asc())
-            .all()
+
+        payment_sq = (
+            db.query(Payment.event_id.label("event_id"), func.coalesce(func.sum(Payment.paid_amount), 0).label("flat_income"))
+            .group_by(Payment.event_id)
+            .subquery()
         )
+        sponsor_sq = (
+            db.query(EventContribution.event_id.label("event_id"), func.coalesce(func.sum(EventContribution.amount), 0).label("sponsor_income"))
+            .group_by(EventContribution.event_id)
+            .subquery()
+        )
+        expense_sq = (
+            db.query(EventExpense.event_id.label("event_id"), func.coalesce(func.sum(EventExpense.amount), 0).label("expenses"))
+            .group_by(EventExpense.event_id)
+            .subquery()
+        )
+        refund_sq = (
+            db.query(Refund.event_id.label("event_id"), func.coalesce(func.sum(Refund.amount), 0).label("refunds"))
+            .group_by(Refund.event_id)
+            .subquery()
+        )
+
+        query = (
+            db.query(
+                Event,
+                CommitteeMember.name,
+                func.coalesce(payment_sq.c.flat_income, 0).label("flat_income"),
+                func.coalesce(sponsor_sq.c.sponsor_income, 0).label("sponsor_income"),
+                func.coalesce(expense_sq.c.expenses, 0).label("expenses"),
+                func.coalesce(refund_sq.c.refunds, 0).label("refunds"),
+            )
+            .outerjoin(CommitteeMember, CommitteeMember.id == Event.created_by)
+            .outerjoin(payment_sq, payment_sq.c.event_id == Event.id)
+            .outerjoin(sponsor_sq, sponsor_sq.c.event_id == Event.id)
+            .outerjoin(expense_sq, expense_sq.c.event_id == Event.id)
+            .outerjoin(refund_sq, refund_sq.c.event_id == Event.id)
+            .filter(Event.society_id == society_id)
+        )
+
+        if start_date:
+            query = query.filter(Event.event_date >= start_date)
+        if end_date:
+            query = query.filter(Event.event_date <= end_date)
+
+        events = query.order_by(Event.event_date.asc()).all()
         if not events:
             logger.info(
                 "Workflow decision: no events found for balance continuity | context=%s",
@@ -49,37 +81,9 @@ class BalanceContinuityReport:
         rows = []
         previous_closing = 0
 
-        for event, created_by in events:
-            # income
-            flat_income = sum(
-                p.paid_amount for p in
-                db.query(Payment).filter(Payment.event_id == event.id).all()
-            )
-
-            sponsor_income = sum(
-                c.amount or 0 for c in
-                db.query(EventContribution).filter(EventContribution.event_id == event.id).all()
-            )
-
-            # expenses
-            expenses = sum(
-                e.amount for e in
-                db.query(EventExpense).filter(EventExpense.event_id == event.id).all()
-            )
-
-            refunds = sum(
-                r.amount for r in
-                db.query(Refund).filter(Refund.event_id == event.id).all()
-            )
-
+        for event, created_by, flat_income, sponsor_income, expenses, refunds in events:
             opening_balance = previous_closing
-            closing_balance = (
-                opening_balance +
-                flat_income +
-                sponsor_income -
-                expenses -
-                refunds
-            )
+            closing_balance = opening_balance + flat_income + sponsor_income - expenses - refunds
 
             rows.append([
                 event.name,

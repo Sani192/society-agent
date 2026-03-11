@@ -279,6 +279,9 @@ class Flat(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        Index("ix_events_society_event_date", "society_id", "event_date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
@@ -372,6 +375,10 @@ class EventFoodCounter(Base):
 
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = (
+        Index("ix_payments_event_flat", "event_id", "flat_id"),
+        Index("ix_payments_event_paid_at", "event_id", "paid_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
@@ -392,6 +399,11 @@ class Payment(Base):
 
 class Refund(Base):
     __tablename__ = "refunds"
+    __table_args__ = (
+        Index("ix_refunds_event_flat", "event_id", "flat_id"),
+        Index("ix_refunds_event_created_at", "event_id", "created_at"),
+        Index("ix_refunds_event_status", "event_id", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
@@ -470,6 +482,10 @@ class RefundRequest(Base):
 
 class EventContribution(Base):
     __tablename__ = "event_contributions"
+    __table_args__ = (
+        Index("ix_event_contributions_event_flat", "event_id", "flat_id"),
+        Index("ix_event_contributions_event_created_at", "event_id", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
@@ -491,6 +507,9 @@ class EventContribution(Base):
 
 class ContributionRefund(Base):
     __tablename__ = "contribution_refunds"
+    __table_args__ = (
+        Index("ix_contribution_refunds_contribution_processed_at", "contribution_id", "processed_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     contribution_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("event_contributions.id"), nullable=False)
@@ -504,6 +523,9 @@ class ContributionRefund(Base):
 
 class EventExpense(Base):
     __tablename__ = "event_expenses"
+    __table_args__ = (
+        Index("ix_event_expenses_event_created_at", "event_id", "created_at"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)

@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Feb  8 14:58:17 2026
-
-@author: anonymous
-"""
 
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.models import Refund, Flat, CommitteeMember
 from app.utils.logging_helpers import build_log_context, log_service_call
@@ -18,12 +14,17 @@ def format_timestamp(value):
 
 
 class MemberRefundReport:
+    headers = [
+        "Flat",
+        "Refund Amount",
+        "Reason",
+        "Created At",
+        "Created By"
+    ]
 
     @staticmethod
-    @log_service_call(logger, "MemberRefundReport.generate")
-    def generate(db: Session, *, event_id):
-        context = build_log_context(event_id=event_id)
-        records = (
+    def iter_rows(db: Session, *, event_id, start_date: datetime | None = None, end_date: datetime | None = None, chunk_size: int = 500):
+        query = (
             db.query(
                 Flat.flat_number,
                 Refund.amount,
@@ -32,40 +33,24 @@ class MemberRefundReport:
                 CommitteeMember.name.label("created_by")
             )
             .join(Flat, Flat.id == Refund.flat_id)
-            .outerjoin(
-                CommitteeMember,
-                CommitteeMember.id == Refund.created_by
-            )
-            .filter(
-                Refund.event_id == event_id,
-                Refund.status.in_(["approved", "refunded"])
-            )
-            .order_by(Refund.created_at)
-            .all()
+            .outerjoin(CommitteeMember, CommitteeMember.id == Refund.created_by)
+            .filter(Refund.event_id == event_id, Refund.status.in_(["approved", "refunded"]))
+            .order_by(Refund.created_at.asc())
         )
-        if not records:
-            logger.info(
-                "Workflow decision: no member refunds found | context=%s",
-                context
-            )
+        if start_date:
+            query = query.filter(Refund.created_at >= start_date)
+        if end_date:
+            query = query.filter(Refund.created_at <= end_date)
 
-        rows = []
-        for r in records:
-            rows.append([
-                r.flat_number,
-                r.amount,
-                r.reason,
-                format_timestamp(r.created_at),
-                r.created_by or "System"
-            ])
+        for flat_number, amount, reason, created_at, created_by in query.yield_per(chunk_size):
+            yield [flat_number, amount, reason, format_timestamp(created_at), created_by or "System"]
 
-        return {
-            "headers": [
-                "Flat",
-                "Refund Amount",
-                "Reason",
-                "Created At",
-                "Created By"
-            ],
-            "rows": rows
-        }
+    @staticmethod
+    @log_service_call(logger, "MemberRefundReport.generate")
+    def generate(db: Session, *, event_id, start_date: datetime | None = None, end_date: datetime | None = None):
+        context = build_log_context(event_id=event_id)
+        rows = list(MemberRefundReport.iter_rows(db, event_id=event_id, start_date=start_date, end_date=end_date))
+        if not rows:
+            logger.info("Workflow decision: no member refunds found | context=%s", context)
+
+        return {"headers": MemberRefundReport.headers, "rows": rows}

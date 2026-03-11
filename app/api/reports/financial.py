@@ -6,7 +6,9 @@ Created on Fri Jan 23 16:57:57 2026
 @author: anonymous
 """
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Response
+from fastapi.responses import StreamingResponse
 from typing import Any, cast
 from sqlalchemy.orm import Session
 
@@ -20,7 +22,7 @@ from app.modules.reports.financial.contribution_refund_report import Contributio
 from app.modules.reports.financial.balance_continuity_report import BalanceContinuityReport
 from app.modules.reports.financial.member_refund_report import MemberRefundReport
 from app.modules.reports.financial.ledger_report import LedgerReport
-from app.modules.reports.common.exporters import export_csv, export_excel
+from app.modules.reports.common.exporters import export_csv, export_excel, stream_csv_chunks
 from app.api.reports.common import (
     authorize_committee_member_report,
     record_report_access,
@@ -55,6 +57,13 @@ def _society_logo_path(society: Society) -> str | None:
     logo_path = branding.get("logo_path")
     return str(logo_path) if logo_path else None
 router = APIRouter(prefix="/reports/financial", tags=["Reports | Financial"])
+
+
+def _parse_optional_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
 
 @router.get("/event-summary")
 def event_summary(
@@ -385,6 +394,8 @@ def export_sponsor_contributions(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     member, error_response = authorize_committee_member_report(
@@ -400,7 +411,9 @@ def export_sponsor_contributions(
     if error_response:
         return error_response
 
-    report = SponsorContributionReport.generate(db, event.id)
+    start_dt = _parse_optional_datetime(start_date)
+    end_dt = _parse_optional_datetime(end_date)
+    report = SponsorContributionReport.generate(db, event.id, start_date=start_dt, end_date=end_dt)
 
     record_report_access(
         db=db,
@@ -411,9 +424,8 @@ def export_sponsor_contributions(
     )
 
     if format == "csv":
-        csv_data = export_csv(report["headers"], report["rows"])
-        return Response(
-            content=csv_data,
+        return StreamingResponse(
+            stream_csv_chunks(report["headers"], SponsorContributionReport.iter_rows(db, event.id, start_date=start_dt, end_date=end_dt)),
             media_type="text/csv",
             headers={"Content-Disposition": "attachment; filename=sponsor_contributions.csv"}
         )
@@ -456,6 +468,8 @@ def export_contribution_refunds(
     phone: str = Query(...),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     member, error_response = authorize_committee_member_report(
@@ -471,7 +485,9 @@ def export_contribution_refunds(
     if error_response:
         return error_response
 
-    report = ContributionRefundReport.generate(db, event.id)
+    start_dt = _parse_optional_datetime(start_date)
+    end_dt = _parse_optional_datetime(end_date)
+    report = ContributionRefundReport.generate(db, event.id, start_date=start_dt, end_date=end_dt)
 
     record_report_access(
         db=db,
@@ -482,8 +498,8 @@ def export_contribution_refunds(
     )
 
     if format == "csv":
-        return Response(
-            content=export_csv(report["headers"], report["rows"]),
+        return StreamingResponse(
+            stream_csv_chunks(report["headers"], ContributionRefundReport.iter_rows(db, event.id, start_date=start_dt, end_date=end_dt)),
             media_type="text/csv",
             headers={
                 "Content-Disposition": "attachment; filename=contribution_refunds.csv"
@@ -529,6 +545,8 @@ def export_contribution_refunds(
 def export_balance_continuity(
     phone: str = Query(...),
     format: str = Query(default="csv"),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     member, error_response = authorize_committee_member_report(
@@ -540,9 +558,13 @@ def export_balance_continuity(
     if error_response:
         return error_response
 
+    start_dt = _parse_optional_datetime(start_date)
+    end_dt = _parse_optional_datetime(end_date)
     report = BalanceContinuityReport.generate(
         db=db,
-        society_id=member.society_id
+        society_id=member.society_id,
+        start_date=start_dt,
+        end_date=end_dt,
     )
 
     record_report_access(
@@ -598,6 +620,8 @@ def export_member_refunds(
     phone: str = Query(...),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     member, error_response = authorize_committee_member_report(
@@ -613,9 +637,13 @@ def export_member_refunds(
     if error_response:
         return error_response
 
+    start_dt = _parse_optional_datetime(start_date)
+    end_dt = _parse_optional_datetime(end_date)
     report = MemberRefundReport.generate(
         db=db,
-        event_id=event.id
+        event_id=event.id,
+        start_date=start_dt,
+        end_date=end_dt,
     )
 
     record_report_access(
@@ -627,8 +655,11 @@ def export_member_refunds(
     )
 
     if format == "csv":
-        return Response(
-            export_csv(report["headers"], report["rows"]),
+        return StreamingResponse(
+            stream_csv_chunks(
+                report["headers"],
+                MemberRefundReport.iter_rows(db, event_id=event.id, start_date=start_dt, end_date=end_dt),
+            ),
             media_type="text/csv",
             headers={
                 "Content-Disposition": "attachment; filename=member_refunds.csv"
@@ -672,6 +703,8 @@ def export_ledger(
     phone: str = Query(...),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     member, error_response = authorize_committee_member_report(
@@ -687,10 +720,14 @@ def export_ledger(
     if error_response:
         return error_response
 
+    start_dt = _parse_optional_datetime(start_date)
+    end_dt = _parse_optional_datetime(end_date)
     report = LedgerReport.generate(
         db=db,
         event_id=event.id,
-        society_id=member.society_id
+        society_id=member.society_id,
+        start_date=start_dt,
+        end_date=end_dt,
     )
 
     record_report_access(
