@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Durable queue worker for announcement deliveries."""
+"""Announcement delivery worker supporting local and RQ-backed dispatch."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from typing import Any, cast
 
 import requests  # type: ignore[import-untyped]
-from sqlalchemy import func
+from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 
 from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_client
@@ -22,6 +23,23 @@ from app.utils.logger import logger
 MAX_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_RETRY_MAX", 3))
 BACKOFF_SECONDS = int(getattr(settings, "ANNOUNCEMENT_RETRY_BASE_SECONDS", 2))
 JOB_TIMEOUT_SECONDS = int(getattr(settings, "ANNOUNCEMENT_JOB_TIMEOUT_SECONDS", 120))
+BATCH_SIZE = int(getattr(settings, "ANNOUNCEMENT_BATCH_SIZE", 20))
+SCHEDULER_INTERVAL_SECONDS = int(getattr(settings, "ANNOUNCEMENT_SCHEDULER_INTERVAL_SECONDS", 30))
+DISPATCH_BACKEND = str(getattr(settings, "ANNOUNCEMENT_DISPATCH_BACKEND", "local")).strip().lower()
+
+announcement_delivery_scheduler = BackgroundScheduler()
+
+
+def _rq_enabled() -> bool:
+    if DISPATCH_BACKEND != "rq":
+        return False
+    try:
+        import redis  # noqa: F401
+        import rq  # noqa: F401
+        return True
+    except Exception:
+        logger.warning("ANNOUNCEMENT_DISPATCH_BACKEND=rq but rq/redis not installed; falling back to local backend")
+        return False
 
 
 def _redis_connection():
@@ -154,13 +172,15 @@ def enqueue_announcement_delivery_tasks(*, announcement_id: str) -> int:
                 member_identity_id=str(delivery.member_identity_id),
                 channel=str(delivery.channel),
             )
-        logger.info("Announcement delivery enqueue complete", extra={"announcement_id": announcement_id, "enqueued": enqueued})
         return enqueued
     finally:
         db.close()
 
 
 def enqueue_delivery_by_key(*, announcement_id: str, member_identity_id: str, channel: str) -> int:
+    if not _rq_enabled():
+        return 0
+
     queue = _queue_for_channel(channel)
     job_id = f"announcement-delivery:{announcement_id}:{member_identity_id}:{channel}"
     from rq.job import Retry
@@ -229,38 +249,96 @@ def process_announcement_delivery(announcement_id: str, member_identity_id: str,
             delivery.attempts += 1
             delivery.processing_started_at = None
             delivery.last_error = str(exc)[:2000]
-            db.commit()
+
             if _is_transient_error(exc) and delivery.attempts < MAX_ATTEMPTS:
                 delivery.status = "pending"
                 db.commit()
-                logger.warning("Announcement delivery transient error; retry delegated to queue", extra={"announcement_id": str(delivery.announcement_id), "member_identity_id": str(delivery.member_identity_id), "attempts": delivery.attempts})
-                raise
+                logger.warning("Announcement delivery transient error; retry deferred", extra={"announcement_id": str(delivery.announcement_id), "member_identity_id": str(delivery.member_identity_id), "attempts": delivery.attempts})
+                if _rq_enabled():
+                    raise
+                return "retry_deferred"
 
             delivery.status = "failed"
             summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
             db.commit()
             logger.exception("Announcement delivery failed", extra={"announcement_id": str(delivery.announcement_id), "member_identity_id": str(delivery.member_identity_id), "channel": delivery.channel, "attempts": delivery.attempts, "outcomes": summary})
-            raise
+            if _rq_enabled():
+                raise
+            return "failed"
     finally:
         db.close()
 
 
-def run_pending_announcement_deliveries(*, batch_size: int = 20, **_kwargs) -> int:
+def _claim_pending_deliveries(db, *, batch_size: int) -> list[tuple[str, str, str]]:
+    rows = db.execute(
+        text(
+            """
+            WITH candidates AS (
+                SELECT announcement_id, member_identity_id, channel
+                FROM announcement_deliveries
+                WHERE sent_at IS NULL
+                  AND status IN ('pending', 'processing')
+                ORDER BY announcement_id, member_identity_id
+                LIMIT :batch_size
+                FOR UPDATE SKIP LOCKED
+            )
+            UPDATE announcement_deliveries ad
+            SET status = 'processing', processing_started_at = :now
+            FROM candidates
+            WHERE ad.announcement_id = candidates.announcement_id
+              AND ad.member_identity_id = candidates.member_identity_id
+              AND ad.channel = candidates.channel
+            RETURNING ad.announcement_id, ad.member_identity_id, ad.channel
+            """
+        ),
+        {"batch_size": batch_size, "now": datetime.now(timezone.utc)},
+    ).fetchall()
+    db.commit()
+    return [(str(row.announcement_id), str(row.member_identity_id), str(row.channel)) for row in rows]
+
+
+def run_pending_announcement_deliveries(*, batch_size: int = BATCH_SIZE, **_kwargs) -> int:
     db = SessionLocal()
     try:
-        pending = (
-            db.query(AnnouncementDelivery)
-            .filter(AnnouncementDelivery.sent_at.is_(None), AnnouncementDelivery.status.in_(["pending", "processing"]))
-            .limit(batch_size)
-            .all()
-        )
-        enqueued = 0
-        for delivery in pending:
-            enqueued += enqueue_delivery_by_key(
-                announcement_id=str(delivery.announcement_id),
-                member_identity_id=str(delivery.member_identity_id),
-                channel=str(delivery.channel),
-            )
-        return enqueued
+        claimed = _claim_pending_deliveries(db, batch_size=batch_size)
     finally:
         db.close()
+
+    processed = 0
+    for announcement_id, member_identity_id, channel in claimed:
+        if _rq_enabled():
+            processed += enqueue_delivery_by_key(
+                announcement_id=announcement_id,
+                member_identity_id=member_identity_id,
+                channel=channel,
+            )
+        else:
+            outcome = process_announcement_delivery(announcement_id, member_identity_id, channel)
+            if outcome.startswith("sent_"):
+                processed += 1
+    return processed
+
+
+def start_announcement_delivery_scheduler() -> None:
+    announcement_delivery_scheduler.add_job(
+        run_pending_announcement_deliveries,
+        trigger="interval",
+        seconds=SCHEDULER_INTERVAL_SECONDS,
+        id="announcement_delivery_dispatch",
+        replace_existing=True,
+    )
+    announcement_delivery_scheduler.start()
+
+
+def acquire_announcement_scheduler_leader_lock(lock_key: int = 937452):
+    db = SessionLocal()
+    try:
+        result = db.execute(text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key})
+        if bool(result.scalar()):
+            return db
+        db.close()
+        return None
+    except Exception:
+        logger.exception("Failed to acquire announcement scheduler advisory lock")
+        db.close()
+        return None
