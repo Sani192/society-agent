@@ -12,7 +12,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.db.models import AuditLog, Refund
+from app.db.models import AuditLog, Event, Refund
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ class AuditSummaryReport:
 
         refunds = (
             db.query(func.count(Refund.id))
+            .join(Event, Refund.event_id == Event.id)
             .filter(
+                Event.society_id == society_id,
                 Refund.status == "refunded"
             )
             .scalar()
