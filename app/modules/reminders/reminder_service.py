@@ -10,6 +10,7 @@ Created on Sat Jan 17 12:01:15 2026
 
 from datetime import date
 import logging
+from typing import Any, cast
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -95,7 +96,7 @@ class ReminderService:
             }
 
             if dialect_name == "sqlite":
-                insert_stmt = (
+                insert_result = db.execute(
                     sqlite_insert(PaymentReminder)
                     .values(**reminder_values)
                     .on_conflict_do_nothing(
@@ -103,17 +104,16 @@ class ReminderService:
                     )
                 )
             else:
-                insert_stmt = (
+                insert_result = db.execute(
                     pg_insert(PaymentReminder)
                     .values(**reminder_values)
                     .on_conflict_do_nothing(
                         index_elements=["event_id", "flat_id", "reminder_date"]
                     )
-                    .returning(PaymentReminder.id)
                 )
 
-            insert_result = db.execute(insert_stmt)
-            inserted = insert_result.rowcount and insert_result.rowcount > 0
+            rowcount = getattr(insert_result, "rowcount", 0)
+            inserted = bool(cast(Any, rowcount) and cast(Any, rowcount) > 0)
 
             if inserted:
                 generated.append(
