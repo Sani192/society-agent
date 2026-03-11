@@ -10,6 +10,7 @@ Created on Sun Jan 11 07:26:10 2026
 
 import json
 import os
+from typing import Final
 from dotenv import load_dotenv
 
 from app.channels.telegram.constants import TELEGRAM_ENV_CONFIGS
@@ -57,8 +58,36 @@ def _env_int(name: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+
+def _db_defaults_for_env(app_env: str) -> dict[str, int]:
+    normalized = app_env.strip().lower()
+    if normalized in {"production", "staging"}:
+        return {
+            "pool_size": 20,
+            "max_overflow": 30,
+            "pool_timeout": 30,
+            "pool_recycle": 1800,
+            "statement_timeout_ms": 30000,
+        }
+    if normalized in {"dev", "local"}:
+        return {
+            "pool_size": 5,
+            "max_overflow": 10,
+            "pool_timeout": 30,
+            "pool_recycle": 900,
+            "statement_timeout_ms": 15000,
+        }
+    return {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_timeout": 30,
+        "pool_recycle": 1200,
+        "statement_timeout_ms": 20000,
+    }
+
 class Settings:
     APP_ENV = os.getenv("APP_ENV", "local")
+    APP_ENV_NORMALIZED: Final[str] = APP_ENV.strip().lower()
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
     CURRENCY = os.getenv("CURRENCY_SYMBOL", "₹")
 
@@ -115,6 +144,19 @@ class Settings:
     ANNOUNCEMENT_WORKER_CONCURRENCY_WHATSAPP = _env_int("ANNOUNCEMENT_WORKER_CONCURRENCY_WHATSAPP", 2)
     ANNOUNCEMENT_WORKER_CONCURRENCY_DEFAULT = _env_int("ANNOUNCEMENT_WORKER_CONCURRENCY_DEFAULT", 1)
     ANNOUNCEMENT_DISPATCH_BACKEND = _env_choice("ANNOUNCEMENT_DISPATCH_BACKEND", "local", choices={"local", "rq"})
+
+    _DB_DEFAULTS = _db_defaults_for_env(APP_ENV)
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    READ_REPLICA_DATABASE_URL = os.getenv("READ_REPLICA_DATABASE_URL")
+    DB_POOL_SIZE: int = _env_int("DB_POOL_SIZE", _DB_DEFAULTS["pool_size"])
+    DB_MAX_OVERFLOW: int = _env_int("DB_MAX_OVERFLOW", _DB_DEFAULTS["max_overflow"])
+    DB_POOL_TIMEOUT: int = _env_int("DB_POOL_TIMEOUT", _DB_DEFAULTS["pool_timeout"])
+    DB_POOL_RECYCLE: int = _env_int("DB_POOL_RECYCLE", _DB_DEFAULTS["pool_recycle"])
+    DB_STATEMENT_TIMEOUT_MS: int = _env_int(
+        "DB_STATEMENT_TIMEOUT_MS",
+        _DB_DEFAULTS["statement_timeout_ms"],
+    )
+    del _DB_DEFAULTS
 
     _WHATSAPP_SETTINGS = {
         config.attr_name: os.getenv(config.env_key, config.default)

@@ -9,7 +9,7 @@ Created on Sun Jan 25 17:10:53 2026
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_read_db
 from app.db.models import Society
 from app.utils.response import error_envelope
 from app.api.reports.common import authorize_committee_member_report, record_report_access
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/reports/admin", tags=["Reports | Admin"])
 def export_member_directory(
     phone: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -78,7 +78,7 @@ def export_member_directory(
 def export_onboarding_status(
     phone: str = Query(...),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -130,7 +130,7 @@ def export_onboarding_status(
 def export_announcement_history(
     phone: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,

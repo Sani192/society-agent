@@ -12,7 +12,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_read_db
 from app.channels.core.audit_security import decrypt_from_audit_store
 from app.config import settings
 from app.db.models import ChannelMessageEvent, Society
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/reports/governance", tags=["Reports | Governance"])
 def export_governance_audit(
     phone: str = Query(...),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -94,7 +94,7 @@ def read_protected_audit_events(
     channel: str | None = Query(default=None),
     event_type: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=1000),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_read_db),
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,

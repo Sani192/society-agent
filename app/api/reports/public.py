@@ -9,7 +9,7 @@ Created on Mon Jan 26 11:12:26 2026
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_read_db
 from app.db.models import Society
 from app.api.reports.common import require_event
 from app.utils.logger import logger
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/reports/public", tags=["Reports | Public"])
 def public_event_summary_pdf(
     phone: str = Query(...),
     event_id: str = Query(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     event, error_response = require_event(db=db, event_id=event_id)
     if error_response:

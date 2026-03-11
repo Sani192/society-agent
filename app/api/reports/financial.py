@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from typing import Any, cast
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_read_db
 from app.db.models import Society
 from app.modules.reports.financial.event_summary import EventFinancialSummaryReport
 from app.modules.reports.financial.flat_payment_report import FlatPaymentReport
@@ -69,7 +69,7 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
 def event_summary(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -102,7 +102,7 @@ def export_event_financial_summary(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -176,7 +176,7 @@ def export_event_financial_summary(
 def flat_payment_report(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -209,7 +209,7 @@ def export_flat_payment_report(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -284,7 +284,7 @@ def export_flat_payment_report(
 def block_payment_report(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -317,7 +317,7 @@ def export_block_payment_report(
     phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -396,7 +396,7 @@ def export_sponsor_contributions(
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -470,7 +470,7 @@ def export_contribution_refunds(
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -547,7 +547,7 @@ def export_balance_continuity(
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -622,7 +622,7 @@ def export_member_refunds(
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
@@ -705,7 +705,7 @@ def export_ledger(
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_read_db)
 ):
     member, error_response = authorize_committee_member_report(
         phone=phone,
