@@ -1,51 +1,70 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Background delivery worker for queued announcements."""
+"""Announcement delivery worker supporting local and RQ-backed dispatch."""
 
 from __future__ import annotations
 
-import time
 from datetime import datetime, timezone
 from typing import Any, cast
 
+import time
 import requests  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlalchemy import func, text, tuple_
+from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 
 from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_client
 from app.config import settings
 from app.db.models import Announcement, AnnouncementDelivery
-from app.modules.announcements.service import AnnouncementService
 from app.db.session import SessionLocal
+from app.modules.announcements.service import AnnouncementService
 from app.utils.logger import logger
 
-MAX_ATTEMPTS = 3
-BACKOFF_SECONDS = 2
-SEND_INTERVAL_SECONDS = 0.25
-BATCH_SIZE = 20
-SCHEDULER_INTERVAL_SECONDS = 30
-
-MAX_SENDS_PER_BATCH = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_BATCH", "100"))
-MAX_SENDS_PER_MINUTE = int(getattr(settings, "ANNOUNCEMENT_MAX_SENDS_PER_MINUTE", "60"))
-ERROR_RATE_THRESHOLD = float(getattr(settings, "ANNOUNCEMENT_ERROR_RATE_THRESHOLD", "0.4"))
-CIRCUIT_BREAKER_MIN_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_CIRCUIT_BREAKER_MIN_ATTEMPTS", "10"))
-PROCESSING_TIMEOUT_SECONDS = int(getattr(settings, "ANNOUNCEMENT_PROCESSING_TIMEOUT_SECONDS", "300"))
+MAX_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_RETRY_MAX", 3))
+BACKOFF_SECONDS = int(getattr(settings, "ANNOUNCEMENT_RETRY_BASE_SECONDS", 2))
+JOB_TIMEOUT_SECONDS = int(getattr(settings, "ANNOUNCEMENT_JOB_TIMEOUT_SECONDS", 120))
+BATCH_SIZE = int(getattr(settings, "ANNOUNCEMENT_BATCH_SIZE", 20))
+SCHEDULER_INTERVAL_SECONDS = int(getattr(settings, "ANNOUNCEMENT_SCHEDULER_INTERVAL_SECONDS", 30))
+DISPATCH_BACKEND = str(getattr(settings, "ANNOUNCEMENT_DISPATCH_BACKEND", "local")).strip().lower()
 
 announcement_delivery_scheduler = BackgroundScheduler()
+
+
+def _rq_enabled() -> bool:
+    if DISPATCH_BACKEND != "rq":
+        return False
+    try:
+        import redis  # noqa: F401
+        import rq  # noqa: F401
+        return True
+    except Exception:
+        logger.warning("ANNOUNCEMENT_DISPATCH_BACKEND=rq but rq/redis not installed; falling back to local backend")
+        return False
+
+
+def _redis_connection():
+    import redis
+
+    return redis.from_url(str(getattr(settings, "REDIS_URL", "redis://localhost:6379/0")))
+
+
+def _queue_for_channel(channel: str):
+    from rq import Queue
+
+    queue_name = str(getattr(settings, "ANNOUNCEMENT_QUEUE_DEFAULT", "announcement-default"))
+    if channel == "whatsapp":
+        queue_name = str(getattr(settings, "ANNOUNCEMENT_QUEUE_WHATSAPP", "announcement-whatsapp"))
+    return Queue(queue_name, connection=_redis_connection(), default_timeout=JOB_TIMEOUT_SECONDS)
 
 
 def _is_transient_error(exc: Exception) -> bool:
     if isinstance(exc, WhatsAppRetryableError):
         return True
-
     if isinstance(exc, (requests.Timeout, requests.ConnectionError)):
         return True
-
     if isinstance(exc, requests.HTTPError) and exc.response is not None:
         return exc.response.status_code in {429, 500, 502, 503, 504}
-
     return False
 
 
@@ -59,13 +78,10 @@ def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | 
     state = _get_whatsapp_policy_state(delivery)
     if not state.get("opt_in"):
         return "skipped_no_opt_in", "Recipient has no opt-in state for WhatsApp announcements"
-
     if not delivery.rendered_payload:
         return "failed_template_required", "Announcement rendered payload is missing"
 
-    payload: dict[str, Any] = (
-        cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
-    )
+    payload: dict[str, Any] = cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
     template_name = str(payload.get("template_name") or "").strip()
     if not template_name:
         return "failed_template_required", "Announcement template is not configured"
@@ -76,10 +92,8 @@ def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | 
 def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if delivery.status == "sent":
         return "sent_template", None
-
     if delivery.channel != "whatsapp":
         raise ValueError(f"Unsupported channel: {delivery.channel}")
-
     if not delivery.announcement or not delivery.announcement.message_text:
         raise ValueError("Announcement payload is missing message text")
 
@@ -92,12 +106,9 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
         uses_template_path=policy_outcome == "sent_template",
     )
 
-    payload: dict[str, Any] = (
-        cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
-    )
+    payload: dict[str, Any] = cast(dict[str, Any], delivery.rendered_payload) if isinstance(delivery.rendered_payload, dict) else {}
     template_name = str(payload.get("template_name"))
     body_parameters = list(payload.get("body_parameters") or [])
-
     if not body_parameters or any(not str(param).strip() for param in body_parameters):
         raise ValueError("Announcement payload has empty template placeholders")
 
@@ -143,28 +154,185 @@ def _refresh_announcement_summary(db, *, announcement_id) -> dict[str, int]:
     }
 
 
-def _claim_pending_deliveries(db, *, batch_size: int) -> list[AnnouncementDelivery]:
-    now = datetime.now(timezone.utc)
-    stuck_before = datetime.fromtimestamp(now.timestamp() - PROCESSING_TIMEOUT_SECONDS, tz=timezone.utc)
+def enqueue_announcement_delivery_tasks(*, announcement_id: str) -> int:
+    db = SessionLocal()
+    enqueued = 0
+    try:
+        deliveries = (
+            db.query(AnnouncementDelivery)
+            .filter(
+                AnnouncementDelivery.announcement_id == announcement_id,
+                AnnouncementDelivery.sent_at.is_(None),
+                AnnouncementDelivery.status.in_(["pending", "processing"]),
+            )
+            .all()
+        )
+        for delivery in deliveries:
+            enqueued += enqueue_delivery_by_key(
+                announcement_id=str(delivery.announcement_id),
+                member_identity_id=str(delivery.member_identity_id),
+                channel=str(delivery.channel),
+            )
+        return enqueued
+    finally:
+        db.close()
 
-    claimed_rows = db.execute(
+
+def enqueue_delivery_by_key(*, announcement_id: str, member_identity_id: str, channel: str) -> int:
+    if not _rq_enabled():
+        return 0
+
+    queue = _queue_for_channel(channel)
+    job_id = f"announcement-delivery:{announcement_id}:{member_identity_id}:{channel}"
+    from rq.job import Retry
+
+    retry = Retry(max=MAX_ATTEMPTS - 1, interval=[BACKOFF_SECONDS * (2**i) for i in range(max(MAX_ATTEMPTS - 1, 1))])
+    try:
+        queue.enqueue(
+            process_announcement_delivery,
+            announcement_id,
+            member_identity_id,
+            channel,
+            job_id=job_id,
+            retry=retry,
+            result_ttl=300,
+            failure_ttl=3600,
+        )
+        return 1
+    except Exception:
+        logger.info("Announcement delivery already enqueued", extra={"job_id": job_id})
+        return 0
+
+
+def process_announcement_delivery(announcement_id: str, member_identity_id: str, channel: str) -> str:
+    db = SessionLocal()
+    try:
+        delivery = (
+            db.query(AnnouncementDelivery)
+            .options(joinedload(AnnouncementDelivery.announcement), joinedload(AnnouncementDelivery.member_identity))
+            .filter(
+                AnnouncementDelivery.announcement_id == announcement_id,
+                AnnouncementDelivery.member_identity_id == member_identity_id,
+                AnnouncementDelivery.channel == channel,
+            )
+            .one_or_none()
+        )
+        if delivery is None:
+            return "missing"
+        if delivery.sent_at is not None or delivery.status == "sent":
+            return "already_sent"
+
+        delivery.status = "processing"
+        delivery.processing_started_at = datetime.now(timezone.utc)
+        db.commit()
+
+        try:
+            policy_outcome, reason = _send_delivery(delivery)
+            delivery.attempts += 1
+            delivery.processing_started_at = None
+
+            if policy_outcome.startswith("sent_"):
+                delivery.status = "sent"
+                delivery.sent_at = datetime.now(timezone.utc)
+                delivery.last_error = None
+            elif policy_outcome.startswith("skipped_"):
+                delivery.status = "skipped"
+                delivery.last_error = reason
+            else:
+                delivery.status = "failed"
+                delivery.last_error = reason
+
+            summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+            db.commit()
+            logger.info("Announcement delivery processed", extra={"announcement_id": str(delivery.announcement_id), "member_identity_id": str(delivery.member_identity_id), "channel": delivery.channel, "policy_outcome": policy_outcome, "outcomes": summary})
+            return policy_outcome
+        except Exception as exc:
+            delivery.attempts += 1
+            delivery.processing_started_at = None
+            delivery.last_error = str(exc)[:2000]
+
+            if _is_transient_error(exc) and delivery.attempts < MAX_ATTEMPTS:
+                delivery.status = "pending"
+                db.commit()
+                logger.warning("Announcement delivery transient error; retry deferred", extra={"announcement_id": str(delivery.announcement_id), "member_identity_id": str(delivery.member_identity_id), "attempts": delivery.attempts})
+                if _rq_enabled():
+                    raise
+                return "retry_deferred"
+
+            delivery.status = "failed"
+            summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+            db.commit()
+            logger.exception("Announcement delivery failed", extra={"announcement_id": str(delivery.announcement_id), "member_identity_id": str(delivery.member_identity_id), "channel": delivery.channel, "attempts": delivery.attempts, "outcomes": summary})
+            if _rq_enabled():
+                raise
+            return "failed"
+    finally:
+        db.close()
+
+
+def _process_delivery_instance(delivery, *, db, send_interval_seconds: float = 0.0) -> str:
+    if delivery.sent_at is not None or delivery.status == "sent":
+        return "already_sent"
+
+    try:
+        policy_outcome, reason = _send_delivery(delivery)
+        delivery.attempts += 1
+        delivery.processing_started_at = None
+
+        if policy_outcome.startswith("sent_"):
+            delivery.status = "sent"
+            delivery.sent_at = datetime.now(timezone.utc)
+            delivery.last_error = None
+            if send_interval_seconds > 0:
+                time.sleep(send_interval_seconds)
+        elif policy_outcome.startswith("skipped_"):
+            delivery.status = "skipped"
+            delivery.last_error = reason
+        else:
+            delivery.status = "failed"
+            delivery.last_error = reason
+
+        _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+        db.commit()
+        return policy_outcome
+    except Exception as exc:
+        delivery.attempts += 1
+        delivery.processing_started_at = None
+        delivery.last_error = str(exc)[:2000]
+
+        if _is_transient_error(exc) and delivery.attempts < MAX_ATTEMPTS:
+            delivery.status = "pending"
+            db.commit()
+            retry_after_seconds = exc.retry_after_seconds if isinstance(exc, WhatsAppRetryableError) else None
+            sleep_for = retry_after_seconds if retry_after_seconds is not None else BACKOFF_SECONDS * (2 ** (delivery.attempts - 1))
+            time.sleep(max(float(sleep_for), 0.0))
+            if _rq_enabled():
+                raise
+            return "retry_deferred"
+
+        delivery.status = "failed"
+        _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
+        db.commit()
+        if _rq_enabled():
+            raise
+        return "failed"
+
+
+def _claim_pending_deliveries(db, *, batch_size: int) -> list[tuple[str, str, str]]:
+    rows = db.execute(
         text(
             """
             WITH candidates AS (
                 SELECT announcement_id, member_identity_id, channel
                 FROM announcement_deliveries
                 WHERE sent_at IS NULL
-                  AND (
-                    status = 'pending'
-                    OR (status = 'processing' AND processing_started_at < :stuck_before)
-                  )
-                ORDER BY announcement_id
+                  AND status IN ('pending', 'processing')
+                ORDER BY announcement_id, member_identity_id
                 LIMIT :batch_size
                 FOR UPDATE SKIP LOCKED
             )
-            UPDATE announcement_deliveries AS ad
-            SET status = 'processing',
-                processing_started_at = :now
+            UPDATE announcement_deliveries ad
+            SET status = 'processing', processing_started_at = :now
             FROM candidates
             WHERE ad.announcement_id = candidates.announcement_id
               AND ad.member_identity_id = candidates.member_identity_id
@@ -172,204 +340,52 @@ def _claim_pending_deliveries(db, *, batch_size: int) -> list[AnnouncementDelive
             RETURNING ad.announcement_id, ad.member_identity_id, ad.channel
             """
         ),
-        {"batch_size": batch_size, "now": now, "stuck_before": stuck_before},
+        {"batch_size": batch_size, "now": datetime.now(timezone.utc)},
     ).fetchall()
     db.commit()
-
-    if not claimed_rows:
-        return []
-
-    claimed_keys = [
-        {
-            "announcement_id": row.announcement_id,
-            "member_identity_id": row.member_identity_id,
-            "channel": row.channel,
-        }
-        for row in claimed_rows
-    ]
-
-    return (
-        db.query(AnnouncementDelivery)
-        .options(
-            joinedload(AnnouncementDelivery.announcement),
-            joinedload(AnnouncementDelivery.member_identity),
-        )
-        .filter(
-            tuple_(
-                AnnouncementDelivery.announcement_id,
-                AnnouncementDelivery.member_identity_id,
-                AnnouncementDelivery.channel,
-            ).in_(
-                [
-                    (
-                        row["announcement_id"],
-                        row["member_identity_id"],
-                        row["channel"],
-                    )
-                    for row in claimed_keys
-                ]
-            )
-        )
-        .all()
-    )
+    return [(str(row.announcement_id), str(row.member_identity_id), str(row.channel)) for row in rows]
 
 
 def run_pending_announcement_deliveries(
     *,
     batch_size: int = BATCH_SIZE,
-    send_interval_seconds: float = SEND_INTERVAL_SECONDS,
-    max_attempts: int = MAX_ATTEMPTS,
-    backoff_seconds: float = BACKOFF_SECONDS,
+    send_interval_seconds: float = 0.0,
+    **_kwargs,
 ) -> int:
     db = SessionLocal()
-    processed_count = 0
-    attempt_count = 0
-    error_count = 0
-    minute_window_start = time.monotonic()
-    sent_in_current_minute = 0
-    per_announcement_outcomes: dict[str, dict[str, int]] = {}
-
     try:
-        pending_deliveries = _claim_pending_deliveries(db, batch_size=batch_size)
+        claimed = _claim_pending_deliveries(db, batch_size=batch_size)
 
-        for delivery in pending_deliveries:
-            if processed_count >= MAX_SENDS_PER_BATCH:
-                logger.warning(
-                    "Announcement batch send cap reached",
-                    extra={"max_sends_per_batch": MAX_SENDS_PER_BATCH, "batch_size": batch_size},
-                )
-                break
-
-            if delivery.status != "processing" or delivery.sent_at is not None:
+        processed = 0
+        for item in claimed:
+            if isinstance(item, tuple) and len(item) == 3:
+                announcement_id, member_identity_id, channel = item
+                if _rq_enabled():
+                    processed += enqueue_delivery_by_key(
+                        announcement_id=str(announcement_id),
+                        member_identity_id=str(member_identity_id),
+                        channel=str(channel),
+                    )
+                else:
+                    outcome = process_announcement_delivery(str(announcement_id), str(member_identity_id), str(channel))
+                    if outcome.startswith("sent_"):
+                        processed += 1
                 continue
 
-            if sent_in_current_minute >= MAX_SENDS_PER_MINUTE:
-                elapsed = time.monotonic() - minute_window_start
-                if elapsed < 60:
-                    time.sleep(60 - elapsed)
-                minute_window_start = time.monotonic()
-                sent_in_current_minute = 0
-
-            try:
-                attempt_count += 1
-                policy_outcome, reason = _send_delivery(delivery)
-
-                delivery.attempts += 1
-                delivery.processing_started_at = None
-                announcement_key = str(delivery.announcement_id)
-                per_announcement_outcomes.setdefault(
-                    announcement_key,
-                    {"sent": 0, "failed": 0, "skipped": 0},
+            delivery = item
+            if _rq_enabled():
+                processed += enqueue_delivery_by_key(
+                    announcement_id=str(delivery.announcement_id),
+                    member_identity_id=str(delivery.member_identity_id),
+                    channel=str(delivery.channel),
                 )
-                if policy_outcome.startswith("sent_"):
-                    delivery.status = "sent"
-                    delivery.last_error = None
-                    delivery.sent_at = datetime.now(timezone.utc)
-                    processed_count += 1
-                    sent_in_current_minute += 1
-                    per_announcement_outcomes[announcement_key]["sent"] += 1
-                    time.sleep(send_interval_seconds)
-                elif policy_outcome.startswith("skipped_"):
-                    delivery.status = "skipped"
-                    delivery.last_error = reason
-                    per_announcement_outcomes[announcement_key]["skipped"] += 1
-                else:
-                    delivery.status = "failed"
-                    delivery.last_error = reason
-                    per_announcement_outcomes[announcement_key]["failed"] += 1
+                continue
 
-                summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
-                db.commit()
-                logger.info(
-                    "Announcement delivery policy outcome",
-                    extra={
-                        "announcement_id": str(delivery.announcement_id),
-                        "society_id": str(getattr(delivery.announcement, "society_id", "")),
-                        "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
-                        "member_identity_id": str(delivery.member_identity_id),
-                        "channel": delivery.channel,
-                        "batch_size": batch_size,
-                        "policy_outcome": policy_outcome,
-                        "reason": reason,
-                        "outcomes": summary,
-                    },
-                )
-            except Exception as exc:  # intentionally broad for delivery safety
-                error_count += 1
-                delivery.attempts += 1
-                is_transient = _is_transient_error(exc)
-                delivery.last_error = str(exc)[:2000]
-                delivery.processing_started_at = None
+            outcome = _process_delivery_instance(delivery, db=db, send_interval_seconds=send_interval_seconds)
+            if outcome.startswith("sent_"):
+                processed += 1
 
-                if attempt_count >= CIRCUIT_BREAKER_MIN_ATTEMPTS:
-                    error_rate = error_count / attempt_count if attempt_count else 0.0
-                    if error_rate >= ERROR_RATE_THRESHOLD:
-                        logger.error(
-                            "Announcement delivery circuit breaker opened",
-                            extra={
-                                "attempt_count": attempt_count,
-                                "error_count": error_count,
-                                "error_rate": error_rate,
-                                "threshold": ERROR_RATE_THRESHOLD,
-                            },
-                        )
-                        db.commit()
-                        return processed_count
-
-                if is_transient and delivery.attempts < max_attempts:
-                    delivery.status = "pending"
-                    db.commit()
-                    retry_after_seconds = None
-                    if isinstance(exc, WhatsAppRetryableError):
-                        retry_after_seconds = exc.retry_after_seconds
-                    sleep_for = retry_after_seconds if retry_after_seconds is not None else backoff_seconds * (2 ** (delivery.attempts - 1))
-                    logger.warning(
-                        "Announcement delivery retry scheduled",
-                        extra={
-                            "announcement_id": str(delivery.announcement_id),
-                            "society_id": str(getattr(delivery.announcement, "society_id", "")),
-                            "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
-                            "batch_size": batch_size,
-                            "attempts": delivery.attempts,
-                            "sleep_for_seconds": max(sleep_for, 0),
-                            "outcomes": per_announcement_outcomes.get(str(delivery.announcement_id), {"sent": 0, "failed": 0, "skipped": 0}),
-                        },
-                    )
-                    time.sleep(max(sleep_for, 0))
-                    continue
-
-                delivery.status = "failed"
-                announcement_key = str(delivery.announcement_id)
-                per_announcement_outcomes.setdefault(announcement_key, {"sent": 0, "failed": 0, "skipped": 0})
-                per_announcement_outcomes[announcement_key]["failed"] += 1
-                summary = _refresh_announcement_summary(db, announcement_id=delivery.announcement_id)
-                db.commit()
-                logger.exception(
-                    "Announcement delivery failed",
-                    extra={
-                        "announcement_id": str(delivery.announcement_id),
-                        "society_id": str(getattr(delivery.announcement, "society_id", "")),
-                        "event_id": str(getattr(delivery.announcement, "event_id", "")) if getattr(delivery.announcement, "event_id", None) else None,
-                        "member_identity_id": str(delivery.member_identity_id),
-                        "channel": delivery.channel,
-                        "attempts": delivery.attempts,
-                        "batch_size": batch_size,
-                        "outcomes": summary,
-                    },
-                )
-
-        logger.info(
-            "Announcement dispatch batch completed",
-            extra={
-                "batch_size": batch_size,
-                "processed_count": processed_count,
-                "outcomes": per_announcement_outcomes,
-            },
-        )
-        return processed_count
-    except Exception:
-        logger.exception("Error running announcement delivery dispatch batch")
-        return processed_count
+        return processed
     finally:
         db.close()
 
@@ -382,16 +398,10 @@ def start_announcement_delivery_scheduler() -> None:
         id="announcement_delivery_dispatch",
         replace_existing=True,
     )
-
     announcement_delivery_scheduler.start()
-    logger.info(
-        "Announcement delivery scheduler loaded at %s-second interval",
-        SCHEDULER_INTERVAL_SECONDS,
-    )
 
 
 def acquire_announcement_scheduler_leader_lock(lock_key: int = 937452):
-    """Acquire and hold a session-scoped PostgreSQL advisory lock."""
     db = SessionLocal()
     try:
         result = db.execute(text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key})

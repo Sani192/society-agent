@@ -13,6 +13,7 @@ from app.db.models import Society
 from app.db.session import SessionLocal, engine
 from app.modules.announcements.delivery_worker import (
     acquire_announcement_scheduler_leader_lock,
+    announcement_delivery_scheduler,
     start_announcement_delivery_scheduler,
 )
 from app.modules.reminders.reminder_scheduler import (
@@ -20,7 +21,6 @@ from app.modules.reminders.reminder_scheduler import (
     scheduler,
     start_scheduler,
 )
-from app.modules.announcements.delivery_worker import announcement_delivery_scheduler
 from app.utils.logger import logger
 
 

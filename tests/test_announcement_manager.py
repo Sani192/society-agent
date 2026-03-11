@@ -6,17 +6,6 @@ import pytest
 from app.modules.announcements.manager import AnnouncementManager
 
 
-class _DummyThread:
-    def __init__(self, target=None, kwargs=None, daemon=None):
-        self.target = target
-        self.kwargs = kwargs
-        self.daemon = daemon
-        self.started = False
-
-    def start(self):
-        self.started = True
-
-
 def test_queue_society_announcement_returns_counts(monkeypatch):
     member = SimpleNamespace(id=uuid4(), society_id=uuid4())
 
@@ -44,10 +33,10 @@ def test_queue_society_announcement_returns_counts(monkeypatch):
         lambda *args, **kwargs: created,
     )
 
-    started = {"value": False}
+    captured = {"announcement_id": None}
     monkeypatch.setattr(
         "app.modules.announcements.manager.AnnouncementManager.trigger_delivery_async",
-        lambda: started.__setitem__("value", True),
+        lambda *, announcement_id: captured.__setitem__("announcement_id", announcement_id),
     )
 
     result = AnnouncementManager.queue(
@@ -61,7 +50,7 @@ def test_queue_society_announcement_returns_counts(monkeypatch):
     assert result.announcement_id == str(created.id)
     assert result.accepted_count == 1
     assert result.skipped_count == 1
-    assert started["value"] is True
+    assert captured["announcement_id"] == str(created.id)
 
 
 def test_queue_event_requires_active_event(monkeypatch):
@@ -82,20 +71,13 @@ def test_queue_event_requires_active_event(monkeypatch):
         )
 
 
-def test_trigger_delivery_async_spawns_daemon_thread(monkeypatch):
-    captured = {"thread": None}
+def test_trigger_delivery_async_enqueues_jobs(monkeypatch):
+    captured = {"announcement_id": None}
+    monkeypatch.setattr(
+        "app.modules.announcements.manager.enqueue_announcement_delivery_tasks",
+        lambda *, announcement_id: captured.__setitem__("announcement_id", announcement_id),
+    )
 
-    def _build_thread(*args, **kwargs):
-        thread = _DummyThread(*args, **kwargs)
-        captured["thread"] = thread
-        return thread
+    AnnouncementManager.trigger_delivery_async(announcement_id="ann-1")
 
-    monkeypatch.setattr("app.modules.announcements.manager.threading.Thread", _build_thread)
-
-    AnnouncementManager.trigger_delivery_async()
-
-    thread = captured["thread"]
-    assert thread is not None
-    assert thread.daemon is True
-    assert thread.started is True
-    assert isinstance(thread.kwargs, dict)
+    assert captured["announcement_id"] == "ann-1"

@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass
 from typing import cast
 
 from sqlalchemy.orm import Session
 
 from app.db.models import Event
-from app.modules.announcements.delivery_worker import run_pending_announcement_deliveries
+from app.modules.announcements.delivery_worker import enqueue_announcement_delivery_tasks
 from app.modules.announcements.recipient_service import AnnouncementRecipientService
 from app.modules.announcements.service import AnnouncementRecipient, AnnouncementService
 from app.utils.logger import logger
@@ -39,13 +38,8 @@ class AnnouncementManager:
         )
 
     @staticmethod
-    def trigger_delivery_async() -> None:
-        thread = threading.Thread(
-            target=run_pending_announcement_deliveries,
-            kwargs={"batch_size": 20},
-            daemon=True,
-        )
-        thread.start()
+    def trigger_delivery_async(*, announcement_id: str) -> None:
+        enqueue_announcement_delivery_tasks(announcement_id=announcement_id)
 
     @staticmethod
     def queue(
@@ -87,7 +81,7 @@ class AnnouncementManager:
             recipients=cast(list[AnnouncementRecipient], recipient_resolution["targets"]),
         )
 
-        AnnouncementManager.trigger_delivery_async()
+        AnnouncementManager.trigger_delivery_async(announcement_id=str(announcement.id))
 
         accepted_count = recipient_resolution["queued_count"]
         skipped_count = recipient_resolution["total_candidates"] - accepted_count
