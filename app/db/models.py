@@ -197,6 +197,40 @@ class ChannelDeadLetter(Base):
     )
 
 
+class InboundWebhookEnvelope(Base):
+    __tablename__ = "inbound_webhook_envelopes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    channel = Column(String(20), nullable=False, index=True)
+    payload_json = Column(JSONB, nullable=False)
+    payload_hash = Column(String(64), nullable=False, index=True)
+    status = Column(String(30), nullable=False, default="queued", index=True)
+    enqueued_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("channel IN ('whatsapp', 'telegram')", name="ck_inbound_webhook_envelopes_channel"),
+    )
+
+
+class WebhookIdempotencyKey(Base):
+    __tablename__ = "webhook_idempotency_keys"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    channel = Column(String(20), nullable=False)
+    provider_message_id = Column(String(255), nullable=True)
+    provider_update_id = Column(String(255), nullable=True)
+    idempotency_key = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("channel IN ('whatsapp', 'telegram')", name="ck_webhook_idempotency_keys_channel"),
+        UniqueConstraint("channel", "idempotency_key", name="uq_webhook_idempotency_keys_channel_key"),
+        Index("ix_webhook_idempotency_keys_lookup", "channel", "provider_message_id", "provider_update_id"),
+    )
+
+
 class CommitteeMemberLinkCode(Base):
     __tablename__ = "committee_member_link_codes"
 
