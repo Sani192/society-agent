@@ -1,3 +1,4 @@
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -6,6 +7,7 @@ import pytest
 from app.modules.reports.block_wise import BlockWiseReport
 from app.modules.reports.event_summary import EventSummaryReport
 from app.modules.reports.override_report import OverrideReport
+from app.modules.reports.governance.audit_report import GovernanceAuditReport
 from app.modules.reports.sponsor_wise import SponsorWiseReport
 from tests.utils import QueryMock
 
@@ -98,4 +100,37 @@ def test_override_report_listing():
             "reason": "OVERRIDE: manual",
             "performed_at": "2026-01-10"
         }
+    ]
+
+
+def test_governance_audit_report_includes_system_and_committee_rows():
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(
+            all_result=[
+                (
+                    datetime(2026, 1, 10, 9, 30),
+                    "ROLE_CHANGE",
+                    "Assigned moderator",
+                    "member-1",
+                    "Alex",
+                    "secretary",
+                ),
+                (
+                    datetime(2026, 1, 10, 8, 0),
+                    "POLICY_SYNC",
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+            ]
+        )
+    ]
+
+    report = GovernanceAuditReport.generate(db=db, society_id="soc-1")
+
+    assert report["rows"] == [
+        ["10 Jan 2026 09:30", "ROLE_CHANGE", "Assigned moderator", "Alex", "secretary"],
+        ["10 Jan 2026 08:00", "POLICY_SYNC", "-", "System", "-"],
     ]

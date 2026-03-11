@@ -28,10 +28,11 @@ class GovernanceAuditReport:
                 AuditLog.performed_at,
                 AuditLog.action,
                 AuditLog.reason,
+                AuditLog.performed_by,
                 CommitteeMember.name,
                 CommitteeMember.role
             )
-            .join(
+            .outerjoin(
                 CommitteeMember,
                 CommitteeMember.id == AuditLog.performed_by
             )
@@ -51,9 +52,9 @@ class GovernanceAuditReport:
                 action,
                 reason or "-",
                 name or "System",
-                role
+                role if performed_by else "-"
             ]
-            for performed_at, action, reason, name, role in records
+            for performed_at, action, reason, performed_by, name, role in records
         ]
 
         return {
