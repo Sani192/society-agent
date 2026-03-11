@@ -40,3 +40,7 @@ def test_report_access_rejects_committee_member_exports():
         assert False, "committee_member should not be able to export ledger"
     except Exception as exc:
         assert "not allowed" in str(exc)
+
+
+def test_food_pass_operations_report_allows_committee_member():
+    ensure_report_access(role="committee_member", report_code="FOOD_PASS_OPERATIONS")

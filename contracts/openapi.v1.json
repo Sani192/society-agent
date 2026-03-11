@@ -1309,6 +1309,142 @@
         ]
       }
     },
+    "/reports/operations/food-pass": {
+      "get": {
+        "operationId": "food_pass_operations_report_reports_operations_food_pass_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "phone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Phone"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Food Pass Operations Report",
+        "tags": [
+          "Reports | Operations"
+        ]
+      }
+    },
+    "/reports/operations/food-pass/export": {
+      "get": {
+        "operationId": "export_food_pass_operations_report_reports_operations_food_pass_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "phone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Phone"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "csv",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Food Pass Operations Report",
+        "tags": [
+          "Reports | Operations"
+        ]
+      }
+    },
     "/reports/public/event-summary/pdf": {
       "get": {
         "operationId": "public_event_summary_pdf_reports_public_event_summary_pdf_get",
