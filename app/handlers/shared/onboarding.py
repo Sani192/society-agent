@@ -13,7 +13,6 @@ from app.modules.onboarding.onboarding_service import OnboardingService
 from app.modules.onboarding.onboarding_query_service import OnboardingQueryService
 from app.whatsapp.response_templates import (
     error_response,
-    info_response,
     join_lines,
     success_response,
 )
