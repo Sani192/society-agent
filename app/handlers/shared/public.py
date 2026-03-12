@@ -23,6 +23,7 @@ from app.whatsapp.response_templates import (
     error_response,
     format_currency,
     format_heading,
+    info_response,
     join_lines,
     success_response,
 )
@@ -630,10 +631,29 @@ def handle_public_intent(
 
         return success_response(join_lines(lines))
 
-    if intent == "HELP":
+    if intent == "MENU":
         return success_response(
-            "Type *menu*.",
-            heading="Society Control Panel",
+            join_lines([
+                "Main menu:",
+                "• my status",
+                "• my balance",
+                "• my payments",
+                "• my pass",
+                "• help",
+            ]),
+            heading="Main Menu",
+            emoji="📋",
+        )
+
+    if intent == "HELP":
+        return info_response(
+            join_lines([
+                "Use *menu* to open the main command list.",
+                "Need onboarding? Try `join <code> <flat>` or `join status`.",
+                "Need support? Contact your committee.",
+            ]),
+            heading="Help",
+            emoji="🆘",
         )
 
     return None
