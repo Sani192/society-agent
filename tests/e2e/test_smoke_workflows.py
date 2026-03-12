@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from app.api.health import health_check
 from app.api.reports.financial import event_summary
 from app.api.telegram import telegram_webhook_event
-from app.api.whatsapp import whatsapp_webhook_event
+from app.api.whatsapp.webhook import whatsapp_webhook_event
 from app.db.base import Base
 from app.db.models import (
     AuditLog,
@@ -82,7 +82,7 @@ def smoke_db(tmp_path, monkeypatch):
     monkeypatch.setattr("app.db.session.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.main.engine", engine)
     monkeypatch.setattr("app.main.SessionLocal", TestingSessionLocal)
-    monkeypatch.setattr("app.api.whatsapp.SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", TestingSessionLocal)
     monkeypatch.setattr("app.channels.core.handler.SessionLocal", TestingSessionLocal)
 
     db = TestingSessionLocal()
@@ -451,10 +451,10 @@ def test_contribution_refund_workflow_e2e(smoke_db):
 
 @pytest.mark.smoke
 def test_whatsapp_webhook_smoke(monkeypatch):
-    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
 
     secret = "smoke-secret"
-    monkeypatch.setattr("app.api.whatsapp.settings.WHATSAPP_APP_SECRET", secret)
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_APP_SECRET", secret)
 
     payload = {"object": "whatsapp_business_account", "entry": []}
     body = json.dumps(payload).encode("utf-8")

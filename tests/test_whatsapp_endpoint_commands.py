@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.api.whatsapp import WhatsAppRequest, whatsapp_webhook
+from app.api.whatsapp.webhook import WhatsAppRequest, whatsapp_webhook
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.whatsapp.ui.committee import (
     build_committee_food_collection_sections,
