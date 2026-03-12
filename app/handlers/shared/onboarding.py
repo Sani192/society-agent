@@ -13,6 +13,7 @@ from app.modules.onboarding.onboarding_service import OnboardingService
 from app.modules.onboarding.onboarding_query_service import OnboardingQueryService
 from app.whatsapp.response_templates import (
     error_response,
+    info_response,
     join_lines,
     success_response,
 )
@@ -31,7 +32,7 @@ def handle_onboarding_intent(
     if intent == "JOIN":
         parts = message.split()
         if len(parts) < 3:
-            return error_response("Example: join ABC123 A-101")
+            return info_response("Example: join ABC123 A-101")
 
         join_code = parts[1]
         flat_number = parts[2]

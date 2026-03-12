@@ -21,7 +21,7 @@ def test_handle_message_unknown_intent(monkeypatch):
 
     response = handle_message("999", "unknown")
 
-    assert response == "ℹ️ Invalid option. Use: menu, help, report options."
+    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help, report options."
     db.close.assert_called_once()
 
 
@@ -455,7 +455,7 @@ def test_handle_message_link_member_is_not_supported_for_whatsapp(monkeypatch):
 
     response = handle_message("919999000111", "link member ABC123")
 
-    assert response == "ℹ️ Invalid option. Use: menu, help."
+    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
     db.close.assert_called_once()
 
 
@@ -469,7 +469,7 @@ def test_handle_message_verify_phone_is_not_supported_for_whatsapp(monkeypatch):
 
     response = handle_message("919999000112", "verify phone 9999000011")
 
-    assert response == "ℹ️ Invalid option. Use: menu, help."
+    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
     db.close.assert_called_once()
 
 

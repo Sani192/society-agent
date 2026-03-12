@@ -170,7 +170,7 @@ def test_whatsapp_unsupported_intent_falls_back_to_reports_menu_hint():
         public_intent_handler=lambda **kwargs: None,
     )
 
-    assert response == "ℹ️ Invalid option. Use: menu, help."
+    assert response == "ℹ️ Invalid option. That command is not available here. Use: menu, help."
 
 
 def test_whatsapp_no_intent_falls_back_to_menu_hint():
@@ -196,7 +196,7 @@ def test_whatsapp_no_intent_falls_back_to_menu_hint():
         public_intent_handler=lambda **kwargs: None,
     )
 
-    assert response == "ℹ️ Invalid option. Use: menu, help."
+    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
 
 
 def test_whatsapp_pending_committee_action_maps_free_text_to_pending_intent():
@@ -263,7 +263,7 @@ def test_whatsapp_numeric_intent_not_treated_as_export_without_active_session():
         public_intent_handler=lambda **kwargs: None,
     )
 
-    assert response == "ℹ️ Invalid option. Use: menu, help."
+    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
     assert captured["allow_numeric"] is False
 
 
@@ -348,3 +348,51 @@ def test_whatsapp_legacy_report_export_returns_migration_hint():
     )
 
     assert response == "ℹ️ `report export ...` is no longer supported. Send `report options`, then reply with `export <number>` or tap an `export::<key>` option."
+
+
+def test_invalid_command_contract_is_consistent_for_whatsapp_and_telegram():
+    db = MagicMock()
+
+    whatsapp_message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000111",
+        display_name="WA User",
+        text="???",
+        metadata={},
+    )
+    telegram_message = InboundMessage(
+        channel="telegram",
+        sender_id="tg-111",
+        display_name="TG User",
+        text="???",
+        metadata={},
+    )
+
+    wa_response = handle_inbound_message(
+        whatsapp_message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: None,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+    tg_response = handle_inbound_message(
+        telegram_message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: None,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert wa_response.startswith("ℹ️ Invalid option.")
+    assert tg_response.startswith("ℹ️ Invalid command.")
+    for message in (whatsapp_message, telegram_message):
+        contract = message.metadata["response_contract"]
+        assert contract["response_type"] == "invalid_input"
+        assert contract["severity"] == "info"
+        assert [cta["id"] for cta in contract["ctas"][:2]] == ["menu", "help"]

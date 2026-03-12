@@ -42,6 +42,7 @@ from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
 from app.db.session import SessionLocal
 from app.utils.logger import logger
 from app.whatsapp.handler import handle_message
+from app.whatsapp.response_templates import INVALID_INPUT_METADATA_KEY
 
 router = APIRouter()
 
@@ -314,22 +315,27 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
                     )
                 except TypeError:
                     reply_text = handle_inbound_message(message)
-                if reply_text.startswith("ℹ️ Invalid option."):
+                invalid_contract = message.metadata.get(INVALID_INPUT_METADATA_KEY)
+                if isinstance(invalid_contract, dict) and invalid_contract.get("response_type") == "invalid_input":
+                    cta_rows = invalid_contract.get("ctas") or []
+                    buttons = [_button_row(cta.get("id", "menu"), cta.get("label", "Main Menu")) for cta in cta_rows[:3]]
+                    if not buttons:
+                        buttons = [_button_row("menu", "Main Menu"), _button_row("help", "Help")]
                     try:
                         send_response = client.send_button_message(
                             to_phone=message.sender_id,
-                            header_text="Invalid option",
+                            header_text="Invalid command",
                             body_text=reply_text,
-                            buttons=[_button_row("menu", "Main Menu")],
+                            buttons=buttons,
                             trace_id=trace_id,
                             correlation_id=correlation_id_str,
                         )
                     except TypeError:
                         send_response = client.send_button_message(
                             to_phone=message.sender_id,
-                            header_text="Invalid option",
+                            header_text="Invalid command",
                             body_text=reply_text,
-                            buttons=[_button_row("menu", "Main Menu")],
+                            buttons=buttons,
                         )
                 else:
                     try:
