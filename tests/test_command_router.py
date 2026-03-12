@@ -1,12 +1,13 @@
+from app.whatsapp.response_templates import EXPORT_COMMAND_EXAMPLES
 from app.commands.router import detect_intent
 
 
-def test_detect_intent_report_export_modern_not_supported():
+def test_detect_intent_report_export_legacy_guidance_intent():
     assert (
         detect_intent(
             "report export --category financial --report event-summary --format pdf"
         )
-        is None
+        == "LEGACY_REPORT_EXPORT"
     )
 
 
@@ -18,8 +19,8 @@ def test_detect_intent_report_options():
     assert detect_intent("report options") == "REPORT_OPTIONS"
 
 
-def test_detect_intent_reports_alias_not_supported():
-    assert detect_intent("reports") is None
+def test_detect_intent_reports_alias_guidance_intent():
+    assert detect_intent("reports") == "LEGACY_REPORTS_ALIAS"
 
 
 def test_detect_intent_conversational_export_selection_when_allowed():
@@ -109,3 +110,8 @@ def test_detect_intent_committee_member_crud_commands():
     assert detect_intent("add committee member Alice|+91 9999900000|secretary") == "ADD_COMMITTEE_MEMBER"
     assert detect_intent("remove committee member 123") == "REMOVE_COMMITTEE_MEMBER"
     assert detect_intent("change committee role 123 treasurer") == "CHANGE_COMMITTEE_ROLE"
+
+
+def test_export_command_examples_are_detectable():
+    for example in EXPORT_COMMAND_EXAMPLES:
+        assert detect_intent(example) in {"REPORT_OPTIONS", "EXPORT_SELECTION"}

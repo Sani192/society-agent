@@ -75,14 +75,12 @@ def detect_intent(
         return "EXPORT_SELECTION"
 
     if msg == "reports":
-        logger.info("Legacy reports alias unsupported; use report options")
-        return None
+        logger.info("Legacy reports alias detected")
+        return "LEGACY_REPORTS_ALIAS"
 
     if msg.startswith("report export"):
-        logger.info(
-            "Legacy report export free-text is unsupported; use report options",
-        )
-        return None
+        logger.info("Legacy report export free-text detected")
+        return "LEGACY_REPORT_EXPORT"
 
     if msg.startswith("export::"):
         logger.info(
