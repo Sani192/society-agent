@@ -322,17 +322,17 @@ def _handle_event_creation_wizard_step(*, db, member, message: str, session_key:
     elif state.step == "food_types":
         food_types = [item.strip().lower() for item in answer.split(",") if item.strip()]
         if not food_types:
-            return error_response("Please provide at least one food type. Example: veg,jain")
+            return info_response("Please provide at least one food type. Example: veg,jain")
         state.food_types = food_types
 
     elif state.step == "charge_per_adult":
         if not answer.isdigit():
-            return error_response("Adult charge must be a whole number. Example: 300")
+            return info_response("Adult charge must be a whole number. Example: 300")
         state.charge_per_adult = int(answer)
 
     elif state.step == "charge_per_child":
         if not answer.isdigit():
-            return error_response("Child charge must be a whole number. Example: 150")
+            return info_response("Child charge must be a whole number. Example: 150")
         state.charge_per_child = int(answer)
 
     elif state.step == "payment_deadline":
@@ -920,7 +920,7 @@ def handle_committee_intent(
 
             if state.step == "amount":
                 if not answer.isdigit():
-                    return error_response("Expense amount must be numeric. Example: 1200")
+                    return info_response("Expense amount must be numeric. Example: 1200")
                 amount = int(answer)
                 reason = state.data.get("reason") or "WhatsApp expense"
                 clear_committee_action_session(committee_action_session_key)
@@ -960,7 +960,7 @@ def handle_committee_intent(
                 sponsor_type = state.data.get("sponsor_type", "")
                 sponsor_name = state.data.get("sponsor_name", "")
                 if sponsor_type == "monetary" and not answer.isdigit():
-                    return error_response("Sponsor amount must be numeric. Example: 5000")
+                    return info_response("Sponsor amount must be numeric. Example: 5000")
                 if not answer:
                     return error_response("Sponsor amount/details is required.")
                 clear_committee_action_session(committee_action_session_key)
@@ -984,7 +984,7 @@ def handle_committee_intent(
 
             if state.step == "amount":
                 if not answer.isdigit():
-                    return error_response("Refund amount must be numeric. Example: 500")
+                    return info_response("Refund amount must be numeric. Example: 500")
                 state.data["amount"] = answer
                 state.step = "reason"
                 save_committee_action_session(committee_action_session_key, state)
@@ -1331,7 +1331,7 @@ def handle_committee_intent(
             raw = (normalized_message or "").strip()
             flat_number = raw[len("serve flat"):].strip() if raw.lower().startswith("serve flat") else None
         if not flat_number:
-            return error_response("Flat number is required. Example: serve flat A-101")
+            return info_response("Flat number is required. Example: serve flat A-101")
 
         flat = (
             db.query(Flat)
@@ -1365,7 +1365,7 @@ def handle_committee_intent(
         raw = (message or "").strip()
         flat_number = raw[len("flat passes"):].strip() if raw.lower().startswith("flat passes") else None
         if not flat_number:
-            return error_response("Flat number is required. Example: flat passes A-101")
+            return info_response("Flat number is required. Example: flat passes A-101")
         try:
             summary = FoodCollectionService.committee_flat_status(
                 db=db,
@@ -1392,7 +1392,7 @@ def handle_committee_intent(
             return error_response("No active event found. Please contact committee.")
         token_code = _parse_token_after_prefix(message, prefix="token status")
         if not token_code:
-            return error_response("Token is required. Example: token status AB2K9M")
+            return info_response("Token is required. Example: token status AB2K9M")
         try:
             token = FoodCollectionService.inspect_token(
                 db=db,
@@ -1456,7 +1456,7 @@ def handle_committee_intent(
 
         reason = parse_reason(message, command_prefixes=("close event",))
         if not reason or not reason.strip():
-            return error_response("Please provide a close reason. Example: close event reason settlement completed")
+            return info_response("Please provide a close reason. Example: close event reason settlement completed")
 
         target_event = event
         if not target_event:
@@ -1878,7 +1878,7 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 3:
-            return error_response("Example: approve user REQ-003")
+            return info_response("Example: approve user REQ-003")
 
         request_code = parts[2].upper()
 
@@ -1896,7 +1896,7 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 3:
-            return error_response("Example: approve payment PAY-001")
+            return info_response("Example: approve payment PAY-001")
 
         request_code = parts[2].upper()
         request = PaymentRequestService.get_request_by_code(
@@ -1918,7 +1918,7 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 3:
-            return error_response("Example: approve refund REF-001")
+            return info_response("Example: approve refund REF-001")
 
         request_code = parts[2].upper()
         request = RefundRequestService.get_request_by_code(

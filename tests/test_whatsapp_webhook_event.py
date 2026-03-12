@@ -1074,15 +1074,15 @@ def test_whatsapp_webhook_event_invalid_option_sends_main_menu_button(monkeypatc
     monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
     monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.detect_whatsapp_intent", lambda message: None)
-    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: "ℹ️ Invalid option. Use: menu, help.")
+    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: message.metadata.update({"response_contract": {"response_type": "invalid_input", "ctas": [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}]}}) or "ℹ️ Invalid option. Try a listed menu command. Use: menu, help.")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
     assert len(button_attempts) == 1
-    assert button_attempts[0]["header_text"] == "Invalid option"
+    assert button_attempts[0]["header_text"] == "Invalid command"
     button_ids = [button["reply"]["id"] for button in button_attempts[0]["buttons"]]
-    assert button_ids == ["menu"]
+    assert button_ids == ["menu", "help"]
 
 
 def test_whatsapp_webhook_event_report_options_opens_report_list_without_forcing_event_selection(monkeypatch):

@@ -36,19 +36,27 @@ from app.whatsapp.export_session import (
     get_export_session,
 )
 from app.whatsapp.response_templates import (
+    build_invalid_command_response,
     error_response,
     info_response,
     success_response,
+    INVALID_INPUT_METADATA_KEY,
 )
 
 
+def _invalid_command_reply(*, message: InboundMessage, reason: str, is_committee: bool) -> str:
+    ctas = [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}]
+    if message.channel == "whatsapp" and is_committee:
+        ctas.append({"id": "report options", "label": "Report Options"})
 
-
-def _whatsapp_invalid_option_message(*, is_committee: bool) -> str:
-    base = "Invalid option. Use: menu, help"
-    if is_committee:
-        return base + ", report options."
-    return base + "."
+    reply, contract = build_invalid_command_response(channel=message.channel, reason=reason, ctas=ctas)
+    message.metadata[INVALID_INPUT_METADATA_KEY] = {
+        "response_type": contract.response_type,
+        "severity": contract.severity,
+        "reason": contract.reason,
+        "ctas": list(contract.ctas),
+    }
+    return reply
 
 
 
@@ -295,12 +303,16 @@ def handle_inbound_message(
                 extra={"sender_id": message.sender_id, "channel": message.channel},
             )
             if message.channel == "telegram" and not member:
-                return info_response(
-                    "I couldn't detect a command. If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram."
+                return _invalid_command_reply(
+                    message=message,
+                    reason="If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram.",
+                    is_committee=False,
                 )
-            if message.channel == "whatsapp":
-                return info_response(_whatsapp_invalid_option_message(is_committee=bool(member)))
-            return info_response("Sorry, I didn’t understand this command.")
+            return _invalid_command_reply(
+                message=message,
+                reason="Try a listed menu command.",
+                is_committee=bool(member),
+            )
 
         onboarding_response = onboarding_intent_handler(
             db=db,
@@ -339,9 +351,11 @@ def handle_inbound_message(
             "Intent reached unsupported fallback",
             extra={"intent": intent, "channel": message.channel, "sender_id": message.sender_id},
         )
-        if message.channel == "whatsapp":
-            return info_response(_whatsapp_invalid_option_message(is_committee=bool(member)))
-        return error_response("Command not supported.")
+        return _invalid_command_reply(
+            message=message,
+            reason="That command is not available here.",
+            is_committee=bool(member),
+        )
 
     except Exception:
         logger.exception("Unhandled error in shared channel handler")

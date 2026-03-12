@@ -10,6 +10,7 @@ Created on Sun Mar 09 10:12:34 2026
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Iterable, Optional
 
@@ -105,3 +106,29 @@ EXPORT_COMMAND_EXAMPLES = (
     "export::financial:ledger",
     "export 1",
 )
+
+
+INVALID_INPUT_METADATA_KEY = "response_contract"
+
+
+@dataclass(frozen=True)
+class InvalidInputContract:
+    reason: str
+    ctas: tuple[dict[str, str], ...]
+    response_type: str = "invalid_input"
+    severity: str = "info"
+
+
+def build_invalid_command_response(
+    *,
+    channel: str,
+    reason: str,
+    ctas: list[dict[str, str]] | None = None,
+) -> tuple[str, InvalidInputContract]:
+    action_rows = tuple(ctas or [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}])
+    command_hints = ", ".join(action["id"] for action in action_rows)
+    if channel == "whatsapp":
+        text = info_response(f"Invalid option. {reason} Use: {command_hints}.")
+    else:
+        text = info_response(f"Invalid command. {reason} Use: {command_hints}.")
+    return text, InvalidInputContract(reason=reason, ctas=action_rows)

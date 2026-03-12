@@ -630,9 +630,27 @@ def handle_public_intent(
 
         return success_response(join_lines(lines))
 
+    if intent == "MENU":
+        return success_response(
+            join_lines([
+                "Main menu:",
+                "• my status",
+                "• my balance",
+                "• my payments",
+                "• my pass",
+                "• help",
+            ]),
+            heading="Main Menu",
+            emoji="📋",
+        )
+
     if intent == "HELP":
         return success_response(
-            "Type *menu*.",
+            join_lines([
+                "Type *menu*.",
+                "Need onboarding? Try `join <code> <flat>` or `join status`.",
+                "Need support? Contact your committee.",
+            ]),
             heading="Society Control Panel",
         )
 
