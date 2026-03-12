@@ -426,6 +426,7 @@ def test_telegram_menu_and_help_return_command_specific_responses():
 
     assert menu_response.startswith("✅")
     assert "Main menu:" in menu_response
-    assert help_response.startswith("ℹ️")
-    assert "Use *menu* to open the main command list." in help_response
+    assert help_response.startswith("✅")
+    assert "Society Control Panel" in help_response
+    assert "Type *menu*." in help_response
     assert menu_response != help_response

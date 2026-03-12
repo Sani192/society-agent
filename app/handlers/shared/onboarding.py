@@ -32,7 +32,7 @@ def handle_onboarding_intent(
     if intent == "JOIN":
         parts = message.split()
         if len(parts) < 3:
-            return info_response("Example: join ABC123 A-101")
+            return error_response("Example: join ABC123 A-101")
 
         join_code = parts[1]
         flat_number = parts[2]
