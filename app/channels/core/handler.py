@@ -58,6 +58,12 @@ REPORT_INTENTS_REQUIRING_EVENT_CONTEXT = {
     "PARTICIPATION_REPORT",
 }
 
+
+LEGACY_REPORT_GUIDANCE = {
+    "LEGACY_REPORTS_ALIAS": "`reports` is no longer supported. Send `report options` to view exportable reports.",
+    "LEGACY_REPORT_EXPORT": "`report export ...` is no longer supported. Send `report options`, then reply with `export <number>` or tap an `export::<key>` option.",
+}
+
 def _get_canonical_sender(message: InboundMessage) -> str:
     return message.metadata.get("canonical_sender_id") or message.sender_id
 
@@ -279,6 +285,9 @@ def handle_inbound_message(
         ) if intent else None
         if blocked_reason:
             return info_response(blocked_reason)
+
+        if intent in LEGACY_REPORT_GUIDANCE:
+            return info_response(LEGACY_REPORT_GUIDANCE[intent])
 
         if not intent:
             logger.info(

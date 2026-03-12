@@ -101,8 +101,7 @@ def format_report_options_response(options: list[dict]) -> str:
 
 
 EXPORT_COMMAND_EXAMPLES = (
-    "report export --category financial --report event-summary --format pdf",
-    "report export --category admin --report onboarding-status --format csv",
-    "report export --category governance --report audit --format excel",
     "report options",
+    "export::financial:ledger",
+    "export 1",
 )
