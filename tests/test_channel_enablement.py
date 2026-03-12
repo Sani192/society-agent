@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.telegram import telegram_webhook_event
-from app.api.whatsapp import WhatsAppRequest, whatsapp_webhook
+from app.api.whatsapp.webhook import WhatsAppRequest, whatsapp_webhook
 
 
 class StubRequest:
@@ -17,7 +17,7 @@ class StubRequest:
 
 
 def test_whatsapp_webhook_returns_503_when_channel_disabled(monkeypatch):
-    monkeypatch.setattr("app.api.whatsapp.settings.WHATSAPP_ENABLED", False)
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_ENABLED", False)
 
     with pytest.raises(HTTPException) as exc_info:
         whatsapp_webhook(WhatsAppRequest(phone_number="+919999000000", message="help"))

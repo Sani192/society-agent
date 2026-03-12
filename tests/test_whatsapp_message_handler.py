@@ -2,11 +2,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.channels.whatsapp.adapter import parse_webhook_payload
-from app.api.whatsapp import (
-    WHATSAPP_MORE_REPORTS_ROW_ID,
-    _build_reports_list_sections,
-    _chunk_report_options,
-)
+from app.channels.whatsapp.report_flow import _build_reports_list_sections
+from app.channels.whatsapp.ui_router import WHATSAPP_MORE_REPORTS_ROW_ID, _chunk_report_options
 from app.whatsapp.handler import handle_message
 
 

@@ -1,34 +1,5 @@
-import asyncio
-
-import app.api.whatsapp as whatsapp_api
-from app.api.whatsapp import webhook as webhook_module
+import app.api.whatsapp.webhook as webhook_module
 from app.channels.whatsapp import report_flow
-
-
-def test_sync_compat_symbols_propagates_patched_values(monkeypatch):
-    def sentinel():
-        return None
-
-    monkeypatch.setattr(whatsapp_api, "_ensure_channel_enabled", sentinel)
-
-    whatsapp_api._sync_compat_symbols()
-
-    assert webhook_module._ensure_channel_enabled is sentinel
-
-
-def test_whatsapp_webhook_event_wrapper_syncs_before_delegate(monkeypatch):
-    def sentinel():
-        return None
-
-    async def fake_delegate(_request):
-        assert webhook_module._ensure_channel_enabled is sentinel
-        return {"status": "ok"}
-
-    monkeypatch.setattr(whatsapp_api, "_ensure_channel_enabled", sentinel)
-    monkeypatch.setattr(webhook_module, "whatsapp_webhook_event", fake_delegate)
-
-    response = asyncio.run(whatsapp_api.whatsapp_webhook_event(object()))
-    assert response == {"status": "ok"}
 
 
 def test_build_reports_list_sections_wrapper_delegates_to_report_flow(monkeypatch):
