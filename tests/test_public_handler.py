@@ -653,3 +653,63 @@ def test_public_actions_blocked_for_non_committee_when_event_not_active(db_sessi
 
     assert response.startswith("❌")
     assert "available only when event is active" in response
+
+
+def test_public_add_pass_zero_counts_uses_parseable_example():
+    event = SimpleNamespace(
+        id="event-1",
+        society_id="soc-1",
+        charge_per_adult=200,
+        charge_per_child=100
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="ADD_PASS",
+        phone_number=MEMBER_PHONE,
+        message="add pass",
+        event=event,
+        member=None,
+    )
+
+    assert response == "❌ Specify counts. Example: add pass veg 2 jain 1 kids 1"
+
+
+def test_public_add_pass_example_with_kids_token_parses(monkeypatch):
+    event = SimpleNamespace(
+        id="event-1",
+        society_id="soc-1",
+        charge_per_adult=200,
+        charge_per_child=100
+    )
+    flat = SimpleNamespace(id="flat-1")
+    member = SimpleNamespace(id="member-1")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.public.resolve_flat",
+        lambda *args, **kwargs: flat
+    )
+
+    called = {}
+
+    def fake_add_or_update_pass(**kwargs):
+        called["payload"] = kwargs
+
+    monkeypatch.setattr(
+        "app.handlers.shared.public.FoodPassService.add_or_update_pass",
+        fake_add_or_update_pass
+    )
+
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="ADD_PASS",
+        phone_number=COMMITTEE_PHONE,
+        message="add pass veg 2 jain 1 kids 1",
+        event=event,
+        member=member
+    )
+
+    assert response.startswith("✅")
+    assert called["payload"]["veg_count"] == 2
+    assert called["payload"]["jain_count"] == 1
+    assert called["payload"]["kids_count"] == 1

@@ -27,8 +27,14 @@ def parse_pass_counts(message: str):
     logger.info("Parsing pass counts from WhatsApp message")
     counts = {"veg": 0, "jain": 0, "kids": 0}
 
-    for key in counts.keys():
-        match = re.search(rf"{key}\s+(\d+)", message)
+    token_patterns = {
+        "veg": r"\bveg\b",
+        "jain": r"\bjain\b",
+        "kids": r"\bkids?\b",
+    }
+
+    for key, token_pattern in token_patterns.items():
+        match = re.search(rf"{token_pattern}\s+(\d+)", message, re.IGNORECASE)
         if match:
             counts[key] = int(match.group(1))
 

@@ -358,7 +358,7 @@ def test_whatsapp_webhook_event_add_pass_pending_action_rejects_zero_counts(monk
     assert response == {"status": "ok"}
     assert text_attempts[-1] == (
         "919999000014",
-        "❌ Specify counts. Example: veg 2 jain 1 kid 1",
+        "❌ Specify counts. Example: veg 2 jain 1 kids 1",
     )
     session = get_finance_action_session("919999000014")
     assert session is not None
