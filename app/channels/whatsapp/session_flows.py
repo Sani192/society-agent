@@ -138,7 +138,7 @@ def handle_session_flow(*, client, message) -> bool:
     if finance_session and finance_session.pending_action == "ADD_PASS_COUNTS" and normalized_text:
         counts = parse_pass_counts(normalized_text)
         if sum(counts.values()) == 0:
-            client.send_text_message(message.sender_id, "❌ Specify counts. Example: veg 2 jain 1 kid 1")
+            client.send_text_message(message.sender_id, "❌ Specify counts. Example: veg 2 jain 1 kids 1")
             return True
 
         synthetic_command = f"add pass veg {counts['veg']} jain {counts['jain']} kids {counts['kids']}"

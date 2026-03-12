@@ -111,7 +111,7 @@ def handle_public_intent(
 
         counts = parse_pass_counts(message)
         if sum(counts.values()) == 0:
-            return error_response("Specify counts. Example: add pass veg 2 jain 1 kid 1")
+            return error_response("Specify counts. Example: add pass veg 2 jain 1 kids 1")
 
         charge_per_adult = event.charge_per_adult
         charge_per_child = event.charge_per_child
