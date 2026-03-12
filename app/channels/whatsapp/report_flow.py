@@ -136,6 +136,19 @@ def handle_report_flow(*, client, message) -> bool:
                     _command_key, entry = resolve_report_entry(registry=registry, category=selected_option["category"], report=selected_option["report_key"])
                     if entry.requires_event_id and not session.event_id:
                         events = _recent_report_events(db=db, society_id=member.society_id)
+                        valid_event_ids = [_default_report_event_id(event) for event in events]
+                        valid_event_ids = [event_id for event_id in valid_event_ids if event_id]
+                        if len(valid_event_ids) == 1:
+                            save_export_session(
+                                session_key,
+                                ExportSessionState(
+                                    options=report_options,
+                                    current_page=session.current_page,
+                                    event_id=valid_event_ids[0],
+                                    pending_intent=session.pending_intent,
+                                ),
+                            )
+                            return False
                         client.send_list_message(to_phone=message.sender_id, header_text="Reports", body_text="This report needs an event. Select event first.", button_text="Choose Event", sections=_build_report_event_sections(events))
                         return True
 

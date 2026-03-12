@@ -1187,7 +1187,8 @@ def test_whatsapp_webhook_event_export_requires_event_then_opens_event_selection
     )
 
     fake_member = type("M", (), {"id": "member-3", "role": "chairman", "society_id": "soc-1"})()
-    fake_event = type("E", (), {"id": "evt-1", "name": "Ganesh Event", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "CLOSED"})()
+    fake_event = type("E", (), {"id": "evt-1", "name": "Ganesh Event", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "ACTIVE"})()
+    fake_event_2 = type("E", (), {"id": "evt-2", "name": "Diwali Event", "event_date": __import__("datetime").datetime(2026, 10, 20, 20, 0), "status": "LOCKED"})()
 
     monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
     monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
@@ -1195,7 +1196,7 @@ def test_whatsapp_webhook_event_export_requires_event_then_opens_event_selection
     monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: fake_member)
-    monkeypatch.setattr("app.api.whatsapp._recent_report_events", lambda **kwargs: [fake_event])
+    monkeypatch.setattr("app.api.whatsapp._recent_report_events", lambda **kwargs: [fake_event, fake_event_2])
 
     from app.whatsapp.export_session import ExportSessionState, save_export_session
     save_export_session(
@@ -1211,6 +1212,52 @@ def test_whatsapp_webhook_event_export_requires_event_then_opens_event_selection
     assert rows[0]["id"].startswith("report-event::")
 
 
+
+
+def test_whatsapp_webhook_event_export_requires_event_with_single_candidate_auto_selects(monkeypatch):
+    text_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            raise AssertionError("event selection list should not be sent")
+
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.report.single-event"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000029",
+        display_name="Jane",
+        text="export::financial:block-payments",
+        metadata={"message_id": "wamid.report.single-event", "canonical_sender_id": "919999000029"},
+    )
+
+    fake_member = type("M", (), {"id": "member-29", "role": "chairman", "society_id": "soc-1"})()
+    fake_event = type("E", (), {"id": "evt-single", "name": "Annual Event", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "ACTIVE"})()
+
+    monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.api.whatsapp.ensure_committee_member", lambda *args, **kwargs: fake_member)
+    monkeypatch.setattr("app.api.whatsapp._recent_report_events", lambda **kwargs: [fake_event])
+    monkeypatch.setattr("app.api.whatsapp.handle_inbound_message", lambda message: "✅ exported with auto event")
+
+    from app.whatsapp.export_session import ExportSessionState, get_export_session, save_export_session
+    save_export_session(
+        "member-29:919999000029",
+        ExportSessionState(options=[{"category": "financial", "report_key": "block-payments", "command_key": "financial:block-payments", "label": "Block Payments"}], event_id=None),
+    )
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert text_attempts[-1] == ("919999000029", "✅ exported with auto event")
+    session = get_export_session("member-29:919999000029")
+    assert session is not None
+    assert session.event_id == "evt-single"
 def test_whatsapp_webhook_event_report_intent_requires_event_opens_event_selector(monkeypatch):
     list_attempts = []
 
@@ -1231,7 +1278,7 @@ def test_whatsapp_webhook_event_report_intent_requires_event_opens_event_selecto
     )
 
     fake_member = type("M", (), {"id": "member-4", "role": "chairman", "society_id": "soc-1"})()
-    fake_event = type("E", (), {"id": "evt-2", "name": "Ganesh Event", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "CLOSED"})()
+    fake_event = type("E", (), {"id": "evt-2", "name": "Ganesh Event", "event_date": __import__("datetime").datetime(2026, 9, 14, 19, 0), "status": "ACTIVE"})()
 
     monkeypatch.setattr("app.api.whatsapp._ensure_channel_enabled", lambda: None)
     monkeypatch.setattr("app.api.whatsapp._verify_signature", lambda raw, sig: None)
