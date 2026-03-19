@@ -92,19 +92,15 @@ TELEGRAM_WEBHOOK_SECRET=
    GRANT ALL PRIVILEGES ON DATABASE society_db TO society_user;
    ```
 2. Ensure `.env` points to those credentials.
-3. Start the app once. Tables are auto-created at startup via SQLAlchemy metadata.
+3. Apply the current baseline schema directly:
+   ```bash
+   psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260319_baseline_schema.sql
+   ```
+4. Start the app.
 
-### Migrations for existing databases
-- SQL migration files are in `docs/migrations/`.
-- Apply them in chronological order (oldest to newest), for example:
-  ```bash
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260223_pending_users_flat_id_migration.sql
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260223_drop_committee_member_channel_identity_phone_number.sql
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260224_backfill_committee_channel_identities.sql
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260224_flats_society_flat_number_unique.sql
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260224_requester_fk_migration.sql
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260224_society_id_consistency_guards.sql
-  ```
+### Schema reference
+- The canonical baseline schema lives at `docs/migrations/20260319_baseline_schema.sql`.
+- Historical SQL patches that remain in `docs/migrations/` are incremental follow-up changes, not required for a fresh database created from the baseline.
 
 ## 5. Run instructions
 1. Create and activate a virtual environment:
@@ -180,107 +176,7 @@ Run from repository root:
   ```bash
   python scripts/ci/check_test_markers.py
   ```
-- Expenses
-- Carry-forward balances
-- Transparent reports
 
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-This system helps the society managing committee manage:
-
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-This system helps the society managing committee manage:
-
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
----## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 - Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate

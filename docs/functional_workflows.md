@@ -342,8 +342,6 @@ python scripts/ci/check_test_markers.py
 - `scripts/seed_reminder_config.py` — seed reminder settings
 - `scripts/map_user_to_flat.py` — manual identity/flat mapping
 - `scripts/reset_event.py` — reset an event for controlled test rerun
-- `scripts/backfill_member_identities.py` — identity migration/backfill
-- `scripts/backfill_committee_channel_identities.py` — committee identity normalization
 - `scripts/export_data.py` — data export utility
 - `scripts/backup_db.py` — database backup
 - `scripts/ci/reset_test_state.py` — reset CI test DB state
