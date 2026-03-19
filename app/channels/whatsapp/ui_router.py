@@ -8,7 +8,7 @@ from app.db.session import SessionLocal
 from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
-from app.commands.handlers.common import (
+from app.handlers.shared.common import (
     get_latest_event,
     get_latest_event_for_society,
     resolve_flat,

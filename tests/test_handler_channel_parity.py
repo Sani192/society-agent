@@ -1,10 +1,10 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from app.commands.handlers.onboarding_handler import handle_onboarding_intent as command_onboarding
-from app.commands.handlers.public_handler import handle_public_intent as command_public
-from app.whatsapp.handlers.onboarding_handler import handle_onboarding_intent as whatsapp_onboarding
-from app.whatsapp.handlers.public_handler import handle_public_intent as whatsapp_public
+from app.handlers.shared.onboarding import handle_onboarding_intent as command_onboarding
+from app.handlers.shared.public import handle_public_intent as command_public
+from app.handlers.shared.onboarding import handle_onboarding_intent as whatsapp_onboarding
+from app.handlers.shared.public import handle_public_intent as whatsapp_public
 
 
 def test_public_pay_amount_validation_matches_channels():

@@ -17,7 +17,7 @@ from app.whatsapp.response_templates import (
     success_response,
 )
 from app.commands.parser import parse_target_phone
-from app.commands.handlers.common import get_latest_event, resolve_sender_society_id
+from app.handlers.shared.common import get_latest_event, resolve_sender_society_id
 
 
 def handle_onboarding_intent(

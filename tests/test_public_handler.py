@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from app.whatsapp.handlers.public_handler import handle_public_intent
+from app.handlers.shared.public import handle_public_intent
 from tests.constants import COMMITTEE_PHONE, MEMBER_PHONE
 from tests.utils import QueryMock
 
@@ -564,7 +564,7 @@ def test_public_my_payments_no_requests(monkeypatch):
 
 
 def test_public_help_and_commands():
-    from app.commands.handlers.public_handler import handle_public_intent
+    from app.handlers.shared.public import handle_public_intent
 
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
@@ -638,7 +638,7 @@ def test_public_block_report_formats_currency(monkeypatch):
 
 
 def test_public_actions_blocked_for_non_committee_when_event_not_active(db_session, seed_event):
-    from app.commands.handlers.public_handler import handle_public_intent
+    from app.handlers.shared.public import handle_public_intent
 
     event = seed_event(status="DRAFT")
 

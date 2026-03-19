@@ -131,7 +131,7 @@ def test_export_session_select_option_end_to_end(monkeypatch):
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.WhatsAppReportExportService.export",
+        "app.handlers.shared.committee.WhatsAppReportExportService.export",
         lambda **kwargs: {
             "category": "financial",
             "report": "event-summary",
@@ -152,7 +152,7 @@ def test_export_session_select_option_end_to_end(monkeypatch):
             return {"messages": [{"id": "wamid.1"}]}
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        "app.handlers.shared.committee.get_whatsapp_client",
         lambda: DummyClient(),
     )
 
@@ -177,7 +177,7 @@ def test_export_session_select_option_by_number_only_end_to_end(monkeypatch):
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.WhatsAppReportExportService.export",
+        "app.handlers.shared.committee.WhatsAppReportExportService.export",
         lambda **kwargs: {
             "category": "financial",
             "report": "event-summary",
@@ -198,7 +198,7 @@ def test_export_session_select_option_by_number_only_end_to_end(monkeypatch):
             return {"messages": [{"id": "wamid.1"}]}
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        "app.handlers.shared.committee.get_whatsapp_client",
         lambda: DummyClient(),
     )
 
@@ -242,7 +242,7 @@ def test_export_session_successful_export_dispatch_end_to_end(monkeypatch):
     monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.WhatsAppReportExportService.export",
+        "app.handlers.shared.committee.WhatsAppReportExportService.export",
         lambda **kwargs: {
             "category": "financial",
             "report": "event-summary",
@@ -267,7 +267,7 @@ def test_export_session_successful_export_dispatch_end_to_end(monkeypatch):
             return {"messages": [{"id": "wamid.1"}]}
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.get_whatsapp_client",
+        "app.handlers.shared.committee.get_whatsapp_client",
         lambda: DummyClient(),
     )
 
@@ -524,7 +524,7 @@ def test_activate_event_intent_to_event_service(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.EventService.activate_event",
+        "app.handlers.shared.committee.EventService.activate_event",
         fake_activate_event,
     )
 
@@ -554,7 +554,7 @@ def test_lock_passes_intent_to_event_service(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.EventService.lock_passes",
+        "app.handlers.shared.committee.EventService.lock_passes",
         fake_lock_passes,
     )
 
@@ -584,7 +584,7 @@ def test_start_event_intent_to_event_service(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.EventService.start_event_day",
+        "app.handlers.shared.committee.EventService.start_event_day",
         fake_start_event_day,
     )
 
@@ -616,7 +616,7 @@ def test_add_sponsor_intent_to_contribution_service(monkeypatch):
         called.update(kwargs)
 
     monkeypatch.setattr(
-        "app.commands.handlers.committee_handler.ContributionService.add_contribution",
+        "app.handlers.shared.committee.ContributionService.add_contribution",
         fake_add_contribution,
     )
 

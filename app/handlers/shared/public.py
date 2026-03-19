@@ -27,7 +27,7 @@ from app.whatsapp.response_templates import (
     success_response,
 )
 from app.commands.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
-from app.commands.handlers.common import resolve_flat
+from app.handlers.shared.common import resolve_flat
 from app.utils.guards import ensure_member_of_society
 from app.permissions.command_policy import get_event_state, member_action_state_warning
 

@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.channels.core.audit_security import redact_text
 from app.channels.core.types import InboundMessage
-from app.commands.handlers.committee_handler import handle_committee_intent
-from app.commands.handlers.common import get_latest_event_for_society, resolve_sender_society_id
-from app.commands.handlers.onboarding_handler import handle_onboarding_intent
-from app.commands.handlers.public_handler import handle_public_intent
+from app.handlers.shared.committee import handle_committee_intent
+from app.handlers.shared.common import get_latest_event_for_society, resolve_sender_society_id
+from app.handlers.shared.onboarding import handle_onboarding_intent
+from app.handlers.shared.public import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
 from app.db.models import Event, MemberIdentity
