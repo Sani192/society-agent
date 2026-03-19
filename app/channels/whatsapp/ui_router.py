@@ -667,13 +667,16 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 )
                 latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
                 is_committee = committee_member is not None
-                is_society_member = False
+                is_society_member = None if not is_committee else False
                 if not is_committee:
-                    is_society_member = _is_registered_member_for_sender(
-                        db=db,
-                        sender_id=canonical_sender,
-                    )
-                if latest_event and not is_committee and not is_society_member:
+                    try:
+                        is_society_member = _is_registered_member_for_sender(
+                            db=db,
+                            sender_id=canonical_sender,
+                        )
+                    except Exception:
+                        is_society_member = None
+                if latest_event and not is_committee and is_society_member is not True:
                     try:
                         resolve_flat(
                             db,
@@ -688,7 +691,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                         except Exception:
                             is_society_member = False
 
-                if not is_committee and not is_society_member:
+                if not is_committee and is_society_member is False:
                     client.send_button_message(
                         to_phone=message.sender_id,
                         header_text="Registration Required",
