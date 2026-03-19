@@ -92,6 +92,7 @@ def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: StubDB())
     monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
     monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 1, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.resolve_flat", lambda *args, **kwargs: type("Flat", (), {"id": 1})())
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
@@ -424,6 +425,7 @@ def test_whatsapp_webhook_event_menu_more_for_member_shows_all_sections_list(mon
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
     monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 1, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.resolve_flat", lambda *args, **kwargs: type("Flat", (), {"id": 1})())
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
@@ -462,6 +464,7 @@ def test_whatsapp_webhook_event_menu_without_active_event_shows_onboarding_butto
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 999, "status": "ACTIVE"})())
     monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event_for_society", lambda db, society_id: None)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
@@ -1042,6 +1045,7 @@ def test_whatsapp_webhook_event_help_behaves_like_menu(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
     monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 1, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.resolve_flat", lambda *args, **kwargs: type("Flat", (), {"id": 1})())
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))

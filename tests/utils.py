@@ -19,9 +19,6 @@ class QueryMock:
     def join(self, *args, **kwargs):
         return self
 
-    def outerjoin(self, *args, **kwargs):
-        return self
-
     def order_by(self, *args, **kwargs):
         return self
 
