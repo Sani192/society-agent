@@ -1,20 +1,45 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import app.channels.core.handler as core_handler
+import app.commands.router as commands_router
+from app.channels.core.handler import handle_inbound_message
+from app.channels.core.types import InboundMessage
 from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.channels.whatsapp.report_flow import _build_reports_list_sections
 from app.channels.whatsapp.ui_router import WHATSAPP_MORE_REPORTS_ROW_ID, _chunk_report_options
-from app.whatsapp.handler import handle_message
+
+
+def handle_message(phone_number: str, message: str, **overrides):
+    inbound_message = InboundMessage(
+        channel="whatsapp",
+        sender_id=phone_number,
+        display_name=phone_number,
+        text=message,
+        metadata={},
+    )
+    kwargs = {
+        "session_factory": overrides.pop("session_factory", core_handler.SessionLocal),
+        "committee_member_resolver": overrides.pop("committee_member_resolver", core_handler.ensure_committee_member),
+        "latest_event_getter": overrides.pop("latest_event_getter", core_handler.get_latest_event_for_society),
+        "intent_detector": overrides.pop("intent_detector", commands_router.detect_intent),
+        "onboarding_intent_handler": overrides.pop("onboarding_intent_handler", core_handler.handle_onboarding_intent),
+        "committee_intent_handler": overrides.pop("committee_intent_handler", core_handler.handle_committee_intent),
+        "public_intent_handler": overrides.pop("public_intent_handler", core_handler.handle_public_intent),
+    }
+    kwargs.update(overrides)
+    kwargs = {key: value for key, value in kwargs.items() if value is not None}
+    return handle_inbound_message(inbound_message, **kwargs)
 
 
 def test_handle_message_unknown_intent(monkeypatch):
     db = MagicMock()
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db: SimpleNamespace(id="member-1")
     )
-    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: None)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: None)
 
     response = handle_message("999", "unknown")
 
@@ -24,28 +49,28 @@ def test_handle_message_unknown_intent(monkeypatch):
 
 def test_handle_message_onboarding_short_circuit(monkeypatch):
     db = MagicMock()
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db: SimpleNamespace(id="member-1")
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: None)
-    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: "ONBOARD")
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: None)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: "ONBOARD")
 
     onboarding_handler = MagicMock(return_value="✅ Onboarded")
     committee_handler = MagicMock(return_value=None)
     public_handler = MagicMock(return_value=None)
 
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_onboarding_intent",
+        "app.channels.core.handler.handle_onboarding_intent",
         onboarding_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_committee_intent",
+        "app.channels.core.handler.handle_committee_intent",
         committee_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_public_intent",
+        "app.channels.core.handler.handle_public_intent",
         public_handler
     )
 
@@ -62,28 +87,28 @@ def test_handle_message_routes_report_options_to_committee(monkeypatch):
     member = SimpleNamespace(id="member-1", role="chairman")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
-    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: "REPORT_OPTIONS")
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: "REPORT_OPTIONS")
 
     onboarding_handler = MagicMock(return_value=None)
     committee_handler = MagicMock(return_value="✅ Report options")
     public_handler = MagicMock(return_value=None)
 
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_onboarding_intent",
+        "app.channels.core.handler.handle_onboarding_intent",
         onboarding_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_committee_intent",
+        "app.channels.core.handler.handle_committee_intent",
         committee_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_public_intent",
+        "app.channels.core.handler.handle_public_intent",
         public_handler
     )
 
@@ -104,12 +129,12 @@ def test_export_session_list_options_end_to_end(monkeypatch):
     member = SimpleNamespace(id="member-e2e-1", name="Chair One", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     response = handle_message("919001", "report options")
 
@@ -123,12 +148,12 @@ def test_export_session_select_option_end_to_end(monkeypatch):
     member = SimpleNamespace(id="member-e2e-2", name="Chair Two", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.WhatsAppReportExportService.export",
@@ -169,12 +194,12 @@ def test_export_session_select_option_by_number_only_end_to_end(monkeypatch):
     member = SimpleNamespace(id="member-e2e-2b", name="Chair Two B", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.WhatsAppReportExportService.export",
@@ -215,12 +240,12 @@ def test_export_session_invalid_selection_recovery_end_to_end(monkeypatch):
     member = SimpleNamespace(id="member-e2e-3", name="Chair Three", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     handle_message("919003", "report options")
     response = handle_message("919003", "export 99")
@@ -234,12 +259,12 @@ def test_export_session_successful_export_dispatch_end_to_end(monkeypatch):
     member = SimpleNamespace(id="member-e2e-4", name="Chair Four", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-1", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.WhatsAppReportExportService.export",
@@ -444,29 +469,29 @@ def test_build_reports_list_sections_stable_page_order_for_future_reports():
 
 def test_handle_message_link_member_is_not_supported_for_whatsapp(monkeypatch):
     db = MagicMock()
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db: (_ for _ in ()).throw(Exception("unauthorized"))
     )
 
     response = handle_message("919999000111", "link member ABC123")
 
-    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
+    assert response == "ℹ️ Invalid option. That command is not available here. Use: menu, help."
     db.close.assert_called_once()
 
 
 def test_handle_message_verify_phone_is_not_supported_for_whatsapp(monkeypatch):
     db = MagicMock()
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db: (_ for _ in ()).throw(Exception("unauthorized"))
     )
 
     response = handle_message("919999000112", "verify phone 9999000011")
 
-    assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
+    assert response == "ℹ️ Invalid option. That command is not available here. Use: menu, help."
     db.close.assert_called_once()
 
 
@@ -474,12 +499,12 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
     db = MagicMock()
     member = SimpleNamespace(id="member-wizard", role="secretary", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: None)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: None)
 
     calls = []
 
@@ -487,7 +512,7 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
         calls.append(kwargs)
         return "✅ continued"
 
-    monkeypatch.setattr("app.whatsapp.handler.handle_committee_intent", fake_committee_handler)
+    monkeypatch.setattr("app.channels.core.handler.handle_committee_intent", fake_committee_handler)
 
     from app.whatsapp.event_creation_session import (
         EventCreationSessionState,
@@ -498,7 +523,7 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
     session_key = build_event_creation_session_key(member_id="member-wizard", sender_id="999")
     save_event_creation_session(session_key, EventCreationSessionState(step="event_date", name="Diwali"))
 
-    monkeypatch.setattr("app.whatsapp.handler.detect_whatsapp_intent", lambda message: None)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: None)
 
     response = handle_message("999", "2026-11-01 19:00")
 
@@ -511,12 +536,12 @@ def test_activate_event_intent_to_event_service(monkeypatch):
     member = SimpleNamespace(id="member-activate", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-activate", name="Spring Fest", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     called = {}
 
@@ -541,12 +566,12 @@ def test_lock_passes_intent_to_event_service(monkeypatch):
     member = SimpleNamespace(id="member-lock", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-lock", name="Spring Fest", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     called = {}
 
@@ -571,12 +596,12 @@ def test_start_event_intent_to_event_service(monkeypatch):
     member = SimpleNamespace(id="member-start", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-start", name="Spring Fest", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     called = {}
 
@@ -601,12 +626,12 @@ def test_add_sponsor_intent_to_contribution_service(monkeypatch):
     member = SimpleNamespace(id="member-sponsor", role="chairman", society_id="soc-1")
     event = SimpleNamespace(id="event-sponsor", name="Spring Fest", society_id="soc-1")
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
-        "app.whatsapp.handler.ensure_committee_member",
+        "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.whatsapp.handler.get_latest_event", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
 
     db.query.return_value.filter.return_value.first.return_value = None
 

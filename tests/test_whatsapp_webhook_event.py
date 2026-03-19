@@ -460,7 +460,8 @@ def test_whatsapp_webhook_event_menu_without_active_event_shows_onboarding_butto
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
-    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: None)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 999, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event_for_society", lambda db, society_id: None)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))

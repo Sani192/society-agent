@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
 from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
@@ -41,23 +40,10 @@ from app.config import settings
 from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
 from app.db.session import SessionLocal
 from app.utils.logger import logger
-from app.whatsapp.handler import handle_message
 from app.whatsapp.response_templates import INVALID_INPUT_METADATA_KEY
 
 router = APIRouter()
 
-
-class WhatsAppRequest(BaseModel):
-    phone_number: str
-    message: str
-
-
-def whatsapp_webhook(payload: WhatsAppRequest) -> dict[str, str]:
-    """Compatibility command-style webhook used by tests and local callers."""
-    _ensure_channel_enabled()
-    logger.info("Received compatibility WhatsApp command webhook")
-    reply_text = handle_message(phone_number=payload.phone_number, message=payload.message)
-    return {"reply": reply_text}
 
 
 def _ensure_channel_enabled() -> None:

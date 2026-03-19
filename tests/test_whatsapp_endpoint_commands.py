@@ -3,7 +3,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.api.whatsapp.webhook import WhatsAppRequest, whatsapp_webhook
+import app.channels.core.handler as core_handler
+import app.commands.router as commands_router
+from app.channels.core.handler import handle_inbound_message
+from app.channels.whatsapp.adapter import parse_webhook_payload
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.whatsapp.ui.committee import (
     build_committee_food_collection_sections,
@@ -20,13 +23,52 @@ from app.whatsapp.ui.reports import build_reports_sections
 pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
 
+def _provider_payload(message: str, phone_number: str) -> dict:
+    normalized_phone = phone_number.lstrip("+")
+    return {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "entry-1",
+            "changes": [{
+                "field": "messages",
+                "value": {
+                    "messaging_product": "whatsapp",
+                    "contacts": [{"wa_id": normalized_phone, "profile": {"name": normalized_phone}}],
+                    "messages": [{
+                        "id": "wamid.test",
+                        "from": normalized_phone,
+                        "timestamp": "1700000000",
+                        "text": {"body": message},
+                        "type": "text",
+                    }],
+                },
+            }],
+        }],
+    }
+
+
+def _handle_provider_message(message: str, phone_number: str) -> str:
+    inbound_messages = parse_webhook_payload(_provider_payload(message, phone_number))
+    assert len(inbound_messages) == 1
+    return handle_inbound_message(
+        inbound_messages[0],
+        session_factory=core_handler.SessionLocal,
+        committee_member_resolver=core_handler.ensure_committee_member,
+        latest_event_getter=core_handler.get_latest_event_for_society,
+        intent_detector=commands_router.detect_intent,
+        onboarding_intent_handler=core_handler.handle_onboarding_intent,
+        committee_intent_handler=core_handler.handle_committee_intent,
+        public_intent_handler=core_handler.handle_public_intent,
+    )
+
+
 def _setup_common_mocks(monkeypatch, member=None):
     def fake_session_local():
         return MagicMock()
 
-    monkeypatch.setattr("app.whatsapp.handler.SessionLocal", fake_session_local)
+    monkeypatch.setattr("app.channels.core.handler.SessionLocal", fake_session_local)
     monkeypatch.setattr(
-        "app.whatsapp.handler.get_latest_event",
+        "app.channels.core.handler.get_latest_event_for_society",
         lambda db: SimpleNamespace(id="event-1", society_id="soc-1", status="ACTIVE")
     )
     monkeypatch.setattr("app.channels.core.handler.get_intent_state_warning", lambda **kwargs: None)
@@ -36,12 +78,12 @@ def _setup_common_mocks(monkeypatch, member=None):
             raise Exception("Not a committee member")
 
         monkeypatch.setattr(
-            "app.whatsapp.handler.ensure_committee_member",
+            "app.channels.core.handler.ensure_committee_member",
             fake_ensure_committee_member
         )
     else:
         monkeypatch.setattr(
-            "app.whatsapp.handler.ensure_committee_member",
+            "app.channels.core.handler.ensure_committee_member",
             lambda phone_number, db: member
         )
 
@@ -86,23 +128,21 @@ def test_whatsapp_endpoint_committee_commands(monkeypatch, intent, message):
     public_spy = MagicMock(return_value="public")
 
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_onboarding_intent",
+        "app.channels.core.handler.handle_onboarding_intent",
         fake_onboarding_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_committee_intent",
+        "app.channels.core.handler.handle_committee_intent",
         committee_spy
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_public_intent",
+        "app.channels.core.handler.handle_public_intent",
         public_spy
     )
 
-    response = whatsapp_webhook(
-        WhatsAppRequest(phone_number="+919999000000", message=message)
-    )
+    response = _handle_provider_message(message, "+919999000000")
 
-    assert response["reply"] == f"committee:{intent}"
+    assert response == f"committee:{intent}"
     public_spy.assert_not_called()
 
 
@@ -138,23 +178,21 @@ def test_whatsapp_endpoint_public_commands(monkeypatch, intent, message):
     public_spy = MagicMock(side_effect=fake_public_handler)
 
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_onboarding_intent",
+        "app.channels.core.handler.handle_onboarding_intent",
         fake_onboarding_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_committee_intent",
+        "app.channels.core.handler.handle_committee_intent",
         committee_spy
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_public_intent",
+        "app.channels.core.handler.handle_public_intent",
         public_spy
     )
 
-    response = whatsapp_webhook(
-        WhatsAppRequest(phone_number="+919888000000", message=message)
-    )
+    response = _handle_provider_message(message, "+919888000000")
 
-    assert response["reply"] == f"public:{intent}"
+    assert response == f"public:{intent}"
     committee_spy.assert_not_called()
 
 
@@ -176,23 +214,21 @@ def test_whatsapp_endpoint_onboarding_commands(monkeypatch, intent, message):
     public_spy = MagicMock(return_value="public")
 
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_onboarding_intent",
+        "app.channels.core.handler.handle_onboarding_intent",
         fake_onboarding_handler
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_committee_intent",
+        "app.channels.core.handler.handle_committee_intent",
         committee_spy
     )
     monkeypatch.setattr(
-        "app.whatsapp.handler.handle_public_intent",
+        "app.channels.core.handler.handle_public_intent",
         public_spy
     )
 
-    response = whatsapp_webhook(
-        WhatsAppRequest(phone_number="+919777000000", message=message)
-    )
+    response = _handle_provider_message(message, "+919777000000")
 
-    assert response["reply"] == f"onboarding:{intent}"
+    assert response == f"onboarding:{intent}"
     committee_spy.assert_not_called()
     public_spy.assert_not_called()
 
