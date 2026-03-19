@@ -713,6 +713,15 @@ class Announcement(Base):
 
 class AnnouncementDelivery(Base):
     __tablename__ = "announcement_deliveries"
+    __table_args__ = (
+        Index(
+            "idx_announcement_deliveries_claim_pending",
+            "status",
+            "processing_started_at",
+            "sent_at",
+            "announcement_id",
+        ),
+    )
 
     announcement_id = Column(
         UUID(as_uuid=True),
