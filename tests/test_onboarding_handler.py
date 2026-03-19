@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from app.whatsapp.handlers.onboarding_handler import handle_onboarding_intent
+from app.handlers.shared.onboarding import handle_onboarding_intent
 from tests.constants import COMMITTEE_PHONE, MEMBER_PHONE
 
 

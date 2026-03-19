@@ -3,10 +3,10 @@
 
 from app.channels.core.handler import handle_inbound_message
 from app.channels.core.types import InboundMessage
-from app.commands.handlers.committee_handler import handle_committee_intent
-from app.commands.handlers.common import get_latest_event
-from app.commands.handlers.onboarding_handler import handle_onboarding_intent
-from app.commands.handlers.public_handler import handle_public_intent
+from app.handlers.shared.committee import handle_committee_intent
+from app.handlers.shared.common import get_latest_event
+from app.handlers.shared.onboarding import handle_onboarding_intent
+from app.handlers.shared.public import handle_public_intent
 from app.whatsapp.router import detect_whatsapp_intent
 from app.db.session import SessionLocal
 from app.utils.guards import ensure_committee_member
