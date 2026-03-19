@@ -123,10 +123,12 @@ def _next_report_page(current_page: int, total_pages: int) -> int:
 
 
 
-def _get_latest_event_in_context(*, db, society_id):
+def _get_latest_event_in_context(*, db, society_id, allow_global_fallback: bool = True):
     event = get_latest_event_for_society(db, society_id)
     if event:
         return event
+    if not allow_global_fallback:
+        return None
     return get_latest_event(db)
 
 
@@ -665,7 +667,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     sender_id=canonical_sender,
                     external_user_id=message.sender_id,
                 )
-                latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
+                latest_event = _get_latest_event_in_context(db=db, society_id=society_id, allow_global_fallback=False)
                 is_committee = committee_member is not None
                 is_society_member = None if not is_committee else False
                 if not is_committee:
@@ -712,7 +714,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 sender_id=canonical_sender,
                 external_user_id=message.sender_id,
             )
-            latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
+            latest_event = _get_latest_event_in_context(db=db, society_id=society_id, allow_global_fallback=False)
             is_committee = committee_member is not None
             is_society_member = False
             if latest_event and not is_committee:
