@@ -658,7 +658,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         "committee::remove",
         "committee::change-role",
     }
-    if msg in membership_gated_ui_ids or msg in {"menu", "help"}:
+    if msg in membership_gated_ui_ids:
         db = SessionLocal()
         try:
             try:
@@ -716,8 +716,16 @@ def _try_handle_ui_message(*, client, message) -> bool:
             )
             latest_event = _get_latest_event_in_context(db=db, society_id=society_id, allow_global_fallback=False)
             is_committee = committee_member is not None
-            is_society_member = False
-            if latest_event and not is_committee:
+            is_society_member = None if not is_committee else False
+            if not is_committee:
+                try:
+                    is_society_member = _is_registered_member_for_sender(
+                        db=db,
+                        sender_id=canonical_sender,
+                    )
+                except Exception:
+                    is_society_member = None
+            if latest_event and not is_committee and is_society_member is not True:
                 try:
                     resolve_flat(
                         db,
@@ -731,6 +739,15 @@ def _try_handle_ui_message(*, client, message) -> bool:
                         is_society_member = True
                     except Exception:
                         is_society_member = False
+
+            if msg in {"menu", "help"} and not is_committee and is_society_member is False:
+                client.send_button_message(
+                    to_phone=message.sender_id,
+                    header_text="Registration Required",
+                    body_text="You are not registered yet. Tap below to join your society.",
+                    buttons=[_button_row("ui::join-society", "Join Society")],
+                )
+                return True
 
             requires_event_context = msg == "ui::menu:more"
             if requires_event_context and not latest_event:
