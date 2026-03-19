@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.telegram import telegram_webhook_event
-from app.api.whatsapp.webhook import WhatsAppRequest, whatsapp_webhook
+from app.api.whatsapp.webhook import whatsapp_webhook_event
 
 
 class StubRequest:
@@ -16,11 +16,11 @@ class StubRequest:
         return self._payload
 
 
-def test_whatsapp_webhook_returns_503_when_channel_disabled(monkeypatch):
+def test_whatsapp_webhook_event_returns_503_when_channel_disabled(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_ENABLED", False)
 
     with pytest.raises(HTTPException) as exc_info:
-        whatsapp_webhook(WhatsAppRequest(phone_number="+919999000000", message="help"))
+        asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "WhatsApp channel is disabled"
