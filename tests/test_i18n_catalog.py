@@ -78,6 +78,7 @@ def test_reports_ui_and_templates_are_localized_in_gujarati():
     assert sections[0]["title"] == "રિપોર્ટ્સ"
     assert sections[0]["rows"][2]["title"] == "રિપોર્ટ વિકલ્પો"
     assert intro == "નિકાસ કરવા માટે રિપોર્ટ પસંદ કરો. મૂળભૂત PDF છે."
+    assert "રિપોર્ટ ઇવેન્ટ અને નિકાસ વિકલ્પ પસંદ કરો." in formatted
     assert "*શ્રેણી*: financial" in formatted
 
 
@@ -114,3 +115,29 @@ def test_report_flow_sections_use_localized_more_row_and_fallback_to_english():
     assert sections[-1]["rows"][0]["title"] == "વધુ રિપોર્ટ્સ"
     assert sections[0]["rows"][0]["description"] == "શ્રેણી: Financial · PDF"
     assert fallback_sections[0]["rows"][0]["description"] == "Category: Financial · PDF"
+
+
+def test_response_templates_accept_custom_translator_callable():
+    recorded_keys = []
+
+    def translator(key: str, **params) -> str:
+        recorded_keys.append((key, params))
+        if params:
+            rendered = ", ".join(f"{name}={value}" for name, value in sorted(params.items()))
+            return f"translated::{key}::{rendered}"
+        return f"translated::{key}"
+
+    formatted = format_report_options_response([], translator=translator)
+    text, contract = build_invalid_command_response(
+        channel="whatsapp",
+        reason="translated reason",
+        ctas=[{"id": "report options"}],
+        translator=translator,
+    )
+
+    assert "translated::response_templates.exportable_report_options_heading" in formatted
+    assert "translated::response_templates.report_options_intro" in formatted
+    assert "translated::response_templates.no_exportable_reports" in formatted
+    assert "translated::response_templates.invalid_option::command_hints=report options, reason=translated reason" in text
+    assert contract.ctas == ({"id": "report options", "label": "translated::response_templates.report_options"},)
+    assert ("response_templates.report_options", {}) in recorded_keys
