@@ -133,6 +133,7 @@ CREATE TABLE member_identities (
 	normalized_phone VARCHAR, 
 	whatsapp_user_id VARCHAR, 
 	telegram_user_id VARCHAR, 
+	preferred_language VARCHAR(8) DEFAULT 'en' NOT NULL, 
 	metadata_json JSONB, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now(), 
 	PRIMARY KEY (id)
@@ -591,4 +592,3 @@ CREATE TABLE announcement_deliveries (
 );
 
 CREATE INDEX idx_announcement_deliveries_claim_pending ON announcement_deliveries (status, processing_started_at, sent_at, announcement_id);
-

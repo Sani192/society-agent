@@ -45,6 +45,7 @@ def build_my_account_sections() -> list[dict]:
         {
             "title": "My Account",
             "rows": [
+                {"id": "ui::language", "title": "Language", "description": "Change WhatsApp language"},
                 {"id": "help", "title": "Help", "description": "Get guidance on what to send"},
                                 {"id": "menu", "title": "Main Menu", "description": "Open dashboard again"},
             ],

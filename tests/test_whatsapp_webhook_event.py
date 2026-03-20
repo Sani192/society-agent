@@ -514,6 +514,89 @@ def test_whatsapp_webhook_event_menu_more_without_active_event_shows_onboarding_
     assert {"ui::my-account", "ui::finance", "ui::society", "ui::reports"}.issubset(set(row_ids))
 
 
+def test_whatsapp_webhook_event_language_menu_opens_list(monkeypatch):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.language.list"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("language menu should use list message")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000041",
+        display_name="Jane",
+        text="ui::language",
+        metadata={"message_id": "wamid.language", "canonical_sender_id": "919999000041"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_society_context", lambda **kwargs: ("soc-1", None))
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._get_latest_event_in_context", lambda **kwargs: None)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda **kwargs: True)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    row_ids = [row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]]
+    assert {"language::en", "language::hi", "language::gu"}.issubset(set(row_ids))
+
+
+def test_whatsapp_webhook_event_language_selection_updates_preference(monkeypatch):
+    text_attempts = []
+    set_calls = []
+    identity = type("Identity", (), {"preferred_language": "en"})()
+
+    class StubWhatsAppClient:
+        def send_text_message(self, to_phone: str, body: str):
+            text_attempts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.language.update"}]}
+
+        def send_list_message(self, **kwargs):
+            raise AssertionError("language update should send confirmation text")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000042",
+        display_name="Jane",
+        text="language::hi",
+        metadata={"message_id": "wamid.language.update", "canonical_sender_id": "919999000042"},
+    )
+
+    class StubDB:
+        def close(self):
+            return None
+
+    def _set_preferred_language(db, *, identity, language_code):
+        set_calls.append((identity, language_code))
+        identity.preferred_language = language_code
+        return language_code
+
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_member_identity", lambda **kwargs: identity)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.set_preferred_language", _set_preferred_language)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert set_calls == [(identity, "hi")]
+    assert text_attempts == [("919999000042", "✅ आपकी भाषा हिन्दी में अपडेट कर दी गई है।")]
+
+
 def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypatch):
     list_attempts = []
 
