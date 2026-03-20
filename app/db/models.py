@@ -590,6 +590,7 @@ class MemberIdentity(Base):
     normalized_phone = Column(String, nullable=True, index=True)
     whatsapp_user_id = Column(String, nullable=True, unique=True, index=True)
     telegram_user_id = Column(String, nullable=True, unique=True, index=True)
+    preferred_language = Column(String(8), nullable=False, default="en")
     metadata_json = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

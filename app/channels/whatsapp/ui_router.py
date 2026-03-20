@@ -6,6 +6,8 @@ from datetime import timedelta
 
 from app.db.session import SessionLocal
 from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
+from app.modules.users.member_identity_service import MemberIdentityService
+from app.modules.users.language_service import set_preferred_language
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.handlers.shared.common import (
@@ -76,6 +78,7 @@ FOOD_SCAN_QR_ROW_PREFIX = "food-scan-qr::"
 FOOD_TOKEN_STATUS_ROW_PREFIX = "food-token-status::"
 FOOD_SERVE_FLAT_ROW_PREFIX = "food-serve-flat::"
 FOOD_FLAT_STATUS_ROW_PREFIX = "food-flat-status::"
+LANGUAGE_ROW_PREFIX = "language::"
 COMMITTEE_ROLE_OPTIONS = [
     ("chairman", "Chairman"),
     ("treasurer", "Treasurer"),
@@ -319,6 +322,26 @@ def _is_registered_member_for_sender(*, db, sender_id: str) -> bool:
     )
 
 
+def _resolve_member_identity(*, db, sender_id: str) -> MemberIdentity | None:
+    normalized_sender = normalize_phone(sender_id)
+    if not normalized_sender:
+        return None
+
+    candidate_ids = {normalized_sender}
+    if len(normalized_sender) > 10:
+        candidate_ids.add(normalized_sender[-10:])
+
+    return (
+        db.query(MemberIdentity)
+        .filter(
+            (MemberIdentity.whatsapp_user_id.in_(tuple(candidate_ids)))
+            | (MemberIdentity.normalized_identifier.in_(tuple(candidate_ids)))
+            | (MemberIdentity.normalized_phone.in_(tuple(candidate_ids)))
+        )
+        .first()
+    )
+
+
 def _filter_sections_by_state(*, sections: list[dict], event_state: str | None, is_committee: bool) -> list[dict]:
     keyword_to_intent = {keyword: intent for intent, keyword in WHATSAPP_INTENTS.items()}
     filtered_sections = []
@@ -398,6 +421,17 @@ def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) 
         button_text="Open",
         sections=_with_navigation(sections=build_main_dashboard_sections(is_committee=is_committee), back_id="ui::menu"),
     )
+
+
+def _build_language_sections() -> list[dict]:
+    return [{
+        "title": "Languages",
+        "rows": [
+            {"id": f"{LANGUAGE_ROW_PREFIX}en", "title": "English", "description": "Receive bot messages in English"},
+            {"id": f"{LANGUAGE_ROW_PREFIX}hi", "title": "हिन्दी", "description": "हिन्दी में संदेश पाएँ"},
+            {"id": f"{LANGUAGE_ROW_PREFIX}gu", "title": "ગુજરાતી", "description": "ગુજરાતીમાં સંદેશાઓ મેળવો"},
+        ],
+    }]
 
 
 def _send_food_token_picker(
@@ -645,6 +679,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         "ui::finance",
         "ui::payments",
         "ui::participation",
+        "ui::language",
         "ui::reports",
         "ui::administration",
         "ui::administration:approvals",
@@ -952,6 +987,16 @@ def _try_handle_ui_message(*, client, message) -> bool:
         )
         return True
 
+    if msg == "ui::language":
+        client.send_list_message(
+            to_phone=message.sender_id,
+            header_text="Language",
+            body_text="Choose your preferred language",
+            button_text="Select",
+            sections=_with_navigation(sections=_build_language_sections(), back_id="ui::my-account"),
+        )
+        return True
+
     if msg == "ui::society":
         client.send_list_message(
             to_phone=message.sender_id,
@@ -970,6 +1015,37 @@ def _try_handle_ui_message(*, client, message) -> bool:
         )
         client.send_text_message(message.sender_id, "Please enter join code")
         return True
+
+    selected_language = _parse_prefixed_row(message_text=msg, prefix=LANGUAGE_ROW_PREFIX)
+    if selected_language:
+        db = SessionLocal()
+        try:
+            identity = _resolve_member_identity(db=db, sender_id=canonical_sender)
+            if identity is None:
+                identity = MemberIdentityService.resolve_or_create(db, user_identifier=canonical_sender)
+            normalized_language = set_preferred_language(
+                db,
+                identity=identity,
+                language_code=selected_language,
+            )
+            confirmation_messages = {
+                "en": "✅ Your language has been updated to English.",
+                "hi": "✅ आपकी भाषा हिन्दी में अपडेट कर दी गई है।",
+                "gu": "✅ તમારી ભાષા ગુજરાતી પર અપડેટ થઈ ગઈ છે.",
+            }
+            client.send_text_message(
+                message.sender_id,
+                confirmation_messages.get(normalized_language, confirmation_messages["en"]),
+            )
+            return True
+        except ValueError:
+            client.send_text_message(
+                message.sender_id,
+                "Unsupported language selection. Please choose from the list.",
+            )
+            return True
+        finally:
+            db.close()
 
     if msg == "ui::finance":
         db = SessionLocal()
