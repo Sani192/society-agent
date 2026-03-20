@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
@@ -208,7 +208,7 @@ def handle_inbound_message(
                 extra={"sender_id": message.sender_id, "channel": message.channel},
             )
 
-        lang = get_effective_language(member)
+        lang = get_effective_language(cast(MemberIdentity | None, member))
 
         society_id = getattr(member, "society_id", None)
         if not society_id:

@@ -10,17 +10,19 @@ Created on Sun Mar 09 10:12:34 2026
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import partial
-from typing import Optional
+from typing import Optional, Protocol
 
 from app.i18n.catalog import translate
 from app.utils.response import error, info, success, warning
 
 DEFAULT_DATETIME_FORMAT = "%d %b %Y %H:%M"
-Translator = Callable[[str], str]
+class Translator(Protocol):
+    def __call__(self, key: str, **params: object) -> str: ...
+
 
 
 def _resolve_translator(*, lang: str | None = None, translator: Translator | None = None) -> Translator:
