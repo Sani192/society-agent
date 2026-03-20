@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+from functools import partial
+from typing import Any
+
 from app.i18n.catalog import translate
 
 MAIN_MENU_ID = "ui::menu"
@@ -9,148 +13,116 @@ FINANCE_ID = "ui::finance"
 REPORTS_ID = "ui::reports"
 ADMINISTRATION_ID = "ui::administration"
 
+Translator = Callable[[str], str]
+RowSpec = tuple[str, str]
+SectionSpec = tuple[str, tuple[RowSpec, ...]]
 
-def build_main_dashboard_sections(*, is_committee: bool, lang: str | None = None) -> list[dict]:
-    rows = [
-        {
-            "id": MY_ACCOUNT_ID,
-            "title": translate("dashboard.main.my_account.title", lang),
-            "description": translate("dashboard.main.my_account.description", lang),
-        },
-        {
-            "id": SOCIETY_ID,
-            "title": translate("dashboard.main.society.title", lang),
-            "description": translate("dashboard.main.society.description", lang),
-        },
-        {
-            "id": FINANCE_ID,
-            "title": translate("dashboard.main.finance.title", lang),
-            "description": translate("dashboard.main.finance.description", lang),
-        },
-        {
-            "id": REPORTS_ID,
-            "title": translate("dashboard.main.reports.title", lang),
-            "description": translate("dashboard.main.reports.description", lang),
-        },
-    ]
-    if is_committee:
-        rows.append(
-            {
-                "id": ADMINISTRATION_ID,
-                "title": translate("dashboard.main.administration.title", lang),
-                "description": translate("dashboard.main.administration.description", lang),
-            }
-        )
+_MAIN_DASHBOARD_ROWS: tuple[RowSpec, ...] = (
+    (MY_ACCOUNT_ID, "dashboard.main.my_account"),
+    (SOCIETY_ID, "dashboard.main.society"),
+    (FINANCE_ID, "dashboard.main.finance"),
+    (REPORTS_ID, "dashboard.main.reports"),
+)
+_COMMITTEE_DASHBOARD_ROW: RowSpec = (ADMINISTRATION_ID, "dashboard.main.administration")
+_MY_ACCOUNT_SECTIONS: tuple[SectionSpec, ...] = (
+    (
+        "dashboard.my_account.participation_section",
+        (
+            ("ui::participation", "dashboard.my_account.participation"),
+            ("my status", "dashboard.my_account.event_status"),
+        ),
+    ),
+    (
+        "dashboard.my_account.finance_section",
+        (("ui::payments", "dashboard.my_account.payments"),),
+    ),
+    (
+        "dashboard.my_account.account_section",
+        (
+            ("ui::language", "dashboard.my_account.language"),
+            ("help", "dashboard.my_account.help"),
+            ("menu", "dashboard.my_account.menu"),
+        ),
+    ),
+)
+_SOCIETY_SECTIONS: tuple[SectionSpec, ...] = (
+    (
+        "dashboard.society.section_title",
+        (
+            ("ui::join-society", "dashboard.society.join_society"),
+            ("join", "dashboard.society.send_join_request"),
+            ("join status", "dashboard.society.join_status"),
+        ),
+    ),
+)
+_FINANCE_BASE_ROWS: tuple[RowSpec, ...] = (("ui::payments", "dashboard.finance_sections.payments"),)
+_FINANCE_ACTION_ROWS: tuple[RowSpec, ...] = (
+    ("ui::make-payment", "dashboard.finance_sections.make_payment"),
+    ("ui::request-refund", "dashboard.finance_sections.request_refund"),
+    ("pay", "dashboard.finance_sections.pay_dues"),
+    ("refund", "dashboard.finance_sections.refund"),
+)
 
-    return [{"title": translate("dashboard.sections_title", lang), "rows": rows}]
+
+def _resolve_translator(*, lang: str | None = None, translator: Translator | None = None) -> Translator:
+    if translator is not None:
+        return translator
+    return partial(translate, lang=lang)
 
 
-def build_my_account_sections(*, lang: str | None = None) -> list[dict]:
+def _build_rows(row_specs: Iterable[RowSpec], translator: Translator) -> list[dict[str, str]]:
     return [
         {
-            "title": translate("dashboard.my_account.participation_section", lang),
-            "rows": [
-                {
-                    "id": "ui::participation",
-                    "title": translate("dashboard.my_account.participation.title", lang),
-                    "description": translate("dashboard.my_account.participation.description", lang),
-                },
-                {
-                    "id": "my status",
-                    "title": translate("dashboard.my_account.event_status.title", lang),
-                    "description": translate("dashboard.my_account.event_status.description", lang),
-                },
-            ],
-        },
-        {
-            "title": translate("dashboard.my_account.finance_section", lang),
-            "rows": [
-                {
-                    "id": "ui::payments",
-                    "title": translate("dashboard.my_account.payments.title", lang),
-                    "description": translate("dashboard.my_account.payments.description", lang),
-                },
-            ],
-        },
-        {
-            "title": translate("dashboard.my_account.account_section", lang),
-            "rows": [
-                {
-                    "id": "ui::language",
-                    "title": translate("dashboard.my_account.language.title", lang),
-                    "description": translate("dashboard.my_account.language.description", lang),
-                },
-                {
-                    "id": "help",
-                    "title": translate("dashboard.my_account.help.title", lang),
-                    "description": translate("dashboard.my_account.help.description", lang),
-                },
-                {
-                    "id": "menu",
-                    "title": translate("dashboard.my_account.menu.title", lang),
-                    "description": translate("dashboard.my_account.menu.description", lang),
-                },
-            ],
-        },
-    ]
-
-
-def build_society_sections(*, lang: str | None = None) -> list[dict]:
-    return [
-        {
-            "title": translate("dashboard.society.section_title", lang),
-            "rows": [
-                {
-                    "id": "ui::join-society",
-                    "title": translate("dashboard.society.join_society.title", lang),
-                    "description": translate("dashboard.society.join_society.description", lang),
-                },
-                {
-                    "id": "join",
-                    "title": translate("dashboard.society.send_join_request.title", lang),
-                    "description": translate("dashboard.society.send_join_request.description", lang),
-                },
-                {
-                    "id": "join status",
-                    "title": translate("dashboard.society.join_status.title", lang),
-                    "description": translate("dashboard.society.join_status.description", lang),
-                },
-            ],
+            "id": row_id,
+            "title": translator(f"{key_prefix}.title"),
+            "description": translator(f"{key_prefix}.description"),
         }
+        for row_id, key_prefix in row_specs
     ]
 
 
-def build_finance_sections(*, include_payment_actions: bool = True, lang: str | None = None) -> list[dict]:
-    rows = [
+def _build_sections(section_specs: Iterable[SectionSpec], translator: Translator) -> list[dict[str, Any]]:
+    return [
         {
-            "id": "ui::payments",
-            "title": translate("dashboard.finance_sections.payments.title", lang),
-            "description": translate("dashboard.finance_sections.payments.description", lang),
-        },
+            "title": translator(section_title_key),
+            "rows": _build_rows(row_specs, translator),
+        }
+        for section_title_key, row_specs in section_specs
     ]
-    if include_payment_actions:
-        rows = [
-            {
-                "id": "ui::make-payment",
-                "title": translate("dashboard.finance_sections.make_payment.title", lang),
-                "description": translate("dashboard.finance_sections.make_payment.description", lang),
-            },
-            {
-                "id": "ui::request-refund",
-                "title": translate("dashboard.finance_sections.request_refund.title", lang),
-                "description": translate("dashboard.finance_sections.request_refund.description", lang),
-            },
-            *rows,
-            {
-                "id": "pay",
-                "title": translate("dashboard.finance_sections.pay_dues.title", lang),
-                "description": translate("dashboard.finance_sections.pay_dues.description", lang),
-            },
-            {
-                "id": "refund",
-                "title": translate("dashboard.finance_sections.refund.title", lang),
-                "description": translate("dashboard.finance_sections.refund.description", lang),
-            },
-        ]
 
-    return [{"title": translate("dashboard.finance_sections.section_title", lang), "rows": rows}]
+
+def build_main_dashboard_sections(
+    *,
+    is_committee: bool,
+    lang: str | None = None,
+    translator: Translator | None = None,
+) -> list[dict]:
+    translate_text = _resolve_translator(lang=lang, translator=translator)
+    row_specs = list(_MAIN_DASHBOARD_ROWS)
+    if is_committee:
+        row_specs.append(_COMMITTEE_DASHBOARD_ROW)
+    return [{"title": translate_text("dashboard.sections_title"), "rows": _build_rows(row_specs, translate_text)}]
+
+
+
+def build_my_account_sections(*, lang: str | None = None, translator: Translator | None = None) -> list[dict]:
+    return _build_sections(_MY_ACCOUNT_SECTIONS, _resolve_translator(lang=lang, translator=translator))
+
+
+
+def build_society_sections(*, lang: str | None = None, translator: Translator | None = None) -> list[dict]:
+    return _build_sections(_SOCIETY_SECTIONS, _resolve_translator(lang=lang, translator=translator))
+
+
+
+def build_finance_sections(
+    *,
+    include_payment_actions: bool = True,
+    lang: str | None = None,
+    translator: Translator | None = None,
+) -> list[dict]:
+    translate_text = _resolve_translator(lang=lang, translator=translator)
+    row_specs = list(_FINANCE_BASE_ROWS)
+    if include_payment_actions:
+        row_specs = [*_FINANCE_ACTION_ROWS[:2], *row_specs, *_FINANCE_ACTION_ROWS[2:]]
+    return [{"title": translate_text("dashboard.finance_sections.section_title"), "rows": _build_rows(row_specs, translate_text)}]

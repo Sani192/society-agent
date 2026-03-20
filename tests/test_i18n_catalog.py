@@ -36,6 +36,29 @@ def test_dashboard_sections_are_localized_in_hindi():
     assert finance_sections[0]["rows"][0]["title"] == "भुगतान करें"
 
 
+def test_dashboard_builders_accept_custom_translator_callable():
+    recorded_keys = []
+
+    def translator(key: str) -> str:
+        recorded_keys.append(key)
+        return f"translated::{key}"
+
+    sections = build_main_dashboard_sections(is_committee=False, translator=translator)
+    account_sections = build_my_account_sections(translator=translator)
+    society_sections = build_society_sections(translator=translator)
+    finance_sections = build_finance_sections(include_payment_actions=False, translator=translator)
+
+    assert sections[0]["title"] == "translated::dashboard.sections_title"
+    assert sections[0]["rows"][0]["title"] == "translated::dashboard.main.my_account.title"
+    assert account_sections[0]["rows"][0]["description"] == "translated::dashboard.my_account.participation.description"
+    assert society_sections[0]["rows"][1]["title"] == "translated::dashboard.society.send_join_request.title"
+    assert finance_sections[0]["rows"][0]["description"] == "translated::dashboard.finance_sections.payments.description"
+    assert "dashboard.main.my_account.title" in recorded_keys
+    assert "dashboard.my_account.language.title" in recorded_keys
+    assert "dashboard.society.join_status.description" in recorded_keys
+    assert "dashboard.finance_sections.payments.description" in recorded_keys
+
+
 def test_reports_ui_and_templates_are_localized_in_gujarati():
     sections = build_reports_sections(is_committee=True, lang="gu")
     intro = reports_intro(lang="gu")
