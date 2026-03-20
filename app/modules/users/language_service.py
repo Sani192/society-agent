@@ -33,7 +33,7 @@ def set_preferred_language(
     if not normalized_language:
         raise ValueError("Unsupported language selection")
 
-    identity.preferred_language = normalized_language
+    setattr(identity, "preferred_language", normalized_language)
     db.add(identity)
     db.commit()
     db.refresh(identity)
