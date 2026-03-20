@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.handlers.shared.public import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
 from app.db.models import Event, MemberIdentity
+from app.modules.users.language_service import get_effective_language
 from app.modules.users.channel_identity_service import (
     link_member_by_code,
     link_member_by_phone,
@@ -44,12 +45,12 @@ from app.whatsapp.response_templates import (
 )
 
 
-def _invalid_command_reply(*, message: InboundMessage, reason: str, is_committee: bool) -> str:
-    ctas = [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}]
+def _invalid_command_reply(*, message: InboundMessage, reason: str, is_committee: bool, lang: str | None = None) -> str:
+    ctas = None
     if message.channel == "whatsapp" and is_committee:
-        ctas.append({"id": "report options", "label": "Report Options"})
+        ctas = [{"id": "menu"}, {"id": "help"}, {"id": "report options"}]
 
-    reply, contract = build_invalid_command_response(channel=message.channel, reason=reason, ctas=ctas)
+    reply, contract = build_invalid_command_response(channel=message.channel, reason=reason, ctas=ctas, lang=lang)
     message.metadata[INVALID_INPUT_METADATA_KEY] = {
         "response_type": contract.response_type,
         "severity": contract.severity,
@@ -207,6 +208,8 @@ def handle_inbound_message(
                 extra={"sender_id": message.sender_id, "channel": message.channel},
             )
 
+        lang = get_effective_language(cast(MemberIdentity | None, member))
+
         society_id = getattr(member, "society_id", None)
         if not society_id:
             society_id = resolve_sender_society_id(db, canonical_sender_id)
@@ -307,11 +310,13 @@ def handle_inbound_message(
                     message=message,
                     reason="If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram.",
                     is_committee=False,
+                    lang=lang,
                 )
             return _invalid_command_reply(
                 message=message,
                 reason="Try a listed menu command.",
                 is_committee=bool(member),
+                lang=lang,
             )
 
         onboarding_response = onboarding_intent_handler(
@@ -355,6 +360,7 @@ def handle_inbound_message(
             message=message,
             reason="That command is not available here.",
             is_committee=bool(member),
+            lang=lang,
         )
 
     except Exception:

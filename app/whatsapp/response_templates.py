@@ -10,14 +10,25 @@ Created on Sun Mar 09 10:12:34 2026
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Iterable, Optional
+from functools import partial
+from typing import Optional, Protocol
 
 from app.i18n.catalog import translate
 from app.utils.response import error, info, success, warning
 
 DEFAULT_DATETIME_FORMAT = "%d %b %Y %H:%M"
+class Translator(Protocol):
+    def __call__(self, key: str, **params: object) -> str: ...
+
+
+
+def _resolve_translator(*, lang: str | None = None, translator: Translator | None = None) -> Translator:
+    if translator is not None:
+        return translator
+    return partial(translate, lang=lang)
 
 
 def format_heading(title: str, emoji: Optional[str] = None) -> str:
@@ -43,9 +54,10 @@ def format_currency(amount) -> str:
     return f"₹{numeric:,.2f}"
 
 
-def format_datetime(value, fmt: str = DEFAULT_DATETIME_FORMAT) -> str:
+def format_datetime(value, fmt: str = DEFAULT_DATETIME_FORMAT, *, lang: str | None = None, translator: Translator | None = None) -> str:
+    translate_text = _resolve_translator(lang=lang, translator=translator)
     if value is None:
-        return "N/A"
+        return translate_text("response_templates.not_available")
     if isinstance(value, (datetime, date)) or hasattr(value, "strftime"):
         return value.strftime(fmt)
     return str(value)
@@ -64,43 +76,49 @@ def _compose_message(body: str, heading: Optional[str], emoji: Optional[str]) ->
     return body
 
 
-def success_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None) -> str:
+def success_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None, *, lang: str | None = None, translator: Translator | None = None) -> str:
+    _resolve_translator(lang=lang, translator=translator)
     return success(_compose_message(body, heading, emoji))
 
 
-def warning_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None) -> str:
+def warning_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None, *, lang: str | None = None, translator: Translator | None = None) -> str:
+    _resolve_translator(lang=lang, translator=translator)
     return warning(_compose_message(body, heading, emoji))
 
 
-def error_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None) -> str:
+def error_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None, *, lang: str | None = None, translator: Translator | None = None) -> str:
+    _resolve_translator(lang=lang, translator=translator)
     return error(_compose_message(body, heading, emoji))
 
 
-def info_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None) -> str:
+def info_response(body: str, heading: Optional[str] = None, emoji: Optional[str] = None, *, lang: str | None = None, translator: Translator | None = None) -> str:
+    _resolve_translator(lang=lang, translator=translator)
     return info(_compose_message(body, heading, emoji))
 
 
-def format_report_options_response(options: list[dict], *, lang: str | None = None) -> str:
+def format_report_options_response(options: list[dict], *, lang: str | None = None, translator: Translator | None = None) -> str:
+    translate_text = _resolve_translator(lang=lang, translator=translator)
     lines = [
         format_heading(
-            translate("response_templates.exportable_report_options_heading", lang),
+            translate_text("response_templates.exportable_report_options_heading"),
             "📚",
-        )
+        ),
+        translate_text("response_templates.report_options_intro"),
     ]
 
     if not options:
-        lines.append(translate("response_templates.no_exportable_reports", lang))
+        lines.append(translate_text("response_templates.no_exportable_reports"))
         return join_lines(lines)
 
     for option in options:
         lines.extend(
             [
                 "",
-                f"*{translate('response_templates.category', lang)}*: {option['category']}",
-                f"*{translate('response_templates.report_key', lang)}*: {option['report_key']}",
-                f"*{translate('response_templates.label', lang)}*: {option['label']}",
-                f"*{translate('response_templates.formats', lang)}*: {', '.join(option['supported_formats'])}",
-                f"*{translate('response_templates.example', lang)}*: {option['example_command']}",
+                f"*{translate_text('response_templates.category')}*: {option['category']}",
+                f"*{translate_text('response_templates.report_key')}*: {option['report_key']}",
+                f"*{translate_text('response_templates.label')}*: {option['label']}",
+                f"*{translate_text('response_templates.formats')}*: {', '.join(option['supported_formats'])}",
+                f"*{translate_text('response_templates.example')}*: {option['example_command']}",
             ]
         )
 
@@ -131,31 +149,44 @@ def build_invalid_command_response(
     reason: str,
     ctas: list[dict[str, str]] | None = None,
     lang: str | None = None,
+    translator: Translator | None = None,
 ) -> tuple[str, InvalidInputContract]:
+    translate_text = _resolve_translator(lang=lang, translator=translator)
+    default_ctas = [
+        {"id": "menu", "label": translate_text("response_templates.main_menu")},
+        {"id": "help", "label": translate_text("response_templates.help")},
+    ]
+    label_keys = {
+        "menu": "response_templates.main_menu",
+        "help": "response_templates.help",
+        "report options": "response_templates.report_options",
+    }
     action_rows = tuple(
-        ctas
-        or [
-            {"id": "menu", "label": translate("response_templates.main_menu", lang)},
-            {"id": "help", "label": translate("response_templates.help", lang)},
-        ]
+        {
+            "id": action["id"],
+            "label": action.get("label") or translate_text(label_keys.get(action["id"], "response_templates.help")),
+        }
+        for action in (ctas or default_ctas)
     )
     command_hints = ", ".join(action["id"] for action in action_rows)
     if channel == "whatsapp":
         text = info_response(
-            translate(
+            translate_text(
                 "response_templates.invalid_option",
-                lang,
                 reason=reason,
                 command_hints=command_hints,
-            )
+            ),
+            lang=lang,
+            translator=translator,
         )
     else:
         text = info_response(
-            translate(
+            translate_text(
                 "response_templates.invalid_command",
-                lang,
                 reason=reason,
                 command_hints=command_hints,
-            )
+            ),
+            lang=lang,
+            translator=translator,
         )
     return text, InvalidInputContract(reason=reason, ctas=action_rows)
