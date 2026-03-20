@@ -7,7 +7,7 @@ from datetime import timedelta
 from app.db.session import SessionLocal
 from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
 from app.modules.users.member_identity_service import MemberIdentityService
-from app.modules.users.language_service import set_preferred_language
+from app.modules.users.language_service import get_effective_language, normalize_language_code, set_preferred_language
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.handlers.shared.common import (
@@ -90,6 +90,204 @@ FINANCE_EVENT_ACTIONS = {"VIEW_BALANCE", "MAKE_PAYMENT"}
 
 REPORT_INTENTS_REQUIRING_EVENT = {"SUMMARY", "BLOCK_REPORT", "PARTICIPATION_REPORT"}
 REPORT_AUTO_EVENT_STATES = {"ACTIVE", "LOCKED", "EVENT_DAY"}
+
+
+UI_TEXT = {
+    "en": {
+        "finance.select_event_header": "Select Event",
+        "finance.select_event_body": "This action needs an event. Choose one to continue.",
+        "finance.select_event_button": "Choose Event",
+        "dashboard.header": "Society Control Panel",
+        "dashboard.select_action": "Select an action",
+        "dashboard.open_all_sections": "All available sections",
+        "common.open": "Open",
+        "common.select": "Select",
+        "common.confirm": "Confirm",
+        "common.back": "Back",
+        "common.back_description": "Go to previous menu",
+        "common.main_menu": "Main Menu",
+        "common.main_menu_description": "Go to main menu",
+        "common.navigation": "Navigation",
+        "language.choose_body": "Choose your preferred language",
+        "language.select_button": "Select",
+        "language.section_title": "Languages",
+        "language.updated": "✅ Your language has been updated to English.",
+        "language.unsupported": "Unsupported language selection. Please choose from the list.",
+        "registration.header": "Registration Required",
+        "registration.body": "You are not registered yet. Tap below to join your society.",
+        "registration.join": "Join Society",
+        "participation.header": "Participation",
+        "participation.body": "Participation",
+        "payments.header": "Your Financial Overview",
+        "payments.body": "Select an action",
+        "my_account.body": "Account actions",
+        "society.body": "Society actions",
+        "finance.body": "Finance actions",
+        "administration.header": "Administration",
+        "administration.select_area": "Select an area",
+        "administration.approvals": "Approval actions",
+        "administration.operations": "Operational actions",
+        "administration.operations_more": "More operational actions",
+        "administration.reports": "Report actions",
+        "administration.food": "Food collection actions",
+        "administration.committee": "Committee administration",
+        "committee.header": "Committee",
+        "committee.members": "Members",
+        "committee.no_members": "No members available",
+        "committee.add_header": "Add Committee Member",
+        "committee.choose_member": "Choose a member",
+        "committee.society_members": "Society Members",
+        "committee.select_member_to_add": "Select member to add",
+        "committee.select_role": "Select Role",
+        "committee.assign_role": "Assign role: {role}",
+        "committee.confirm_header": "Confirm",
+        "committee.confirm_body": "Confirm {action} {member}{role_suffix}?",
+        "committee.confirm_section": "Confirmation",
+        "committee.confirm_yes": "Confirm",
+        "committee.confirm_yes_description": "Proceed",
+        "committee.confirm_no": "Cancel",
+        "committee.confirm_no_description": "Discard",
+        "committee.choose_role": "Choose role",
+        "committee.change_role_header": "Change Committee Role",
+        "committee.choose_new_role": "Choose new role",
+        "committee.choose_member_remove": "Choose member to remove",
+        "committee.choose_member_update": "Choose member to update",
+    },
+    "hi": {
+        "finance.select_event_header": "इवेंट चुनें",
+        "finance.select_event_body": "इस कार्रवाई के लिए इवेंट चाहिए। आगे बढ़ने के लिए एक चुनें।",
+        "finance.select_event_button": "इवेंट चुनें",
+        "dashboard.header": "सोसाइटी कंट्रोल पैनल",
+        "dashboard.select_action": "एक कार्रवाई चुनें",
+        "dashboard.open_all_sections": "सभी उपलब्ध सेक्शन",
+        "common.open": "खोलें",
+        "common.select": "चुनें",
+        "common.confirm": "पुष्टि करें",
+        "common.back": "वापस",
+        "common.back_description": "पिछले मेनू पर जाएँ",
+        "common.main_menu": "मुख्य मेनू",
+        "common.main_menu_description": "मुख्य मेनू पर जाएँ",
+        "common.navigation": "नेविगेशन",
+        "language.choose_body": "अपनी पसंदीदा भाषा चुनें",
+        "language.select_button": "चुनें",
+        "language.section_title": "भाषाएँ",
+        "language.updated": "✅ आपकी भाषा हिन्दी में अपडेट कर दी गई है।",
+        "language.unsupported": "भाषा चयन समर्थित नहीं है। कृपया सूची में से चुनें।",
+        "registration.header": "पंजीकरण आवश्यक",
+        "registration.body": "आप अभी पंजीकृत नहीं हैं। अपनी सोसाइटी से जुड़ने के लिए नीचे टैप करें।",
+        "registration.join": "सोसाइटी जुड़ें",
+        "participation.header": "भागीदारी",
+        "participation.body": "भागीदारी",
+        "payments.header": "आपका वित्तीय अवलोकन",
+        "payments.body": "एक कार्रवाई चुनें",
+        "my_account.body": "अकाउंट कार्रवाइयाँ",
+        "society.body": "सोसाइटी कार्रवाइयाँ",
+        "finance.body": "वित्तीय कार्रवाइयाँ",
+        "administration.header": "प्रशासन",
+        "administration.select_area": "एक क्षेत्र चुनें",
+        "administration.approvals": "स्वीकृति कार्रवाइयाँ",
+        "administration.operations": "संचालन कार्रवाइयाँ",
+        "administration.operations_more": "और संचालन कार्रवाइयाँ",
+        "administration.reports": "रिपोर्ट कार्रवाइयाँ",
+        "administration.food": "भोजन वितरण कार्रवाइयाँ",
+        "administration.committee": "समिति प्रशासन",
+        "committee.header": "समिति",
+        "committee.members": "सदस्य",
+        "committee.no_members": "कोई सदस्य उपलब्ध नहीं है",
+        "committee.add_header": "समिति सदस्य जोड़ें",
+        "committee.choose_member": "एक सदस्य चुनें",
+        "committee.society_members": "सोसाइटी सदस्य",
+        "committee.select_member_to_add": "जोड़ने के लिए सदस्य चुनें",
+        "committee.select_role": "भूमिका चुनें",
+        "committee.assign_role": "भूमिका दें: {role}",
+        "committee.confirm_header": "पुष्टि करें",
+        "committee.confirm_body": "क्या आप {action} {member}{role_suffix} की पुष्टि करते हैं?",
+        "committee.confirm_section": "पुष्टि",
+        "committee.confirm_yes": "पुष्टि करें",
+        "committee.confirm_yes_description": "आगे बढ़ें",
+        "committee.confirm_no": "रद्द करें",
+        "committee.confirm_no_description": "छोड़ें",
+        "committee.choose_role": "भूमिका चुनें",
+        "committee.change_role_header": "समिति भूमिका बदलें",
+        "committee.choose_new_role": "नई भूमिका चुनें",
+        "committee.choose_member_remove": "हटाने के लिए सदस्य चुनें",
+        "committee.choose_member_update": "अपडेट करने के लिए सदस्य चुनें",
+    },
+    "gu": {
+        "finance.select_event_header": "ઇવેન્ટ પસંદ કરો",
+        "finance.select_event_body": "આ ક્રિયા માટે ઇવેન્ટ જરૂરી છે. આગળ વધવા માટે એક પસંદ કરો.",
+        "finance.select_event_button": "ઇવેન્ટ પસંદ કરો",
+        "dashboard.header": "સોસાયટી કન્ટ્રોલ પેનલ",
+        "dashboard.select_action": "એક ક્રિયા પસંદ કરો",
+        "dashboard.open_all_sections": "બધા ઉપલબ્ધ વિભાગો",
+        "common.open": "ખોલો",
+        "common.select": "પસંદ કરો",
+        "common.confirm": "ખાતરી કરો",
+        "common.back": "પાછળ",
+        "common.back_description": "પાછલા મેનૂ પર જાઓ",
+        "common.main_menu": "મુખ્ય મેનૂ",
+        "common.main_menu_description": "મુખ્ય મેનૂ પર જાઓ",
+        "common.navigation": "નેવિગેશન",
+        "language.choose_body": "તમારી પસંદગીની ભાષા પસંદ કરો",
+        "language.select_button": "પસંદ કરો",
+        "language.section_title": "ભાષાઓ",
+        "language.updated": "✅ તમારી ભાષા ગુજરાતી પર અપડેટ થઈ ગઈ છે.",
+        "language.unsupported": "અસમર્થિત ભાષા પસંદગી. કૃપા કરીને યાદીમાંથી પસંદ કરો.",
+        "registration.header": "નોંધણી જરૂરી",
+        "registration.body": "તમે હજી નોંધાયેલા નથી. તમારી સોસાયટીમાં જોડાવા માટે નીચે ટૅપ કરો.",
+        "registration.join": "સોસાયટી જોડાઓ",
+        "participation.header": "ભાગીદારી",
+        "participation.body": "ભાગીદારી",
+        "payments.header": "તમારો નાણાકીય અવલોકન",
+        "payments.body": "એક ક્રિયા પસંદ કરો",
+        "my_account.body": "એકાઉન્ટ ક્રિયાઓ",
+        "society.body": "સોસાયટી ક્રિયાઓ",
+        "finance.body": "નાણાકીય ક્રિયાઓ",
+        "administration.header": "પ્રશાસન",
+        "administration.select_area": "એક વિસ્તાર પસંદ કરો",
+        "administration.approvals": "મંજૂરી ક્રિયાઓ",
+        "administration.operations": "ઓપરેશન ક્રિયાઓ",
+        "administration.operations_more": "વધુ ઓપરેશન ક્રિયાઓ",
+        "administration.reports": "રિપોર્ટ ક્રિયાઓ",
+        "administration.food": "ફૂડ કલેક્શન ક્રિયાઓ",
+        "administration.committee": "સમિતિ વહીવટ",
+        "committee.header": "સમિતિ",
+        "committee.members": "સભ્યો",
+        "committee.no_members": "કોઈ સભ્ય ઉપલબ્ધ નથી",
+        "committee.add_header": "સમિતિ સભ્ય ઉમેરો",
+        "committee.choose_member": "એક સભ્ય પસંદ કરો",
+        "committee.society_members": "સોસાયટી સભ્યો",
+        "committee.select_member_to_add": "ઉમેરવા માટે સભ્ય પસંદ કરો",
+        "committee.select_role": "ભૂમિકા પસંદ કરો",
+        "committee.assign_role": "ભૂમિકા આપો: {role}",
+        "committee.confirm_header": "ખાતરી કરો",
+        "committee.confirm_body": "શું તમે {action} {member}{role_suffix} ની ખાતરી કરો છો?",
+        "committee.confirm_section": "ખાતરી",
+        "committee.confirm_yes": "ખાતરી કરો",
+        "committee.confirm_yes_description": "આગળ વધો",
+        "committee.confirm_no": "રદ કરો",
+        "committee.confirm_no_description": "રદ કરો",
+        "committee.choose_role": "ભૂમિકા પસંદ કરો",
+        "committee.change_role_header": "સમિતિ ભૂમિકા બદલો",
+        "committee.choose_new_role": "નવી ભૂમિકા પસંદ કરો",
+        "committee.choose_member_remove": "દૂર કરવા માટે સભ્ય પસંદ કરો",
+        "committee.choose_member_update": "અપડેટ કરવા માટે સભ્ય પસંદ કરો",
+    },
+}
+
+
+def _ui_text(lang: str | None, key: str, **params) -> str:
+    normalized = normalize_language_code(lang) or "en"
+    template = UI_TEXT.get(normalized, UI_TEXT["en"]).get(key, UI_TEXT["en"].get(key, key))
+    return template.format(**params) if params else template
+
+
+def _resolve_sender_language(*, db, sender_id: str) -> str:
+    try:
+        return get_effective_language(_resolve_member_identity(db=db, sender_id=sender_id))
+    except Exception:
+        return get_effective_language(None)
+
 
 def _default_report_event_id(event) -> str | None:
     if not event:
@@ -248,7 +446,7 @@ def _select_event_for_finance_action(*, db, sender_id: str, society_id, action: 
     return None, False
 
 
-def _request_finance_event_selection(*, client, message, db, canonical_sender: str, action: str) -> bool:
+def _request_finance_event_selection(*, client, message, db, canonical_sender: str, action: str, lang: str | None = None) -> bool:
     finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
     save_finance_action_session(
         finance_session_key,
@@ -257,9 +455,9 @@ def _request_finance_event_selection(*, client, message, db, canonical_sender: s
     events = _recent_member_events(db=db, sender_id=canonical_sender)
     client.send_list_message(
         to_phone=message.sender_id,
-        header_text="Select Event",
-        body_text="This action needs an event. Choose one to continue.",
-        button_text="Choose Event",
+        header_text=_ui_text(lang, "finance.select_event_header"),
+        body_text=_ui_text(lang, "finance.select_event_body"),
+        button_text=_ui_text(lang, "finance.select_event_button"),
         sections=_build_finance_event_sections(events),
     )
     return True
@@ -365,13 +563,14 @@ def _with_navigation(
     sections: list[dict],
     back_id: str | None = None,
     include_main_menu: bool = True,
+    lang: str | None = None,
 ) -> list[dict]:
     nav_rows = []
     if back_id:
-        nav_rows.append({"id": back_id, "title": "Back", "description": "Go to previous menu"})
+        nav_rows.append({"id": back_id, "title": _ui_text(lang, "common.back"), "description": _ui_text(lang, "common.back_description")})
     if include_main_menu:
-        nav_rows.append({"id": "menu", "title": "Main Menu", "description": "Go to main menu"})
-    return [*sections, {"title": "Navigation", "rows": nav_rows}] if nav_rows else sections
+        nav_rows.append({"id": "menu", "title": _ui_text(lang, "common.main_menu"), "description": _ui_text(lang, "common.main_menu_description")})
+    return [*sections, {"title": _ui_text(lang, "common.navigation"), "rows": nav_rows}] if nav_rows else sections
 
 
 def _get_current_event_state(db, society_id) -> str | None:
@@ -391,10 +590,10 @@ def _button_row(row_id: str, title: str) -> dict:
     }
 
 
-def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
+def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool, lang: str | None = None) -> None:
     if is_committee:
         buttons = [
-            _button_row("ui::administration", "Administration"),
+            _button_row("ui::administration", _ui_text(lang, "administration.header")),
             _button_row("ui::reports", "Reports"),
             _button_row("ui::menu:more", "More"),
         ]
@@ -407,25 +606,25 @@ def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool) -> None:
 
     client.send_button_message(
         to_phone=sender_id,
-        header_text="Society Control Panel",
-        body_text="Select an action",
+        header_text=_ui_text(lang, "dashboard.header"),
+        body_text=_ui_text(lang, "dashboard.select_action"),
         buttons=buttons,
     )
 
 
-def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool) -> None:
+def _send_dashboard_all_sections(*, client, sender_id: str, is_committee: bool, lang: str | None = None) -> None:
     client.send_list_message(
         to_phone=sender_id,
-        header_text="Society Control Panel",
-        body_text="All available sections",
-        button_text="Open",
-        sections=_with_navigation(sections=build_main_dashboard_sections(is_committee=is_committee), back_id="ui::menu"),
+        header_text=_ui_text(lang, "dashboard.header"),
+        body_text=_ui_text(lang, "dashboard.open_all_sections"),
+        button_text=_ui_text(lang, "common.open"),
+        sections=_with_navigation(sections=build_main_dashboard_sections(is_committee=is_committee, lang=lang), back_id="ui::menu", lang=lang),
     )
 
 
-def _build_language_sections() -> list[dict]:
+def _build_language_sections(*, lang: str | None = None) -> list[dict]:
     return [{
-        "title": "Languages",
+        "title": _ui_text(lang, "language.section_title"),
         "rows": [
             {"id": f"{LANGUAGE_ROW_PREFIX}en", "title": "English", "description": "Receive bot messages in English"},
             {"id": f"{LANGUAGE_ROW_PREFIX}hi", "title": "हिन्दी", "description": "हिन्दी में संदेश पाएँ"},
@@ -444,6 +643,7 @@ def _send_food_token_picker(
     header: str,
     body: str,
     pending_only: bool = True,
+    lang: str | None = None,
 ) -> bool:
     token_query = db.query(EventFoodToken).filter(EventFoodToken.event_id == event_id)
     if pending_only:
@@ -468,16 +668,17 @@ def _send_food_token_picker(
         to_phone=sender_id,
         header_text=header,
         body_text=body,
-        button_text="Select",
+        button_text=_ui_text(lang, "common.select"),
         sections=_with_navigation(
             sections=[{"title": section_title, "rows": rows}],
             back_id="ui::administration:food",
+            lang=lang,
         ),
     )
     return True
 
 
-def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: str, header: str, body: str) -> bool:
+def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: str, header: str, body: str, lang: str | None = None) -> bool:
     flat_ids = (
         db.query(EventFoodToken.flat_id)
         .filter(
@@ -511,10 +712,11 @@ def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: 
         to_phone=sender_id,
         header_text=header,
         body_text=body,
-        button_text="Select",
+        button_text=_ui_text(lang, "common.select"),
         sections=_with_navigation(
             sections=[{"title": "Flats", "rows": rows}],
             back_id="ui::administration:food",
+            lang=lang,
         ),
     )
     return True
@@ -525,20 +727,20 @@ def _committee_role_label(role: str) -> str:
     return role_map.get(role, role.replace("_", " ").title())
 
 
-def _build_committee_role_sections(*, include_navigation: bool = True) -> list[dict]:
+def _build_committee_role_sections(*, include_navigation: bool = True, lang: str | None = None) -> list[dict]:
     sections = [{
-        "title": "Select Role",
+        "title": _ui_text(lang, "committee.select_role"),
         "rows": [
             {
                 "id": f"{COMMITTEE_ROLE_ROW_PREFIX}{role}",
                 "title": label,
-                "description": f"Assign role: {label}",
+                "description": _ui_text(lang, "committee.assign_role", role=label),
             }
             for role, label in COMMITTEE_ROLE_OPTIONS
         ],
     }]
     if include_navigation:
-        return _with_navigation(sections=sections, back_id="ui::administration:committee")
+        return _with_navigation(sections=sections, back_id="ui::administration:committee", lang=lang)
     return sections
 
 
@@ -559,7 +761,7 @@ def _committee_member_description(member) -> str:
     return f"{phone} · {role}"[:72]
 
 
-def _send_committee_member_selection(*, client, sender_id: str, body_text: str, members: list, row_prefix: str) -> None:
+def _send_committee_member_selection(*, client, sender_id: str, body_text: str, members: list, row_prefix: str, lang: str | None = None) -> None:
     rows = [
         {
             "id": f"{row_prefix}{member.id}",
@@ -569,17 +771,17 @@ def _send_committee_member_selection(*, client, sender_id: str, body_text: str, 
         for member in members[:8]
     ]
     if not rows:
-        rows = [{"id": "ui::administration:committee", "title": "Back", "description": "No members available"}]
+        rows = [{"id": "ui::administration:committee", "title": _ui_text(lang, "common.back"), "description": _ui_text(lang, "committee.no_members")}]
     client.send_list_message(
         to_phone=sender_id,
-        header_text="Committee",
+        header_text=_ui_text(lang, "committee.header"),
         body_text=body_text,
-        button_text="Select",
-        sections=_with_navigation(sections=[{"title": "Members", "rows": rows}], back_id="ui::administration:committee"),
+        button_text=_ui_text(lang, "common.select"),
+        sections=_with_navigation(sections=[{"title": _ui_text(lang, "committee.members"), "rows": rows}], back_id="ui::administration:committee", lang=lang),
     )
 
 
-def _send_add_member_selection(*, client, sender_id: str, db, society_id) -> bool:
+def _send_add_member_selection(*, client, sender_id: str, db, society_id, lang: str | None = None) -> bool:
     if not society_id:
         client.send_text_message(sender_id, "No society context found.")
         return True
@@ -605,7 +807,7 @@ def _send_add_member_selection(*, client, sender_id: str, db, society_id) -> boo
         rows.append({
             "id": f"{COMMITTEE_ADD_MEMBER_ROW_PREFIX}{identity.id}",
             "title": (identifier[-10:] if len(identifier) > 10 else identifier)[:24],
-            "description": "Select member to add",
+            "description": _ui_text(lang, "committee.select_member_to_add"),
         })
         if len(rows) >= 8:
             break
@@ -616,10 +818,14 @@ def _send_add_member_selection(*, client, sender_id: str, db, society_id) -> boo
 
     client.send_list_message(
         to_phone=sender_id,
-        header_text="Add Committee Member",
-        body_text="Choose a member",
-        button_text="Select",
-        sections=_with_navigation(sections=[{"title": "Society Members", "rows": rows}], back_id="ui::administration:committee"),
+        header_text=_ui_text(lang, "committee.add_header"),
+        body_text=_ui_text(lang, "committee.choose_member"),
+        button_text=_ui_text(lang, "common.select"),
+        sections=_with_navigation(
+            sections=[{"title": _ui_text(lang, "committee.society_members"), "rows": rows}],
+            back_id="ui::administration:committee",
+            lang=lang,
+        ),
     )
     return True
 
@@ -642,24 +848,25 @@ def _handle_committee_view(*, client, sender_id: str, db, society_id) -> bool:
     return True
 
 
-def _send_committee_confirmation(*, client, sender_id: str, action: str, member_label: str, role_label: str | None = None) -> None:
+def _send_committee_confirmation(*, client, sender_id: str, action: str, member_label: str, role_label: str | None = None, lang: str | None = None) -> None:
     role_suffix = f" as {role_label}" if role_label else ""
     client.send_list_message(
         to_phone=sender_id,
-        header_text="Confirm",
-        body_text=f"Confirm {action} {member_label}{role_suffix}?",
-        button_text="Confirm",
+        header_text=_ui_text(lang, "committee.confirm_header"),
+        body_text=_ui_text(lang, "committee.confirm_body", action=action, member=member_label, role_suffix=role_suffix),
+        button_text=_ui_text(lang, "common.confirm"),
         sections=_with_navigation(
             sections=[
                 {
-                    "title": "Confirmation",
+                    "title": _ui_text(lang, "committee.confirm_section"),
                     "rows": [
-                        {"id": f"{COMMITTEE_CONFIRM_ROW_PREFIX}yes", "title": "Confirm", "description": "Proceed"},
-                        {"id": f"{COMMITTEE_CONFIRM_ROW_PREFIX}no", "title": "Cancel", "description": "Discard"},
+                        {"id": f"{COMMITTEE_CONFIRM_ROW_PREFIX}yes", "title": _ui_text(lang, "committee.confirm_yes"), "description": _ui_text(lang, "committee.confirm_yes_description")},
+                        {"id": f"{COMMITTEE_CONFIRM_ROW_PREFIX}no", "title": _ui_text(lang, "committee.confirm_no"), "description": _ui_text(lang, "committee.confirm_no_description")},
                     ],
                 }
             ],
             back_id="ui::administration:committee",
+            lang=lang,
         ),
     )
 
@@ -729,11 +936,12 @@ def _try_handle_ui_message(*, client, message) -> bool:
                             is_society_member = False
 
                 if not is_committee and is_society_member is False:
+                    lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                     client.send_button_message(
                         to_phone=message.sender_id,
-                        header_text="Registration Required",
-                        body_text="You are not registered yet. Tap below to join your society.",
-                        buttons=[_button_row("ui::join-society", "Join Society")],
+                        header_text=_ui_text(lang, "registration.header"),
+                        body_text=_ui_text(lang, "registration.body"),
+                        buttons=[_button_row("ui::join-society", _ui_text(lang, "registration.join"))],
                     )
                     return True
             except Exception:
@@ -776,35 +984,42 @@ def _try_handle_ui_message(*, client, message) -> bool:
                         is_society_member = False
 
             if msg in {"menu", "help"} and not is_committee and is_society_member is False:
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                 client.send_button_message(
                     to_phone=message.sender_id,
-                    header_text="Registration Required",
-                    body_text="You are not registered yet. Tap below to join your society.",
-                    buttons=[_button_row("ui::join-society", "Join Society")],
+                    header_text=_ui_text(lang, "registration.header"),
+                    body_text=_ui_text(lang, "registration.body"),
+                    buttons=[_button_row("ui::join-society", _ui_text(lang, "registration.join"))],
                 )
                 return True
 
             requires_event_context = msg == "ui::menu:more"
             if requires_event_context and not latest_event:
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                 _send_dashboard_all_sections(
                     client=client,
                     sender_id=message.sender_id,
                     is_committee=False,
+                    lang=lang,
                 )
                 return True
 
             if msg == "ui::menu:more":
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                 _send_dashboard_all_sections(
                     client=client,
                     sender_id=message.sender_id,
                     is_committee=is_committee,
+                    lang=lang,
                 )
                 return True
 
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             _send_dashboard_ui(
                 client=client,
                 sender_id=message.sender_id,
                 is_committee=is_committee,
+                lang=lang,
             )
             return True
         finally:
@@ -817,12 +1032,13 @@ def _try_handle_ui_message(*, client, message) -> bool:
             is_committee = committee_member is not None
             event_state = _get_current_event_state(db, society_id)
             can_add_pass = is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             client.send_list_message(
                 to_phone=message.sender_id,
-                header_text="Participation",
-                body_text="Participation",
-                button_text="Open",
-                sections=_with_navigation(sections=build_participation_sections(include_add_pass=can_add_pass), back_id="ui::my-account"),
+                header_text=_ui_text(lang, "participation.header"),
+                body_text=_ui_text(lang, "participation.body"),
+                button_text=_ui_text(lang, "common.open"),
+                sections=_with_navigation(sections=build_participation_sections(include_add_pass=can_add_pass), back_id="ui::my-account", lang=lang),
             )
             return True
         finally:
@@ -848,12 +1064,17 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::payments":
+        db = SessionLocal()
+        try:
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+        finally:
+            db.close()
         client.send_list_message(
             to_phone=message.sender_id,
-            header_text="Your Financial Overview",
-            body_text="Select an action",
-            button_text="Open",
-            sections=_with_navigation(sections=build_payments_sections(), back_id="ui::finance"),
+            header_text=_ui_text(lang, "payments.header"),
+            body_text=_ui_text(lang, "payments.body"),
+            button_text=_ui_text(lang, "common.open"),
+            sections=_with_navigation(sections=build_payments_sections(), back_id="ui::finance", lang=lang),
         )
         return True
 
@@ -874,12 +1095,14 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     action="VIEW_BALANCE",
                 )
             if not selected_event:
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                 return _request_finance_event_selection(
                     client=client,
                     message=message,
                     db=db,
                     canonical_sender=canonical_sender,
                     action="VIEW_BALANCE",
+                    lang=lang,
                 )
             flat = resolve_flat(db, phone_number=canonical_sender, society_id=selected_event.society_id)
             balance = UserQueryService.get_my_balance(db=db, event_id=selected_event.id, flat_id=flat.id)
@@ -907,6 +1130,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             is_committee = committee_member is not None
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             finance_session_key = build_finance_action_session_key(sender_id=message.sender_id)
             finance_session = get_finance_action_session(finance_session_key)
             selected_event = None
@@ -926,6 +1150,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db=db,
                     canonical_sender=canonical_sender,
                     action="MAKE_PAYMENT",
+                    lang=lang,
                 )
             flat = resolve_flat(db, phone_number=canonical_sender, society_id=selected_event.society_id)
             balance = UserQueryService.get_my_balance(db=db, event_id=selected_event.id, flat_id=flat.id)
@@ -978,32 +1203,47 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::my-account":
+        db = SessionLocal()
+        try:
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+        finally:
+            db.close()
         client.send_list_message(
             to_phone=message.sender_id,
             header_text="My Account",
-            body_text="Select an action",
-            button_text="Open",
-            sections=_with_navigation(sections=build_my_account_sections(), back_id="ui::menu"),
+            body_text=_ui_text(lang, "my_account.body"),
+            button_text=_ui_text(lang, "common.open"),
+            sections=_with_navigation(sections=build_my_account_sections(lang=lang), back_id="ui::menu", lang=lang),
         )
         return True
 
     if msg == "ui::language":
+        db = SessionLocal()
+        try:
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+        finally:
+            db.close()
         client.send_list_message(
             to_phone=message.sender_id,
-            header_text="Language",
-            body_text="Choose your preferred language",
-            button_text="Select",
-            sections=_with_navigation(sections=_build_language_sections(), back_id="ui::my-account"),
+            header_text=_ui_text(lang, "language.section_title"),
+            body_text=_ui_text(lang, "language.choose_body"),
+            button_text=_ui_text(lang, "common.select"),
+            sections=_with_navigation(sections=_build_language_sections(lang=lang), back_id="ui::my-account", lang=lang),
         )
         return True
 
     if msg == "ui::society":
+        db = SessionLocal()
+        try:
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+        finally:
+            db.close()
         client.send_list_message(
             to_phone=message.sender_id,
             header_text="Society",
-            body_text="Select an action",
-            button_text="Open",
-            sections=_with_navigation(sections=build_society_sections(), back_id="ui::menu"),
+            body_text=_ui_text(lang, "society.body"),
+            button_text=_ui_text(lang, "common.open"),
+            sections=_with_navigation(sections=build_society_sections(lang=lang), back_id="ui::menu", lang=lang),
         )
         return True
 
@@ -1028,20 +1268,15 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 identity=identity,
                 language_code=selected_language,
             )
-            confirmation_messages = {
-                "en": "✅ Your language has been updated to English.",
-                "hi": "✅ आपकी भाषा हिन्दी में अपडेट कर दी गई है।",
-                "gu": "✅ તમારી ભાષા ગુજરાતી પર અપડેટ થઈ ગઈ છે.",
-            }
             client.send_text_message(
                 message.sender_id,
-                confirmation_messages.get(normalized_language, confirmation_messages["en"]),
+                _ui_text(normalized_language, "language.updated"),
             )
             return True
         except ValueError:
             client.send_text_message(
                 message.sender_id,
-                "Unsupported language selection. Please choose from the list.",
+                _ui_text(_resolve_sender_language(db=db, sender_id=canonical_sender), "language.unsupported"),
             )
             return True
         finally:
@@ -1054,12 +1289,13 @@ def _try_handle_ui_message(*, client, message) -> bool:
             is_committee = committee_member is not None
             event_state = _get_current_event_state(db, society_id)
             can_use_payment = is_member_action_visible(intent="PAY", event_state=event_state, is_committee=is_committee)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Finance",
-                body_text="Select an action",
-                button_text="Open",
-                sections=_with_navigation(sections=build_finance_sections(include_payment_actions=can_use_payment), back_id="ui::menu"),
+                body_text=_ui_text(lang, "finance.body"),
+                button_text=_ui_text(lang, "common.open"),
+                sections=_with_navigation(sections=build_finance_sections(include_payment_actions=can_use_payment, lang=lang), back_id="ui::menu", lang=lang),
             )
             return True
         finally:
@@ -1070,13 +1306,14 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             _society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             is_committee = committee_member is not None
-            sections = build_reports_sections(is_committee=is_committee)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+            sections = build_reports_sections(is_committee=is_committee, lang=lang)
             client.send_list_message(
                 to_phone=message.sender_id,
                 header_text="Reports",
                 body_text="Select a report action",
-                button_text="Open",
-                sections=_with_navigation(sections=sections, back_id="ui::menu"),
+                button_text=_ui_text(lang, "common.open"),
+                sections=_with_navigation(sections=sections, back_id="ui::menu", lang=lang),
             )
             return True
         finally:
@@ -1089,46 +1326,47 @@ def _try_handle_ui_message(*, client, message) -> bool:
             if not member:
                 client.send_text_message(message.sender_id, "Access restricted.")
                 return True
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             if msg == "ui::administration:approvals":
                 base_sections = build_committee_approvals_sections()
                 back_id = "ui::administration"
-                body_text = "Approval actions"
+                body_text = _ui_text(lang, "administration.approvals")
             elif msg == "ui::administration:operations":
                 base_sections = build_committee_operations_sections()
                 back_id = "ui::administration"
-                body_text = "Operational actions"
+                body_text = _ui_text(lang, "administration.operations")
             elif msg == "ui::administration:operations:more":
                 base_sections = build_committee_operations_more_sections()
                 back_id = "ui::administration:operations"
-                body_text = "More operational actions"
+                body_text = _ui_text(lang, "administration.operations_more")
             elif msg == "ui::administration:reports":
                 base_sections = build_committee_reports_sections()
                 back_id = "ui::administration"
-                body_text = "Report actions"
+                body_text = _ui_text(lang, "administration.reports")
             elif msg == "ui::administration:food":
                 base_sections = build_committee_food_collection_sections()
                 back_id = "ui::administration:operations:more"
-                body_text = "Food collection actions"
+                body_text = _ui_text(lang, "administration.food")
             elif msg == "ui::administration:committee":
                 base_sections = build_committee_management_sections()
                 back_id = "ui::administration"
-                body_text = "Committee administration"
+                body_text = _ui_text(lang, "administration.committee")
             else:
                 base_sections = build_committee_sections()
                 back_id = "ui::menu"
-                body_text = "Select an area"
+                body_text = _ui_text(lang, "administration.select_area")
 
             sections = base_sections
             client.send_list_message(
                 to_phone=message.sender_id,
-                header_text="Administration",
+                header_text=_ui_text(lang, "administration.header"),
                 body_text=body_text,
-                button_text="Open",
+                button_text=_ui_text(lang, "common.open"),
                 sections=_with_navigation(
                     sections=sections,
                     back_id=back_id,
                     include_main_menu=True,
-
+                    lang=lang,
                 ),
             )
             return True
@@ -1320,6 +1558,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 return True
 
             society_id = getattr(member, "society_id", None)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             session_key = build_committee_management_session_key(sender_id=message.sender_id)
             session_state = get_committee_management_session(session_key)
 
@@ -1329,18 +1568,18 @@ def _try_handle_ui_message(*, client, message) -> bool:
 
             if msg == "committee::add":
                 save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="ADD"))
-                return _send_add_member_selection(client=client, sender_id=message.sender_id, db=db, society_id=society_id)
+                return _send_add_member_selection(client=client, sender_id=message.sender_id, db=db, society_id=society_id, lang=lang)
 
             if msg == "committee::remove":
                 save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="REMOVE"))
                 target_members = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).order_by(CommitteeMember.name.asc()).all()
-                _send_committee_member_selection(client=client, sender_id=message.sender_id, body_text="Choose member to remove", members=target_members, row_prefix=COMMITTEE_MEMBER_ROW_PREFIX)
+                _send_committee_member_selection(client=client, sender_id=message.sender_id, body_text=_ui_text(lang, "committee.choose_member_remove"), members=target_members, row_prefix=COMMITTEE_MEMBER_ROW_PREFIX, lang=lang)
                 return True
 
             if msg == "committee::change-role":
                 save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="CHANGE_ROLE"))
                 target_members = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).order_by(CommitteeMember.name.asc()).all()
-                _send_committee_member_selection(client=client, sender_id=message.sender_id, body_text="Choose member to update", members=target_members, row_prefix=COMMITTEE_MEMBER_ROW_PREFIX)
+                _send_committee_member_selection(client=client, sender_id=message.sender_id, body_text=_ui_text(lang, "committee.choose_member_update"), members=target_members, row_prefix=COMMITTEE_MEMBER_ROW_PREFIX, lang=lang)
                 return True
 
             selected_identity_id = _parse_prefixed_row(message_text=msg, prefix=COMMITTEE_ADD_MEMBER_ROW_PREFIX)
@@ -1349,10 +1588,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 save_committee_management_session(session_key, session_state)
                 client.send_list_message(
                     to_phone=message.sender_id,
-                    header_text="Add Committee Member",
-                    body_text="Choose role",
-                    button_text="Select",
-                    sections=_build_committee_role_sections(),
+                    header_text=_ui_text(lang, "committee.add_header"),
+                    body_text=_ui_text(lang, "committee.choose_role"),
+                    button_text=_ui_text(lang, "common.select"),
+                    sections=_build_committee_role_sections(lang=lang),
                 )
                 return True
 
@@ -1365,14 +1604,14 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 session_state.selected_member_id = str(target.id)
                 save_committee_management_session(session_key, session_state)
                 if session_state.pending_action == "REMOVE":
-                    _send_committee_confirmation(client=client, sender_id=message.sender_id, action="remove", member_label=_committee_member_title(target))
+                    _send_committee_confirmation(client=client, sender_id=message.sender_id, action="remove", member_label=_committee_member_title(target), lang=lang)
                 else:
                     client.send_list_message(
                         to_phone=message.sender_id,
-                        header_text="Change Committee Role",
-                        body_text="Choose new role",
-                        button_text="Select",
-                        sections=_build_committee_role_sections(),
+                        header_text=_ui_text(lang, "committee.change_role_header"),
+                        body_text=_ui_text(lang, "committee.choose_new_role"),
+                        button_text=_ui_text(lang, "common.select"),
+                        sections=_build_committee_role_sections(lang=lang),
                     )
                 return True
 
@@ -1396,6 +1635,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     action="assign role to" if session_state.pending_action == "ADD" else "change role for",
                     member_label=member_label,
                     role_label=_committee_role_label(selected_role),
+                    lang=lang,
                 )
                 return True
 
