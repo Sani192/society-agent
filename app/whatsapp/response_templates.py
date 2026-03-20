@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Iterable, Optional
 
-from app.utils.response import success, warning, error, info
+from app.i18n.catalog import translate
+from app.utils.response import error, info, success, warning
 
 DEFAULT_DATETIME_FORMAT = "%d %b %Y %H:%M"
 
@@ -79,22 +80,27 @@ def info_response(body: str, heading: Optional[str] = None, emoji: Optional[str]
     return info(_compose_message(body, heading, emoji))
 
 
-def format_report_options_response(options: list[dict]) -> str:
-    lines = [format_heading("Exportable Report Options", "📚")]
+def format_report_options_response(options: list[dict], *, lang: str | None = None) -> str:
+    lines = [
+        format_heading(
+            translate("response_templates.exportable_report_options_heading", lang),
+            "📚",
+        )
+    ]
 
     if not options:
-        lines.append("No exportable reports are configured.")
+        lines.append(translate("response_templates.no_exportable_reports", lang))
         return join_lines(lines)
 
     for option in options:
         lines.extend(
             [
                 "",
-                f"*Category*: {option['category']}",
-                f"*Report key*: {option['report_key']}",
-                f"*Label*: {option['label']}",
-                f"*Formats*: {', '.join(option['supported_formats'])}",
-                f"*Example*: {option['example_command']}",
+                f"*{translate('response_templates.category', lang)}*: {option['category']}",
+                f"*{translate('response_templates.report_key', lang)}*: {option['report_key']}",
+                f"*{translate('response_templates.label', lang)}*: {option['label']}",
+                f"*{translate('response_templates.formats', lang)}*: {', '.join(option['supported_formats'])}",
+                f"*{translate('response_templates.example', lang)}*: {option['example_command']}",
             ]
         )
 
@@ -124,11 +130,32 @@ def build_invalid_command_response(
     channel: str,
     reason: str,
     ctas: list[dict[str, str]] | None = None,
+    lang: str | None = None,
 ) -> tuple[str, InvalidInputContract]:
-    action_rows = tuple(ctas or [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}])
+    action_rows = tuple(
+        ctas
+        or [
+            {"id": "menu", "label": translate("response_templates.main_menu", lang)},
+            {"id": "help", "label": translate("response_templates.help", lang)},
+        ]
+    )
     command_hints = ", ".join(action["id"] for action in action_rows)
     if channel == "whatsapp":
-        text = info_response(f"Invalid option. {reason} Use: {command_hints}.")
+        text = info_response(
+            translate(
+                "response_templates.invalid_option",
+                lang,
+                reason=reason,
+                command_hints=command_hints,
+            )
+        )
     else:
-        text = info_response(f"Invalid command. {reason} Use: {command_hints}.")
+        text = info_response(
+            translate(
+                "response_templates.invalid_command",
+                lang,
+                reason=reason,
+                command_hints=command_hints,
+            )
+        )
     return text, InvalidInputContract(reason=reason, ctas=action_rows)
