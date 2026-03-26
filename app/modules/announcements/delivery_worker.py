@@ -112,11 +112,14 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if not body_parameters or any(not str(param).strip() for param in body_parameters):
         raise ValueError("Announcement payload has empty template placeholders")
 
+    template_locale_code = str(payload.get("template_locale_code") or "en_US").strip()
+
     client = get_whatsapp_client()
     client.send_template_message(
         to_phone=str(delivery.recipient_id),
         template_name=template_name,
         body_parameters=body_parameters,
+        language_code=template_locale_code,
     )
     return "sent_template", None
 

@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.models import Announcement, AnnouncementDelivery
+from app.modules.users.language_service import DEFAULT_LANGUAGE, normalize_language_code
 from app.utils.audit_logger import log_announcement_creation
 
 
@@ -21,17 +22,25 @@ class AnnouncementRecipient(TypedDict, total=False):
     whatsapp_user_id: str
     receiver_name: str
     event_name: str
+    preferred_language: str
 
 
 class RenderedTemplatePayload(TypedDict):
     template_name: str
     body_parameters: list[str]
+    app_language_code: str
+    template_locale_code: str
 
 
 class AnnouncementService:
     MAX_FREE_TEXT_LENGTH = 1024
     GENERAL_TEMPLATE_NAME = "society_announcement_general"
     EVENT_TEMPLATE_NAME = "society_announcement_event"
+    TEMPLATE_LOCALE_BY_APP_LANGUAGE = {
+        "en": "en_US",
+        "hi": "hi_IN",
+        "gu": "gu_IN",
+    }
 
     @staticmethod
     def ensure_whatsapp_template_delivery(*, channel: str, uses_template_path: bool) -> None:
@@ -56,12 +65,19 @@ class AnnouncementService:
         receiver_name: str,
         free_text: str,
         event_name: str | None,
+        app_language_code: str | None = None,
     ) -> RenderedTemplatePayload:
         """Resolve WhatsApp template metadata and ordered body variables."""
 
         receiver_name_clean = (receiver_name or "").strip()
         free_text_clean = (free_text or "").strip()
         event_name_clean = (event_name or "").strip()
+
+        normalized_app_language = normalize_language_code(app_language_code) or DEFAULT_LANGUAGE
+        template_locale_code = AnnouncementService.TEMPLATE_LOCALE_BY_APP_LANGUAGE.get(
+            normalized_app_language,
+            AnnouncementService.TEMPLATE_LOCALE_BY_APP_LANGUAGE[DEFAULT_LANGUAGE],
+        )
 
         if not receiver_name_clean:
             raise ValueError("receiver_name is required")
@@ -81,11 +97,15 @@ class AnnouncementService:
             return {
                 "template_name": AnnouncementService.EVENT_TEMPLATE_NAME,
                 "body_parameters": [receiver_name_clean, event_name_clean, free_text_clean],
+                "app_language_code": normalized_app_language,
+                "template_locale_code": template_locale_code,
             }
 
         return {
             "template_name": AnnouncementService.GENERAL_TEMPLATE_NAME,
             "body_parameters": [receiver_name_clean, free_text_clean],
+            "app_language_code": normalized_app_language,
+            "template_locale_code": template_locale_code,
         }
 
     @staticmethod
@@ -135,6 +155,7 @@ class AnnouncementService:
                     receiver_name=str(recipient.get("receiver_name") or ""),
                     free_text=message_text,
                     event_name=recipient.get("event_name"),
+                    app_language_code=str(recipient.get("preferred_language") or ""),
                 )
 
             db.add(
