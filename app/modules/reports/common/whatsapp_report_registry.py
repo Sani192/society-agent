@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.i18n.catalog import translate
 from app.permissions.report_permissions import REPORT_PERMISSIONS
 
 
@@ -11,7 +12,7 @@ class WhatsAppReportDefinition:
     category: str
     report_code: str
     report_key: str
-    label: str
+    label_key: str
     requires_event_id: bool
     supported_formats: tuple[str, ...] = ("csv", "excel", "pdf")
     aliases: tuple[str, ...] = ()
@@ -22,77 +23,77 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         category="financial",
         report_code="EVENT_FINANCIAL_SUMMARY",
         report_key="event-summary",
-        label="Event Financial Summary",
+        label_key="report_flow.report_labels.event_financial_summary",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="FLAT_PAYMENTS",
         report_key="flat-payments",
-        label="Flat Payments",
+        label_key="report_flow.report_labels.flat_payments",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="BLOCK_PAYMENTS",
         report_key="block-payments",
-        label="Block Payments",
+        label_key="report_flow.report_labels.block_payments",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="SPONSOR_CONTRIBUTIONS",
         report_key="sponsor-contributions",
-        label="Sponsor Contributions",
+        label_key="report_flow.report_labels.sponsor_contributions",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="CONTRIBUTION_REFUNDS",
         report_key="contribution-refunds",
-        label="Contribution Refunds",
+        label_key="report_flow.report_labels.contribution_refunds",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="BALANCE_CONTINUITY",
         report_key="balance-continuity",
-        label="Balance Continuity",
+        label_key="report_flow.report_labels.balance_continuity",
         requires_event_id=False,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="MEMBER_REFUNDS",
         report_key="member-refunds",
-        label="Member Refunds",
+        label_key="report_flow.report_labels.member_refunds",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="financial",
         report_code="LEDGER",
         report_key="ledger",
-        label="Ledger",
+        label_key="report_flow.report_labels.ledger",
         requires_event_id=True,
     ),
     WhatsAppReportDefinition(
         category="admin",
         report_code="MEMBER_DIRECTORY",
         report_key="member-directory",
-        label="Member Directory",
+        label_key="report_flow.report_labels.member_directory",
         requires_event_id=False,
     ),
     WhatsAppReportDefinition(
         category="admin",
         report_code="ONBOARDING_STATUS",
         report_key="onboarding-status",
-        label="Onboarding Status",
+        label_key="report_flow.report_labels.onboarding_status",
         requires_event_id=False,
     ),
     WhatsAppReportDefinition(
         category="admin",
         report_code="ANNOUNCEMENT_HISTORY",
         report_key="announcement-history",
-        label="Announcement History",
+        label_key="report_flow.report_labels.announcement_history",
         requires_event_id=False,
         supported_formats=("csv", "excel"),
     ),
@@ -100,7 +101,7 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         category="operations",
         report_code="FOOD_PASS_OPERATIONS",
         report_key="food-pass",
-        label="Food Pass Operations",
+        label_key="report_flow.report_labels.food_pass_operations",
         requires_event_id=True,
         supported_formats=("csv", "excel", "pdf"),
     ),
@@ -108,7 +109,7 @@ WHATSAPP_REPORT_DEFINITIONS: tuple[WhatsAppReportDefinition, ...] = (
         category="governance",
         report_code="GOVERNANCE_AUDIT",
         report_key="audit",
-        label="Governance Audit",
+        label_key="report_flow.report_labels.governance_audit",
         requires_event_id=False,
         aliases=("audit-summary",),
     ),
@@ -120,7 +121,7 @@ class WhatsAppReportRegistryEntry:
     category: str
     report_code: str
     report_key: str
-    label: str
+    label_key: str
     handler: Callable
     requires_event_id: bool
     normalized_report: str
@@ -189,7 +190,7 @@ def build_whatsapp_report_registry(*, handlers_by_code: dict[str, Callable]):
                 category=definition.category,
                 report_code=definition.report_code,
                 report_key=definition.report_key,
-                label=definition.label,
+                label_key=definition.label_key,
                 handler=handler,
                 requires_event_id=definition.requires_event_id,
                 normalized_report=definition.report_key,
@@ -203,6 +204,7 @@ def list_exportable_report_options(
     *,
     registry: dict[str, WhatsAppReportRegistryEntry],
     role: str | None = None,
+    lang: str | None = None,
 ):
     options = []
     seen_keys = set()
@@ -226,7 +228,7 @@ def list_exportable_report_options(
             {
                 "category": entry.category,
                 "report_key": entry.report_key,
-                "label": entry.label,
+                "label": translate(entry.label_key, lang),
                 "supported_formats": list(entry.supported_formats),
                 "example_command": (
                     "report export "
