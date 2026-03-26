@@ -3,6 +3,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.i18n.catalog import translate
+from app.modules.reports.common.whatsapp_report_registry import (
+    build_whatsapp_report_registry,
+    list_exportable_report_options,
+)
+from app.modules.reports.pdf.base import get_pdf_render_language
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 
 
@@ -169,3 +175,119 @@ def test_export_operations_food_pass_pdf(monkeypatch):
     assert result["format"] == "pdf"
     assert result["filename"] == "food_pass_operations.pdf"
     assert result["payload"] == b"pdf-bytes"
+
+
+def test_exportable_report_options_localize_labels_for_member_language():
+    registry = build_whatsapp_report_registry(
+        handlers_by_code=WhatsAppReportExportService.handlers_by_report_code(),
+    )
+
+    options = list_exportable_report_options(
+        registry=registry,
+        role="chairman",
+        lang="hi",
+    )
+
+    food_pass_option = next(option for option in options if option["command_key"] == "operations:food-pass")
+    assert food_pass_option["label"] == "फूड पास संचालन"
+
+
+def test_export_operations_food_pass_excel_uses_localized_sheet_label(monkeypatch):
+    member = SimpleNamespace(role="chairman", society_id="soc-1", id="member-1", preferred_language="hi")
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Diwali")
+
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.ensure_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.record_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.FoodPassOperationsReport.generate",
+        lambda **kwargs: {
+            "headers": ["Flat", "Entitled"],
+            "rows": [["A-101", 2]],
+        },
+    )
+
+    captured = {}
+
+    def _fake_export_excel(sheet_name, headers, rows):
+        captured["sheet_name"] = sheet_name
+        captured["headers"] = headers
+        captured["rows"] = rows
+        return b"excel-bytes"
+
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.export_excel",
+        _fake_export_excel,
+    )
+
+    result = WhatsAppReportExportService.export(
+        db=MagicMock(),
+        member=member,
+        event=event,
+        category="operations",
+        report="food-pass",
+        format="excel",
+        event_id="event-1",
+    )
+
+    assert result["payload"] == b"excel-bytes"
+    assert captured["sheet_name"] == "फूड पास संचालन"
+
+
+def test_export_operations_food_pass_pdf_applies_localized_pdf_shell_language(monkeypatch):
+    member = SimpleNamespace(role="chairman", society_id="soc-1", id="member-1", preferred_language="hi")
+    event = SimpleNamespace(id="event-1", society_id="soc-1", name="Diwali")
+
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.ensure_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.record_report_access",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.FoodPassOperationsReport.generate",
+        lambda **kwargs: {
+            "headers": ["Flat", "Entitled"],
+            "rows": [["A-101", 2]],
+            "summary": {"total_passes_generated": 2, "served_count": 1, "remaining_count": 1, "fallback_serve_count": 0},
+        },
+    )
+
+    captured = {}
+
+    def _fake_food_pass_pdf(**kwargs):
+        lang = get_pdf_render_language()
+        captured["lang"] = lang
+        captured["generated_by"] = translate("report_exports.pdf.generated_by", lang)
+        captured["confidential"] = translate("report_exports.pdf.confidential", lang)
+        return b"pdf-bytes-localized"
+
+    monkeypatch.setattr(
+        "app.modules.reports.whatsapp_export_service.generate_food_pass_operations_pdf",
+        _fake_food_pass_pdf,
+    )
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(name="Test Society")
+
+    result = WhatsAppReportExportService.export(
+        db=db,
+        member=member,
+        event=event,
+        category="operations",
+        report="food-pass",
+        format="pdf",
+        event_id="event-1",
+    )
+
+    assert result["payload"] == b"pdf-bytes-localized"
+    assert captured["lang"] == "hi"
+    assert captured["generated_by"] == "Society Agent द्वारा जनरेट किया गया"
+    assert captured["confidential"] == "गोपनीय – केवल सोसायटी उपयोग हेतु"

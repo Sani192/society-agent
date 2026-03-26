@@ -134,6 +134,26 @@ def test_send_delivery_falls_back_to_english_when_payload_language_invalid(monke
     assert client.sent_template[0]["language_code"] == "en_US"
 
 
+def test_send_delivery_falls_back_to_english_when_locale_and_app_language_missing(monkeypatch):
+    client = DummyClient()
+    monkeypatch.setattr(delivery_worker, "get_whatsapp_client", lambda: client)
+
+    delivery = _delivery(
+        metadata_json={"channel_state": {"whatsapp": {"opt_in": True}}},
+        rendered_payload={
+            "template_name": "society_announcement_general",
+            "body_parameters": ["Resident", "Announcement"],
+        },
+    )
+
+    outcome, reason = delivery_worker._send_delivery(delivery)
+
+    assert outcome == "sent_template"
+    assert reason is None
+    assert len(client.sent_template) == 1
+    assert client.sent_template[0]["language_code"] == "en_US"
+
+
 def test_send_delivery_fails_when_rendered_payload_missing(monkeypatch):
     client = DummyClient()
     monkeypatch.setattr(delivery_worker, "get_whatsapp_client", lambda: client)

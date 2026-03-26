@@ -132,3 +132,43 @@ def test_build_whatsapp_template_payload_uses_recipient_language():
 
     assert payload["app_language_code"] == "hi"
     assert payload["template_locale_code"] == "hi_IN"
+
+
+@pytest.mark.parametrize(
+    "app_language_code,expected_locale",
+    [
+        ("en", "en_US"),
+        ("hi", "hi_IN"),
+        ("gu", "gu_IN"),
+    ],
+)
+def test_build_whatsapp_template_payload_maps_supported_recipient_languages_to_locales(
+    app_language_code,
+    expected_locale,
+):
+    payload = AnnouncementService.build_whatsapp_template_payload(
+        announcement_type="announcement",
+        receiver_name="Asha",
+        free_text="Lift maintenance",
+        event_name=None,
+        app_language_code=app_language_code,
+    )
+
+    assert payload["app_language_code"] == app_language_code
+    assert payload["template_locale_code"] == expected_locale
+
+
+@pytest.mark.parametrize("app_language_code", [None, "", "mr", "  xx  "])
+def test_build_whatsapp_template_payload_falls_back_to_english_when_language_missing_or_unsupported(
+    app_language_code,
+):
+    payload = AnnouncementService.build_whatsapp_template_payload(
+        announcement_type="announcement",
+        receiver_name="Asha",
+        free_text="Lift maintenance",
+        event_name=None,
+        app_language_code=app_language_code,
+    )
+
+    assert payload["app_language_code"] == "en"
+    assert payload["template_locale_code"] == "en_US"
