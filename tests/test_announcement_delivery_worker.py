@@ -35,6 +35,8 @@ def _general_payload():
     return {
         "template_name": "society_announcement_general",
         "body_parameters": ["Resident", "Announcement"],
+        "app_language_code": "en",
+        "template_locale_code": "en_US",
     }
 
 
@@ -61,6 +63,7 @@ def test_send_delivery_uses_template_inside_policy_window(monkeypatch):
     assert client.sent_text == []
     assert len(client.sent_template) == 1
     assert client.sent_template[0]["template_name"] == "society_announcement_general"
+    assert client.sent_template[0]["language_code"] == "en_US"
 
 
 def test_send_delivery_routes_to_template_outside_window(monkeypatch):
@@ -86,6 +89,7 @@ def test_send_delivery_routes_to_template_outside_window(monkeypatch):
     assert client.sent_text == []
     assert len(client.sent_template) == 1
     assert client.sent_template[0]["template_name"] == "society_announcement_general"
+    assert client.sent_template[0]["language_code"] == "en_US"
 
 
 def test_send_delivery_fails_when_rendered_payload_missing(monkeypatch):

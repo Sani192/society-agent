@@ -18,6 +18,7 @@ class AnnouncementTarget(TypedDict):
     whatsapp_user_id: str
     receiver_name: str
     event_name: str | None
+    preferred_language: str
 
 
 class RecipientResolution(TypedDict):
@@ -59,6 +60,7 @@ class AnnouncementRecipientService:
                 or "Member"
             )
             event_name = getattr(row, "event_name", None)
+            preferred_language = str(getattr(row, "preferred_language", "") or "").strip().lower() or "en"
 
             targets.append(
                 {
@@ -66,6 +68,7 @@ class AnnouncementRecipientService:
                     "whatsapp_user_id": whatsapp_user_id,
                     "receiver_name": str(receiver_name).strip(),
                     "event_name": str(event_name).strip() if event_name else None,
+                    "preferred_language": preferred_language,
                 }
             )
 
@@ -84,6 +87,7 @@ class AnnouncementRecipientService:
                 MemberIdentity.id,
                 MemberIdentity.whatsapp_user_id,
                 MemberIdentity.normalized_identifier,
+                MemberIdentity.preferred_language,
                 Flat.owner_name,
                 Event.name.label("event_name"),
             )
@@ -110,6 +114,7 @@ class AnnouncementRecipientService:
                 MemberIdentity.id,
                 MemberIdentity.whatsapp_user_id,
                 MemberIdentity.normalized_identifier,
+                MemberIdentity.preferred_language,
                 Flat.owner_name,
             )
             .join(UserFlatMapping, UserFlatMapping.member_identity_id == MemberIdentity.id)

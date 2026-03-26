@@ -16,6 +16,8 @@ def test_build_whatsapp_template_payload_non_event():
 
     assert payload["template_name"] == "society_announcement_general"
     assert payload["body_parameters"] == ["Asha", "Maintenance planned"]
+    assert payload["app_language_code"] == "en"
+    assert payload["template_locale_code"] == "en_US"
 
 
 def test_build_whatsapp_template_payload_event():
@@ -28,6 +30,8 @@ def test_build_whatsapp_template_payload_event():
 
     assert payload["template_name"] == "society_announcement_event"
     assert payload["body_parameters"] == ["Asha", "Navratri", "Starts at 7PM"]
+    assert payload["app_language_code"] == "en"
+    assert payload["template_locale_code"] == "en_US"
 
 
 @pytest.mark.parametrize(
@@ -97,6 +101,7 @@ def test_create_announcement_persists_rendered_payload(db_session):
                 "channel": "whatsapp",
                 "recipient_id": "919999000000",
                 "receiver_name": "Asha",
+                "preferred_language": "en",
             }
         ],
     )
@@ -111,4 +116,19 @@ def test_create_announcement_persists_rendered_payload(db_session):
     assert deliveries[0].rendered_payload == {
         "template_name": "society_announcement_general",
         "body_parameters": ["Asha", "Water shutdown"],
+        "app_language_code": "en",
+        "template_locale_code": "en_US",
     }
+
+
+def test_build_whatsapp_template_payload_uses_recipient_language():
+    payload = AnnouncementService.build_whatsapp_template_payload(
+        announcement_type="announcement",
+        receiver_name="Asha",
+        free_text="Lift maintenance",
+        event_name=None,
+        app_language_code="hi",
+    )
+
+    assert payload["app_language_code"] == "hi"
+    assert payload["template_locale_code"] == "hi_IN"
