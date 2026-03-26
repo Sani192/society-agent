@@ -172,6 +172,7 @@ def handle_report_flow(*, client, message) -> bool:
                     handlers_by_code=WhatsAppReportExportService.handlers_by_report_code()
                 ),
                 role=str(member.role) if member.role is not None else None,
+                lang=lang,
             )
             session_key = build_export_session_key(
                 member_id=str(member.id),
