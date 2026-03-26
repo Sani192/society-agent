@@ -104,6 +104,135 @@ def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
     assert button_ids == ["ui::my-account", "ui::finance", "ui::menu:more"]
 
 
+def test_whatsapp_webhook_event_menu_uses_hindi_copy_for_hindi_user(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.menu.hindi"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    class StubDB:
+        def close(self):
+            return None
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000051",
+        display_name="Jane",
+        text="menu",
+        metadata={"message_id": "wamid.menu.hindi", "canonical_sender_id": "919999000051"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 1, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.resolve_flat", lambda *args, **kwargs: type("Flat", (), {"id": 1})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_language", lambda **kwargs: "hi")
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "सोसाइटी कंट्रोल पैनल"
+    assert button_attempts[0]["body_text"] == "एक कार्रवाई चुनें"
+
+
+def test_whatsapp_webhook_event_menu_uses_gujarati_copy_for_gujarati_user(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.menu.gujarati"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    class StubDB:
+        def close(self):
+            return None
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000052",
+        display_name="Jane",
+        text="menu",
+        metadata={"message_id": "wamid.menu.gujarati", "canonical_sender_id": "919999000052"},
+    )
+
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 1, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.resolve_flat", lambda *args, **kwargs: type("Flat", (), {"id": 1})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_language", lambda **kwargs: "gu")
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "સોસાયટી કન્ટ્રોલ પેનલ"
+    assert button_attempts[0]["body_text"] == "એક ક્રિયા પસંદ કરો"
+
+
+def test_whatsapp_webhook_event_menu_falls_back_to_english_for_missing_translation(monkeypatch):
+    button_attempts = []
+
+    class StubWhatsAppClient:
+        def send_button_message(self, **kwargs):
+            button_attempts.append(kwargs)
+            return {"messages": [{"id": "wamid.menu.fallback"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    class StubDB:
+        def close(self):
+            return None
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000053",
+        display_name="Jane",
+        text="menu",
+        metadata={"message_id": "wamid.menu.fallback", "canonical_sender_id": "919999000053"},
+    )
+
+    from app.channels.whatsapp import ui_router
+    monkeypatch.delitem(ui_router.UI_TEXT["gu"], "dashboard.select_action", raising=False)
+
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.ensure_committee_member", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("no")))
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: type("Event", (), {"society_id": 1, "status": "ACTIVE"})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._is_registered_member_for_sender", lambda *args, **kwargs: True)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.resolve_flat", lambda *args, **kwargs: type("Flat", (), {"id": 1})())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_language", lambda **kwargs: "gu")
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(button_attempts) == 1
+    assert button_attempts[0]["header_text"] == "સોસાયટી કન્ટ્રોલ પેનલ"
+    assert button_attempts[0]["body_text"] == "Select an action"
+
+
 def test_whatsapp_webhook_event_unknown_number_menu_prompts_to_join(monkeypatch):
     button_attempts = []
     text_attempts = []
@@ -1213,6 +1342,59 @@ def test_whatsapp_webhook_event_report_options_opens_report_list_without_forcing
     assert len(list_attempts) == 1
     row_ids = [row["id"] for section in list_attempts[0]["sections"] for row in section["rows"]]
     assert "export::financial:block-payments" in row_ids
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected_header", "expected_body"),
+    [
+        ("hi", "रिपोर्ट", "रिपोर्ट श्रेणी चुनें और रिपोर्ट पर टैप करें।"),
+        ("gu", "રિપોર્ટ્સ", "રિપોર્ટ શ્રેણી પસંદ કરો અને રિપોર્ટ પર ટેપ કરો."),
+    ],
+)
+def test_whatsapp_webhook_event_report_options_list_uses_localized_header_and_body(
+    monkeypatch,
+    lang,
+    expected_header,
+    expected_body,
+):
+    list_attempts = []
+
+    class StubWhatsAppClient:
+        def send_list_message(self, **kwargs):
+            list_attempts.append(kwargs)
+            return {"messages": [{"id": f"wamid.report.localized.{lang}"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            raise AssertionError("text fallback should not be sent")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000054",
+        display_name="Jane",
+        text="report options",
+        metadata={"message_id": f"wamid.report.localized.{lang}", "canonical_sender_id": "919999000054"},
+    )
+
+    fake_member = type("M", (), {"id": "member-loc", "role": "chairman", "society_id": "soc-1", "preferred_language": lang})()
+
+    monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
+    monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
+    monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
+    monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr("app.channels.whatsapp.report_flow.ensure_committee_member", lambda *args, **kwargs: fake_member)
+    monkeypatch.setattr(
+        "app.channels.whatsapp.report_flow.list_exportable_report_options",
+        lambda **kwargs: [{"category": "financial", "command_key": "financial:block-payments", "label": "Block Payments", "report_key": "block-payments"}],
+    )
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: None)
+
+    response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
+
+    assert response == {"status": "ok"}
+    assert len(list_attempts) == 1
+    assert list_attempts[0]["header_text"] == expected_header
+    assert list_attempts[0]["body_text"] == expected_body
 
 
 def test_whatsapp_webhook_event_report_event_selection_opens_report_list(monkeypatch):
