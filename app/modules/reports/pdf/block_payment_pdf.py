@@ -7,6 +7,7 @@ Created on Sat Jan 24 20:25:07 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 
@@ -42,7 +43,7 @@ def generate_block_payment_pdf(
         bottomMargin=60
     )
 
-    elements = []
+    elements: list[Any] = []
     lang = get_pdf_render_language()
 
     # Report meta

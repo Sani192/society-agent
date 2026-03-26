@@ -7,6 +7,7 @@ Created on Mon Jan 26 10:29:14 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -42,7 +43,7 @@ def generate_governance_audit_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
     lang = get_pdf_render_language()
     
     # Report Meta

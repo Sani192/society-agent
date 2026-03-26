@@ -7,6 +7,7 @@ Created on Sun Jan 25 16:56:36 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -44,7 +45,7 @@ def generate_contribution_refund_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
     lang = get_pdf_render_language()
 
     # Report Meta

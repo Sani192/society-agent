@@ -7,6 +7,7 @@ Created on Sun Feb  8 18:39:18 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -45,7 +46,7 @@ def generate_ledger_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
 
     # Report Meta
     pdf.report_meta(elements, {

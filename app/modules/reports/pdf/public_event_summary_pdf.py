@@ -7,6 +7,7 @@ Created on Mon Jan 26 11:11:43 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
@@ -43,7 +44,7 @@ def generate_public_event_summary_pdf(
     )
 
     styles = getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
 
     pdf.report_meta(elements, {
         translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y"),
