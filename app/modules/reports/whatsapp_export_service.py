@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from app.api.reports.common import record_report_access
 from app.db.models import Event, Society
+from app.i18n.catalog import translate
 from app.modules.reports.administrative.member_directory_report import MemberDirectoryReport
 from app.modules.reports.administrative.onboarding_status_report import OnboardingStatusReport
 from app.modules.reports.administrative.announcement_history_report import AnnouncementHistoryReport
@@ -34,6 +35,7 @@ from app.modules.reports.pdf.ledger_pdf import generate_ledger_pdf
 from app.modules.reports.pdf.member_directory_pdf import generate_member_directory_pdf
 from app.modules.reports.pdf.member_refund_pdf import generate_member_refund_pdf
 from app.modules.reports.pdf.onboarding_status_pdf import generate_onboarding_status_pdf
+from app.modules.reports.pdf.base import use_pdf_render_language
 from app.modules.reports.pdf.sponsor_contribution_pdf import generate_sponsor_contribution_pdf
 from app.permissions.report_guard import ensure_report_access
 
@@ -82,6 +84,19 @@ class WhatsAppReportExportService:
         return pdf_renderer(report_data)
 
     @staticmethod
+    def _member_lang(member):
+        return getattr(member, "preferred_language", None)
+
+    @staticmethod
+    def _sheet_label(label_key: str, lang: str | None):
+        return translate(label_key, lang)
+
+    @staticmethod
+    def _render_pdf(*, lang, renderer):
+        with use_pdf_render_language(lang):
+            return renderer()
+
+    @staticmethod
     def _build_result(*, category, report, normalized_format, event, row_count, filename_stem, payload):
         extension = "xlsx" if normalized_format == "excel" else normalized_format
         return {
@@ -109,6 +124,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_event_financial_summary(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(
             db=db,
             fallback_event=event,
@@ -123,12 +139,15 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Event Financial Summary",
-            pdf_renderer=lambda data: generate_event_financial_summary_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                summary=data,
-                logo_path=None,
+            excel_sheet_name=translate("report_flow.report_labels.event_financial_summary", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_event_financial_summary_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    summary=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -144,6 +163,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_flat_payments(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = FlatPaymentReport.generate(db, target_event.id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
@@ -151,13 +171,16 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Flat Payments",
-            pdf_renderer=lambda data: generate_flat_payment_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                headers=data["headers"],
-                rows=data["rows"],
-                logo_path=None,
+            excel_sheet_name=translate("report_flow.report_labels.flat_payments", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_flat_payment_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    headers=data["headers"],
+                    rows=data["rows"],
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -173,6 +196,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_block_payments(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = BlockPaymentReport.generate(db, target_event.id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
@@ -180,13 +204,16 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Block Payments",
-            pdf_renderer=lambda data: generate_block_payment_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                headers=data["headers"],
-                rows=data["rows"],
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.block_payments", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_block_payment_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    headers=data["headers"],
+                    rows=data["rows"],
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -202,6 +229,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_sponsor_contributions(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = SponsorContributionReport.generate(db, target_event.id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
@@ -209,12 +237,18 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Sponsor Contributions",
-            pdf_renderer=lambda data: generate_sponsor_contribution_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label(
+                "report_flow.report_labels.sponsor_contributions",
+                lang,
+            ),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_sponsor_contribution_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -230,6 +264,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_contribution_refunds(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = ContributionRefundReport.generate(db, target_event.id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
@@ -237,12 +272,18 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Contribution Refunds",
-            pdf_renderer=lambda data: generate_contribution_refund_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label(
+                "report_flow.report_labels.contribution_refunds",
+                lang,
+            ),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_contribution_refund_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -258,17 +299,21 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_balance_continuity(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         report_data = BalanceContinuityReport.generate(db, member.society_id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Balance Continuity",
-            pdf_renderer=lambda data: generate_balance_continuity_pdf(
-                society_name=society_name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.balance_continuity", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_balance_continuity_pdf(
+                    society_name=society_name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -284,6 +329,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_member_refunds(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = MemberRefundReport.generate(db=db, event_id=target_event.id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
@@ -291,12 +337,15 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Member Refunds",
-            pdf_renderer=lambda data: generate_member_refund_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.member_refunds", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_member_refund_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -312,6 +361,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_ledger(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = LedgerReport.generate(db=db, event_id=target_event.id, society_id=member.society_id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
@@ -319,12 +369,15 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Ledger",
-            pdf_renderer=lambda data: generate_ledger_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.ledger", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_ledger_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -340,17 +393,21 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_member_directory(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         report_data = MemberDirectoryReport.generate(db, member.society_id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Members",
-            pdf_renderer=lambda data: generate_member_directory_pdf(
-                society_name=society_name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.member_directory", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_member_directory_pdf(
+                    society_name=society_name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -366,17 +423,21 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_onboarding_status(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         report_data = OnboardingStatusReport.generate(db, member.society_id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Onboarding",
-            pdf_renderer=lambda data: generate_onboarding_status_pdf(
-                society_name=society_name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.onboarding_status", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_onboarding_status_pdf(
+                    society_name=society_name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -392,12 +453,17 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_announcement_history(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         report_data = AnnouncementHistoryReport.generate(db, member.society_id)
 
         if normalized_format == "csv":
             payload = export_csv(report_data["headers"], report_data["rows"])
         else:
-            payload = export_excel("Announcements", report_data["headers"], report_data["rows"])
+            payload = export_excel(
+                WhatsAppReportExportService._sheet_label("report_flow.report_labels.announcement_history", lang),
+                report_data["headers"],
+                report_data["rows"],
+            )
 
         return WhatsAppReportExportService._build_result(
             category="admin",
@@ -411,17 +477,21 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_governance_audit(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         report_data = GovernanceAuditReport.generate(db, member.society_id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Governance Audit",
-            pdf_renderer=lambda data: generate_governance_audit_pdf(
-                society_name=society_name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.governance_audit", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_governance_audit_pdf(
+                    society_name=society_name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
@@ -437,6 +507,7 @@ class WhatsAppReportExportService:
 
     @staticmethod
     def _export_food_pass_operations(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
         report_data = FoodPassOperationsReport.generate(db=db, event_id=target_event.id)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
@@ -444,12 +515,15 @@ class WhatsAppReportExportService:
         payload = WhatsAppReportExportService._render_tabular_export(
             normalized_format=normalized_format,
             report_data=report_data,
-            excel_sheet_name="Food Pass Operations",
-            pdf_renderer=lambda data: generate_food_pass_operations_pdf(
-                society_name=society_name,
-                event_name=target_event.name,
-                report=data,
-                logo_path=None,
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.food_pass_operations", lang),
+            pdf_renderer=lambda data: WhatsAppReportExportService._render_pdf(
+                lang=lang,
+                renderer=lambda: generate_food_pass_operations_pdf(
+                    society_name=society_name,
+                    event_name=target_event.name,
+                    report=data,
+                    logo_path=None,
+                ),
             ),
         )
 
