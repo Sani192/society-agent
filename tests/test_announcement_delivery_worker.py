@@ -92,6 +92,48 @@ def test_send_delivery_routes_to_template_outside_window(monkeypatch):
     assert client.sent_template[0]["language_code"] == "en_US"
 
 
+def test_send_delivery_resolves_locale_from_app_language_when_template_locale_missing(monkeypatch):
+    client = DummyClient()
+    monkeypatch.setattr(delivery_worker, "get_whatsapp_client", lambda: client)
+
+    payload = _general_payload()
+    payload.pop("template_locale_code")
+    payload["app_language_code"] = "hi"
+    delivery = _delivery(
+        metadata_json={"channel_state": {"whatsapp": {"opt_in": True}}},
+        rendered_payload=payload,
+    )
+
+    outcome, reason = delivery_worker._send_delivery(delivery)
+
+    assert outcome == "sent_template"
+    assert reason is None
+    assert len(client.sent_template) == 1
+    assert client.sent_template[0]["language_code"] == "hi_IN"
+
+
+def test_send_delivery_falls_back_to_english_when_payload_language_invalid(monkeypatch):
+    client = DummyClient()
+    monkeypatch.setattr(delivery_worker, "get_whatsapp_client", lambda: client)
+
+    delivery = _delivery(
+        metadata_json={"channel_state": {"whatsapp": {"opt_in": True}}},
+        rendered_payload={
+            "template_name": "society_announcement_general",
+            "body_parameters": ["Resident", "Announcement"],
+            "app_language_code": "xx",
+            "template_locale_code": "xx_XX",
+        },
+    )
+
+    outcome, reason = delivery_worker._send_delivery(delivery)
+
+    assert outcome == "sent_template"
+    assert reason is None
+    assert len(client.sent_template) == 1
+    assert client.sent_template[0]["language_code"] == "en_US"
+
+
 def test_send_delivery_fails_when_rendered_payload_missing(monkeypatch):
     client = DummyClient()
     monkeypatch.setattr(delivery_worker, "get_whatsapp_client", lambda: client)
