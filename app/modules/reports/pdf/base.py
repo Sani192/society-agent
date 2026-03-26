@@ -48,6 +48,10 @@ def use_pdf_render_language(lang: str | None):
         _PDF_RENDER_LANG.reset(token)
 
 
+def get_pdf_render_language() -> str | None:
+    return _PDF_RENDER_LANG.get()
+
+
 class BasePDF:
     def __init__(self, buffer, society_name, report_title, logo_path=None):
         pdfmetrics.registerFont(

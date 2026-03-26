@@ -11,7 +11,8 @@ from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
@@ -44,12 +45,13 @@ def generate_event_financial_summary_pdf(
 
     getSampleStyleSheet()
     elements = []
+    lang = get_pdf_render_language()
 
     # Report meta
     pdf.report_meta(elements, {
-        "Event": event_name,
-        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-        "Currency": "INR (₹)"
+        translate("report_exports.meta.event", lang): event_name,
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+        translate("report_exports.meta.currency", lang): "INR (₹)"
     })
     
     # -------------------------------------------------
@@ -64,16 +66,17 @@ def generate_event_financial_summary_pdf(
     # -------------------------------------------------
     # Closing balance highlight box
     # -------------------------------------------------
-    amount_index = summary["headers"].index("Amount") if "Amount" in summary["headers"] else 2
+    amount_header = translate("report_exports.labels.headers.amount", lang)
+    amount_index = summary["headers"].index(amount_header) if amount_header in summary["headers"] else 2
     closing_balance = next(
         row[amount_index] for row in summary["rows"]
-        if row[0] == "Balance"
+        if row[0] == translate("report_exports.labels.rows.balance", lang)
     )
 
     elements.append(
         pdf.summary_box(
-            "Closing Balance",
-            [["Closing Balance", f"₹ {closing_balance:,}"]]
+            translate("report_exports.labels.summary.closing_balance", lang),
+            [[translate("report_exports.labels.summary.closing_balance", lang), f"₹ {closing_balance:,}"]]
         )
     )
     

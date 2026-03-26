@@ -7,7 +7,8 @@ from typing import Any
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Spacer
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
 
@@ -39,15 +40,16 @@ def generate_food_pass_operations_pdf(
 
     elements: list[Any] = []
     summary = report.get("summary", {})
+    lang = get_pdf_render_language()
 
     pdf.report_meta(
         elements,
         {
-            "Event": event_name,
-            "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-            "Total Tokens": summary.get("total_passes_generated", 0),
-            "Served": summary.get("served_count", 0),
-            "Fallback Served": summary.get("fallback_serve_count", 0),
+            translate("report_exports.meta.event", lang): event_name,
+            translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+            translate("report_exports.meta.total_tokens", lang): summary.get("total_passes_generated", 0),
+            translate("report_exports.meta.served", lang): summary.get("served_count", 0),
+            translate("report_exports.meta.fallback_served", lang): summary.get("fallback_serve_count", 0),
         },
     )
 
@@ -56,12 +58,12 @@ def generate_food_pass_operations_pdf(
 
     elements.append(
         pdf.summary_box(
-            "Food Pass Summary",
+            translate("report_exports.labels.summary.food_pass_summary", lang),
             [
-                ["Total Tokens Generated", str(summary.get("total_passes_generated", 0))],
-                ["Served", str(summary.get("served_count", 0))],
-                ["Remaining", str(summary.get("remaining_count", 0))],
-                ["Fallback Serves", str(summary.get("fallback_serve_count", 0))],
+                [translate("report_exports.labels.summary.total_tokens_generated", lang), str(summary.get("total_passes_generated", 0))],
+                [translate("report_exports.meta.served", lang), str(summary.get("served_count", 0))],
+                [translate("report_exports.labels.summary.remaining", lang), str(summary.get("remaining_count", 0))],
+                [translate("report_exports.labels.summary.fallback_serves", lang), str(summary.get("fallback_serve_count", 0))],
             ],
         )
     )

@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from typing import Any
 from sqlalchemy.orm import Session
+from app.i18n.catalog import translate
 
 from app.db.models import (
     Payment,
@@ -33,10 +34,12 @@ class LedgerReport:
 
     @staticmethod
     @log_service_call(logger, "LedgerReport.generate")
-    def generate(db: Session, *, event_id, society_id, start_date: datetime | None = None, end_date: datetime | None = None):
+    def generate(db: Session, *, event_id, society_id, lang: str | None = None, start_date: datetime | None = None, end_date: datetime | None = None):
         context = build_log_context(event_id=event_id, society_id=society_id)
         ledger: list[list[Any]] = []
         running_total = 0
+        system_label = translate("report_exports.labels.system", lang)
+        not_available = translate("report_exports.labels.not_available", lang)
 
         opening = (
             db.query(SocietyBalance.opening_balance)
@@ -47,7 +50,7 @@ class LedgerReport:
             .scalar()
         ) or 0
 
-        ledger.append(["Opening Balance", "-", opening, "-", "System"])
+        ledger.append([translate("report_exports.labels.rows.opening_balance", lang), not_available, opening, not_available, system_label])
 
         payments_query = (
             db.query(Flat.flat_number, Payment.paid_amount, Payment.paid_at)
@@ -60,7 +63,13 @@ class LedgerReport:
             payments_query = payments_query.filter(Payment.paid_at <= end_date)
 
         for flat, amount, paid_at in payments_query.all():
-            ledger.append(["Member Payment", f"Flat {flat}", amount, format_timestamp(paid_at), "System"])
+            ledger.append([
+                translate("report_exports.labels.rows.member_payment", lang),
+                translate("report_exports.labels.flat_prefix", lang, flat=flat),
+                amount,
+                format_timestamp(paid_at),
+                system_label,
+            ])
             running_total += int(amount or 0)
 
         sponsors_query = (
@@ -73,7 +82,7 @@ class LedgerReport:
             sponsors_query = sponsors_query.filter(EventContribution.created_at <= end_date)
 
         for name, amount, created_at in sponsors_query.all():
-            ledger.append(["Sponsor Contribution", name, amount, format_timestamp(created_at), "System"])
+            ledger.append([translate("report_exports.labels.rows.sponsor_contribution", lang), name, amount, format_timestamp(created_at), system_label])
             running_total += int(amount or 0)
 
         refunds_query = (
@@ -88,7 +97,13 @@ class LedgerReport:
             refunds_query = refunds_query.filter(Refund.created_at <= end_date)
 
         for flat, amount, created_at, created_by in refunds_query.all():
-            ledger.append(["Member Refund", f"Flat {flat}", -amount, format_timestamp(created_at), created_by or "System"])
+            ledger.append([
+                translate("report_exports.labels.rows.member_refund", lang),
+                translate("report_exports.labels.flat_prefix", lang, flat=flat),
+                -amount,
+                format_timestamp(created_at),
+                created_by or system_label,
+            ])
             running_total -= int(amount or 0)
 
         sponsor_refunds_query = (
@@ -102,7 +117,7 @@ class LedgerReport:
             sponsor_refunds_query = sponsor_refunds_query.filter(ContributionRefund.processed_at <= end_date)
 
         for name, amount, processed_at in sponsor_refunds_query.all():
-            ledger.append(["Sponsor Refund", name, -amount, format_timestamp(processed_at), "System"])
+            ledger.append([translate("report_exports.labels.rows.sponsor_refund", lang), name, -amount, format_timestamp(processed_at), system_label])
             running_total -= int(amount or 0)
 
         expenses_query = (
@@ -115,7 +130,7 @@ class LedgerReport:
             expenses_query = expenses_query.filter(EventExpense.created_at <= end_date)
 
         for desc, amount, created_at in expenses_query.all():
-            ledger.append(["Expense", desc, -amount, format_timestamp(created_at), "System"])
+            ledger.append([translate("report_exports.labels.rows.expense", lang), desc, -amount, format_timestamp(created_at), system_label])
             running_total -= int(amount or 0)
 
         if len(ledger) <= 1:
@@ -123,11 +138,18 @@ class LedgerReport:
 
         closing = int(opening) + running_total
 
-        ledger.append(["Closing Balance", "-", closing, "-", "System"])
+        ledger.append([translate("report_exports.labels.rows.closing_balance", lang), not_available, closing, not_available, system_label])
         if len(ledger) <= 2:
             logger.info("Workflow decision: ledger has no transaction rows | context=%s", context)
 
         return {
-            "headers": ["Type", "Reference", "Amount", "Created At", "Created By"],
+            "header_keys": ["type", "reference", "amount", "created_at", "created_by"],
+            "headers": [
+                translate("report_exports.labels.headers.type", lang),
+                translate("report_exports.labels.headers.reference", lang),
+                translate("report_exports.labels.headers.amount", lang),
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.created_by", lang),
+            ],
             "rows": ledger
         }

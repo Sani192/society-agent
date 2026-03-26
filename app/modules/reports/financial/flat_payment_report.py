@@ -10,6 +10,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from app.db.models import Flat, Payment, Refund
+from app.i18n.catalog import translate
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class FlatPaymentReport:
 
     @staticmethod
     @log_service_call(logger, "FlatPaymentReport.generate")
-    def generate(db: Session, event_id):
+    def generate(db: Session, event_id, *, lang: str | None = None):
         context = build_log_context(event_id=event_id)
         records = (
             db.query(
@@ -51,6 +52,7 @@ class FlatPaymentReport:
             .all()
         )
 
+        system_label = translate("report_exports.labels.system", lang)
         rows = []
         if not records:
             logger.info(
@@ -69,9 +71,9 @@ class FlatPaymentReport:
                 refunded,
                 pending,
                 format_timestamp(paid_at),
-                "System",
+                system_label,
                 format_timestamp(updated_at),
-                "System"
+                system_label
             ])
 
         if not rows:
@@ -80,17 +82,18 @@ class FlatPaymentReport:
                 context
             )
         return {
+            "header_keys": ["flat", "block", "expected", "paid", "refunded", "pending", "created_at", "created_by", "updated_at", "updated_by"],
             "headers": [
-                "Flat",
-                "Block",
-                "Expected",
-                "Paid",
-                "Refunded",
-                "Pending",
-                "Created At",
-                "Created By",
-                "Updated At",
-                "Updated By"
+                translate("report_exports.labels.headers.flat", lang),
+                translate("report_exports.labels.headers.block", lang),
+                translate("report_exports.labels.headers.expected", lang),
+                translate("report_exports.labels.headers.paid", lang),
+                translate("report_exports.labels.headers.refunded", lang),
+                translate("report_exports.labels.headers.pending", lang),
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.created_by", lang),
+                translate("report_exports.labels.headers.updated_at", lang),
+                translate("report_exports.labels.headers.updated_by", lang),
             ],
             "rows": rows
         }

@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 from app.db.models import Announcement
+from app.i18n.catalog import translate
 
 
 class AnnouncementHistoryReport:
     @staticmethod
-    def generate(db, society_id):
+    def generate(db, society_id, *, lang: str | None = None):
         rows = (
             db.query(Announcement)
             .filter(Announcement.society_id == society_id)
@@ -17,7 +18,7 @@ class AnnouncementHistoryReport:
         )
 
         return {
-            "headers": [
+            "header_keys": [
                 "announcement_id",
                 "created_at",
                 "type",
@@ -28,6 +29,18 @@ class AnnouncementHistoryReport:
                 "sent_count",
                 "failed_count",
                 "skipped_count",
+            ],
+            "headers": [
+                translate("report_exports.labels.headers.announcement_id", lang),
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.type", lang),
+                translate("report_exports.labels.headers.status", lang),
+                translate("report_exports.labels.headers.message_preview", lang),
+                translate("report_exports.labels.headers.event_id", lang),
+                translate("report_exports.labels.headers.total_targets", lang),
+                translate("report_exports.labels.headers.sent_count", lang),
+                translate("report_exports.labels.headers.failed_count", lang),
+                translate("report_exports.labels.headers.skipped_count", lang),
             ],
             "rows": [
                 [

@@ -11,7 +11,8 @@ from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
@@ -25,11 +26,12 @@ def generate_ledger_pdf(
     logo_path: str | None = None
 ):
     buffer = io.BytesIO()
+    lang = get_pdf_render_language()
 
     pdf = BasePDF(
         buffer=buffer,
         society_name=society_name,
-        report_title=f"Ledger {event_name} Report",
+        report_title=translate("report_exports.pdf_titles.ledger_report", lang, event_name=event_name),
         logo_path=logo_path
     )
 
@@ -47,9 +49,9 @@ def generate_ledger_pdf(
 
     # Report Meta
     pdf.report_meta(elements, {
-        "Event": event_name,
-        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-        "Currency": "INR (₹)"
+        translate("report_exports.meta.event", lang): event_name,
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+        translate("report_exports.meta.currency", lang): "INR (₹)"
     })
     
     # Table
