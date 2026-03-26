@@ -19,6 +19,7 @@ from app.config import settings
 from app.db.models import Announcement, AnnouncementDelivery
 from app.db.session import SessionLocal
 from app.modules.announcements.service import AnnouncementService
+from app.modules.users.language_service import normalize_language_code
 from app.utils.logger import logger
 
 MAX_ATTEMPTS = int(getattr(settings, "ANNOUNCEMENT_RETRY_MAX", 3))
@@ -112,7 +113,7 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if not body_parameters or any(not str(param).strip() for param in body_parameters):
         raise ValueError("Announcement payload has empty template placeholders")
 
-    template_locale_code = str(payload.get("template_locale_code") or "en_US").strip()
+    template_locale_code = _resolve_template_locale_code(payload)
 
     client = get_whatsapp_client()
     client.send_template_message(
@@ -122,6 +123,23 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
         language_code=template_locale_code,
     )
     return "sent_template", None
+
+
+def _resolve_template_locale_code(payload: dict[str, Any]) -> str:
+    default_locale = AnnouncementService.TEMPLATE_LOCALE_BY_APP_LANGUAGE.get("en", "en_US")
+    valid_locales = set(AnnouncementService.TEMPLATE_LOCALE_BY_APP_LANGUAGE.values())
+
+    template_locale_code = str(payload.get("template_locale_code") or "").strip()
+    if template_locale_code in valid_locales:
+        return template_locale_code
+
+    normalized_app_language = normalize_language_code(str(payload.get("app_language_code") or ""))
+    if normalized_app_language:
+        mapped_locale = AnnouncementService.TEMPLATE_LOCALE_BY_APP_LANGUAGE.get(normalized_app_language)
+        if mapped_locale:
+            return mapped_locale
+
+    return default_locale
 
 
 def _refresh_announcement_summary(db, *, announcement_id) -> dict[str, int]:
