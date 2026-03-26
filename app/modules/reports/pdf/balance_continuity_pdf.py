@@ -7,11 +7,13 @@ Created on Sun Jan 25 17:29:05 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
@@ -42,12 +44,13 @@ def generate_balance_continuity_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
+    lang = get_pdf_render_language()
     
     # Report Meta
     pdf.report_meta(elements, {
-        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-        "Currency": "INR (₹)"
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+        translate("report_exports.meta.currency", lang): "INR (₹)"
     })
     
     # Table
@@ -56,8 +59,8 @@ def generate_balance_continuity_pdf(
     elements.append(build_table(report["headers"], table_rows))
 
     closing_index = (
-        report["headers"].index("Closing Balance")
-        if "Closing Balance" in report["headers"]
+        report["headers"].index(translate("report_exports.labels.headers.closing_balance", lang))
+        if translate("report_exports.labels.headers.closing_balance", lang) in report["headers"]
         else None
     )
     final_balance = 0
@@ -67,8 +70,8 @@ def generate_balance_continuity_pdf(
     elements.append(Spacer(1, 18))
     elements.append(
         pdf.summary_box(
-            "Current Society Balance",
-            [["Closing Balance", f"₹ {final_balance:,}"]]
+            translate("report_exports.labels.summary.current_society_balance", lang),
+            [[translate("report_exports.labels.summary.closing_balance", lang), f"₹ {final_balance:,}"]]
         )
     )
 

@@ -9,6 +9,7 @@ Created on Mon Jan 26 10:27:51 2026
 import logging
 from sqlalchemy.orm import Session
 from app.db.models import AuditLog, CommitteeMember
+from app.i18n.catalog import translate
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class GovernanceAuditReport:
 
     @staticmethod
     @log_service_call(logger, "GovernanceAuditReport.generate")
-    def generate(db: Session, society_id):
+    def generate(db: Session, society_id, *, lang: str | None = None):
         context = build_log_context(society_id=society_id)
         records = (
             db.query(
@@ -46,24 +47,27 @@ class GovernanceAuditReport:
                 context
             )
 
+        system_label = translate("report_exports.labels.system", lang)
+        not_available = translate("report_exports.labels.not_available", lang)
         rows = [
             [
                 format_timestamp(performed_at),
                 action,
-                reason or "-",
-                name or "System",
-                role if performed_by else "-"
+                reason or not_available,
+                name or system_label,
+                role if performed_by else not_available
             ]
             for performed_at, action, reason, performed_by, name, role in records
         ]
 
         return {
+            "header_keys": ["created_at", "action", "reason", "created_by", "role"],
             "headers": [
-                "Created At",
-                "Action",
-                "Reason",
-                "Created By",
-                "Role"
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.action", lang),
+                translate("report_exports.labels.headers.reason", lang),
+                translate("report_exports.labels.headers.created_by", lang),
+                translate("report_exports.labels.headers.role", lang),
             ],
             "rows": rows
         }

@@ -9,6 +9,7 @@ Created on Sun Jan 25 17:07:09 2026
 import logging
 from sqlalchemy.orm import Session
 from app.db.models import PendingUser, Flat, MemberIdentity
+from app.i18n.catalog import translate
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class OnboardingStatusReport:
 
     @staticmethod
     @log_service_call(logger, "OnboardingStatusReport.generate")
-    def generate(db: Session, society_id):
+    def generate(db: Session, society_id, *, lang: str | None = None):
         context = build_log_context(society_id=society_id)
         records = (
             db.query(
@@ -55,13 +56,14 @@ class OnboardingStatusReport:
         ]
 
         return {
+            "header_keys": ["request_code", "user_identifier", "flat", "status", "created_at", "created_by"],
             "headers": [
-                "Request Code",
-                "User Identifier",
-                "Flat",
-                "Status",
-                "Created At",
-                "Created By"
+                translate("report_exports.labels.headers.request_code", lang),
+                translate("report_exports.labels.headers.user_identifier", lang),
+                translate("report_exports.labels.headers.flat", lang),
+                translate("report_exports.labels.headers.status", lang),
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.created_by", lang),
             ],
             "rows": rows
         }

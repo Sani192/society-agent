@@ -7,11 +7,13 @@ Created on Mon Jan 26 11:11:43 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.utils.time import utc_now
 
 
@@ -23,11 +25,12 @@ def generate_public_event_summary_pdf(
     logo_path: str | None = None
 ):
     buffer = io.BytesIO()
+    lang = get_pdf_render_language()
 
     pdf = BasePDF(
         buffer=buffer,
         society_name=society_name,
-        report_title=f"{event_name} – Public Summary",
+        report_title=translate("report_exports.pdf_titles.public_summary", lang, event_name=event_name),
         logo_path=logo_path
     )
 
@@ -41,25 +44,25 @@ def generate_public_event_summary_pdf(
     )
 
     styles = getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
 
     pdf.report_meta(elements, {
-        "Generated On": utc_now().strftime("%d %b %Y"),
-        "Scope": "Public • Read-only"
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y"),
+        translate("report_exports.meta.scope", lang): translate("report_exports.labels.scopes.public_read_only", lang),
     })
 
     elements.append(
-        pdf.summary_box("Event Snapshot", [
-            ["Participants", summary["participants"]],
-            ["Total Income", f"₹ {summary['income']:,}"],
-            ["Total Expenses", f"₹ {summary['expenses']:,}"],
-            ["Closing Balance", f"₹ {summary['closing_balance']:,}"],
+        pdf.summary_box(translate("report_exports.labels.summary.event_snapshot", lang), [
+            [translate("report_exports.labels.summary.participants", lang), summary["participants"]],
+            [translate("report_exports.labels.summary.total_income", lang), f"₹ {summary['income']:,}"],
+            [translate("report_exports.labels.summary.total_expenses", lang), f"₹ {summary['expenses']:,}"],
+            [translate("report_exports.labels.summary.closing_balance", lang), f"₹ {summary['closing_balance']:,}"],
         ])
     )
 
     if summary["sponsors"]:
         elements.append(Spacer(1, 16))
-        elements.append(Paragraph("<b>Sponsors</b>", styles["Heading3"]))
+        elements.append(Paragraph(f"<b>{translate('report_exports.labels.sections.sponsors', lang)}</b>", styles["Heading3"]))
         for s in summary["sponsors"]:
             elements.append(Paragraph(f"• {s}", styles["Normal"]))
 

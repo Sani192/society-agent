@@ -6,12 +6,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import EventFoodPass, EventFoodToken, Flat
+from app.i18n.catalog import translate
 from app.modules.events.food_collection_service import FoodCollectionService
 
 
 class FoodPassOperationsReport:
     @staticmethod
-    def generate(db: Session, event_id):
+    def generate(db: Session, event_id, *, lang: str | None = None):
         dashboard = FoodCollectionService.dashboard(db=db, event_id=event_id, recent_limit=0)
 
         passes = (
@@ -93,14 +94,15 @@ class FoodPassOperationsReport:
         total_passes_generated = sum(item["total"] for item in by_type.values())
 
         return {
+            "header_keys": ["flat", "block", "entitled", "served_token", "served_fallback", "served_total", "remaining"],
             "headers": [
-                "Flat",
-                "Block",
-                "Entitled",
-                "Served (Token)",
-                "Served (Fallback)",
-                "Served (Total)",
-                "Remaining",
+                translate("report_exports.labels.headers.flat", lang),
+                translate("report_exports.labels.headers.block", lang),
+                translate("report_exports.labels.headers.entitled", lang),
+                translate("report_exports.labels.headers.served_token", lang),
+                translate("report_exports.labels.headers.served_fallback", lang),
+                translate("report_exports.labels.headers.served_total", lang),
+                translate("report_exports.labels.summary.remaining", lang),
             ],
             "rows": per_flat_rows,
             "summary": {

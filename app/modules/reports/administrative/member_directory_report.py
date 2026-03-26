@@ -9,6 +9,7 @@ Created on Sun Jan 25 17:05:44 2026
 import logging
 from sqlalchemy.orm import Session
 from app.db.models import UserFlatMapping, Flat, MemberIdentity
+from app.i18n.catalog import translate
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class MemberDirectoryReport:
 
     @staticmethod
     @log_service_call(logger, "MemberDirectoryReport.generate")
-    def generate(db: Session, society_id):
+    def generate(db: Session, society_id, *, lang: str | None = None):
         context = build_log_context(society_id=society_id)
         records = (
             db.query(
@@ -45,19 +46,21 @@ class MemberDirectoryReport:
                 context
             )
 
+        system_label = translate("report_exports.labels.system", lang)
         rows = [
-            [user, role, flat, block, format_timestamp(created_at), "System"]
+            [user, role, flat, block, format_timestamp(created_at), system_label]
             for user, role, flat, block, created_at in records
         ]
 
         return {
+            "header_keys": ["user_identifier", "role", "flat", "block", "created_at", "created_by"],
             "headers": [
-                "User Identifier",
-                "Role",
-                "Flat",
-                "Block",
-                "Created At",
-                "Created By"
+                translate("report_exports.labels.headers.user_identifier", lang),
+                translate("report_exports.labels.headers.role", lang),
+                translate("report_exports.labels.headers.flat", lang),
+                translate("report_exports.labels.headers.block", lang),
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.created_by", lang),
             ],
             "rows": rows
         }

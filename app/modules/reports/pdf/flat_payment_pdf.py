@@ -7,11 +7,13 @@ Created on Fri Jan 23 17:35:10 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
 
@@ -45,13 +47,14 @@ def generate_flat_payment_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
+    lang = get_pdf_render_language()
 
     # Report Meta
     pdf.report_meta(elements, {
-        "Event": event_name,
-        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-        "Currency": "INR (₹)"
+        translate("report_exports.meta.event", lang): event_name,
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+        translate("report_exports.meta.currency", lang): "INR (₹)"
     })
 
     # Table
@@ -64,18 +67,18 @@ def generate_flat_payment_pdf(
         idx = headers.index(column_name)
         return sum((row[idx] or 0) for row in rows)
 
-    total_expected = sum_column("Expected")
-    total_paid = sum_column("Paid")
-    total_refunded = sum_column("Refunded")
-    total_pending = sum_column("Pending")
+    total_expected = sum_column(translate("report_exports.labels.headers.expected", lang))
+    total_paid = sum_column(translate("report_exports.labels.headers.paid", lang))
+    total_refunded = sum_column(translate("report_exports.labels.headers.refunded", lang))
+    total_pending = sum_column(translate("report_exports.labels.headers.pending", lang))
     
     elements.append(Spacer(1, 18))
     elements.append(
-        pdf.summary_box("Payment Summary", [
-            ["Total Expected", f"₹ {total_expected:,}"],
-            ["Total Paid", f"₹ {total_paid:,}"],
-            ["Total Refunded", f"₹ {total_refunded:,}"],
-            ["Total Pending", f"₹ {total_pending:,}"],
+        pdf.summary_box(translate("report_exports.labels.summary.payment_summary", lang), [
+            [translate("report_exports.labels.summary.total_expected", lang), f"₹ {total_expected:,}"],
+            [translate("report_exports.labels.summary.total_paid", lang), f"₹ {total_paid:,}"],
+            [translate("report_exports.labels.summary.total_refunded", lang), f"₹ {total_refunded:,}"],
+            [translate("report_exports.labels.summary.total_pending", lang), f"₹ {total_pending:,}"],
         ])
     )
 

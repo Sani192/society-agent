@@ -7,11 +7,13 @@ Created on Mon Jan 26 10:29:14 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import getSampleStyleSheet
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
 
@@ -41,12 +43,13 @@ def generate_governance_audit_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
+    lang = get_pdf_render_language()
     
     # Report Meta
     pdf.report_meta(elements, {
-        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-        "Scope": "Overrides, Manual Actions, Report Access"
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+        translate("report_exports.meta.scope", lang): translate("report_exports.labels.scopes.governance_audit", lang),
     })
     
     # Table

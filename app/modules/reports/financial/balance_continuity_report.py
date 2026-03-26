@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from app.i18n.catalog import translate
 from app.db.models import (
     Event,
     Payment,
@@ -25,7 +26,7 @@ class BalanceContinuityReport:
 
     @staticmethod
     @log_service_call(logger, "BalanceContinuityReport.generate")
-    def generate(db: Session, society_id, *, start_date: datetime | None = None, end_date: datetime | None = None):
+    def generate(db: Session, society_id, *, lang: str | None = None, start_date: datetime | None = None, end_date: datetime | None = None):
         context = build_log_context(society_id=society_id)
 
         payment_sq = (
@@ -78,6 +79,7 @@ class BalanceContinuityReport:
                 context
             )
 
+        system_label = translate("report_exports.labels.system", lang)
         rows = []
         previous_closing = 0
 
@@ -92,7 +94,7 @@ class BalanceContinuityReport:
                 expenses + refunds,
                 closing_balance,
                 format_timestamp(event.created_at),
-                created_by or "System"
+                created_by or system_label
             ])
 
             previous_closing = closing_balance
@@ -103,14 +105,15 @@ class BalanceContinuityReport:
                 context
             )
         return {
+            "header_keys": ["event", "opening_balance", "total_income", "total_expense", "closing_balance", "created_at", "created_by"],
             "headers": [
-                "Event",
-                "Opening Balance",
-                "Total Income",
-                "Total Expense",
-                "Closing Balance",
-                "Created At",
-                "Created By"
+                translate("report_exports.labels.headers.event", lang),
+                translate("report_exports.labels.headers.opening_balance", lang),
+                translate("report_exports.labels.headers.total_income", lang),
+                translate("report_exports.labels.headers.total_expense", lang),
+                translate("report_exports.labels.headers.closing_balance", lang),
+                translate("report_exports.labels.headers.created_at", lang),
+                translate("report_exports.labels.headers.created_by", lang),
             ],
             "rows": rows
         }

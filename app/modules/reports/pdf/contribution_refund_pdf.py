@@ -7,11 +7,13 @@ Created on Sun Jan 25 16:56:36 2026
 """
 
 import io
+from typing import Any
 from reportlab.platypus import SimpleDocTemplate, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 
-from app.modules.reports.pdf.base import BasePDF
+from app.i18n.catalog import translate
+from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
 from app.modules.reports.pdf.formatting import format_report_rows
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
@@ -43,13 +45,14 @@ def generate_contribution_refund_pdf(
     )
 
     getSampleStyleSheet()
-    elements = []
+    elements: list[Any] = []
+    lang = get_pdf_render_language()
 
     # Report Meta
     pdf.report_meta(elements, {
-        "Event": event_name,
-        "Generated On": utc_now().strftime("%d %b %Y %H:%M"),
-        "Currency": "INR (₹)"
+        translate("report_exports.meta.event", lang): event_name,
+        translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
+        translate("report_exports.meta.currency", lang): "INR (₹)"
     })
     
     # Table
@@ -64,8 +67,8 @@ def generate_contribution_refund_pdf(
 
     elements.append(
         pdf.summary_box(
-            "Refund Summary",
-            [["Total Refunded", f"₹ {report['total_refunded']:,}"]]
+            translate("report_exports.labels.summary.refund_summary", lang),
+            [[translate("report_exports.labels.summary.total_refunded", lang), f"₹ {report['total_refunded']:,}"]]
         )
     )
 

@@ -97,6 +97,15 @@ class WhatsAppReportExportService:
             return renderer()
 
     @staticmethod
+    def _generate_report(generator, *args, lang: str | None = None, **kwargs):
+        try:
+            return generator(*args, lang=lang, **kwargs)
+        except TypeError as exc:
+            if "unexpected keyword argument 'lang'" not in str(exc):
+                raise
+            return generator(*args, **kwargs)
+
+    @staticmethod
     def _build_result(*, category, report, normalized_format, event, row_count, filename_stem, payload):
         extension = "xlsx" if normalized_format == "excel" else normalized_format
         return {
@@ -130,7 +139,7 @@ class WhatsAppReportExportService:
             fallback_event=event,
             event_id=event_id,
         )
-        report_data = EventFinancialSummaryReport.generate(db, target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(EventFinancialSummaryReport.generate, db, target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(
             db,
             society_id=target_event.society_id,
@@ -165,7 +174,7 @@ class WhatsAppReportExportService:
     def _export_flat_payments(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = FlatPaymentReport.generate(db, target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(FlatPaymentReport.generate, db, target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -198,7 +207,7 @@ class WhatsAppReportExportService:
     def _export_block_payments(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = BlockPaymentReport.generate(db, target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(BlockPaymentReport.generate, db, target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -231,7 +240,7 @@ class WhatsAppReportExportService:
     def _export_sponsor_contributions(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = SponsorContributionReport.generate(db, target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(SponsorContributionReport.generate, db, target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -266,7 +275,7 @@ class WhatsAppReportExportService:
     def _export_contribution_refunds(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = ContributionRefundReport.generate(db, target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(ContributionRefundReport.generate, db, target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -300,7 +309,7 @@ class WhatsAppReportExportService:
     @staticmethod
     def _export_balance_continuity(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
-        report_data = BalanceContinuityReport.generate(db, member.society_id)
+        report_data = WhatsAppReportExportService._generate_report(BalanceContinuityReport.generate, db, member.society_id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -331,7 +340,7 @@ class WhatsAppReportExportService:
     def _export_member_refunds(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = MemberRefundReport.generate(db=db, event_id=target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(MemberRefundReport.generate, db=db, event_id=target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -363,7 +372,7 @@ class WhatsAppReportExportService:
     def _export_ledger(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = LedgerReport.generate(db=db, event_id=target_event.id, society_id=member.society_id)
+        report_data = WhatsAppReportExportService._generate_report(LedgerReport.generate, db=db, event_id=target_event.id, society_id=member.society_id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -394,7 +403,7 @@ class WhatsAppReportExportService:
     @staticmethod
     def _export_member_directory(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
-        report_data = MemberDirectoryReport.generate(db, member.society_id)
+        report_data = WhatsAppReportExportService._generate_report(MemberDirectoryReport.generate, db, member.society_id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -424,7 +433,7 @@ class WhatsAppReportExportService:
     @staticmethod
     def _export_onboarding_status(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
-        report_data = OnboardingStatusReport.generate(db, member.society_id)
+        report_data = WhatsAppReportExportService._generate_report(OnboardingStatusReport.generate, db, member.society_id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -454,7 +463,7 @@ class WhatsAppReportExportService:
     @staticmethod
     def _export_announcement_history(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
-        report_data = AnnouncementHistoryReport.generate(db, member.society_id)
+        report_data = WhatsAppReportExportService._generate_report(AnnouncementHistoryReport.generate, db, member.society_id, lang=lang)
 
         if normalized_format == "csv":
             payload = export_csv(report_data["headers"], report_data["rows"])
@@ -478,7 +487,7 @@ class WhatsAppReportExportService:
     @staticmethod
     def _export_governance_audit(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
-        report_data = GovernanceAuditReport.generate(db, member.society_id)
+        report_data = WhatsAppReportExportService._generate_report(GovernanceAuditReport.generate, db, member.society_id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=member.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
@@ -509,7 +518,7 @@ class WhatsAppReportExportService:
     def _export_food_pass_operations(*, db, member, event, normalized_format, event_id):
         lang = WhatsAppReportExportService._member_lang(member)
         target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
-        report_data = FoodPassOperationsReport.generate(db=db, event_id=target_event.id)
+        report_data = WhatsAppReportExportService._generate_report(FoodPassOperationsReport.generate, db=db, event_id=target_event.id, lang=lang)
         _society, society_name = WhatsAppReportExportService._resolve_society(db, society_id=target_event.society_id)
 
         payload = WhatsAppReportExportService._render_tabular_export(
