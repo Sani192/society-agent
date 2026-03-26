@@ -6,7 +6,7 @@ from app.channels.whatsapp.ui_router import (
     REPORT_INTENTS_REQUIRING_EVENT,
     WHATSAPP_LIST_MAX_ROWS,
     WHATSAPP_MORE_REPORTS_ROW_ID,
-    _build_report_event_sections,
+    WHATSAPP_REPORT_EVENT_ROW_PREFIX,
     _chunk_report_options,
     _default_report_event_id,
     _get_latest_event_in_context,
@@ -26,6 +26,7 @@ from app.modules.reports.common.whatsapp_report_registry import (
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
+from app.whatsapp.ui.reports import build_report_event_sections
 from app.whatsapp.export_session import (
     ExportSessionState,
     build_export_session_key,
@@ -140,7 +141,11 @@ def handle_report_flow(*, client, message) -> bool:
                     header_text=translate("report_flow.header", lang),
                     body_text=translate("report_flow.event_required", lang),
                     button_text=translate("report_flow.choose_event", lang),
-                    sections=_build_report_event_sections(events),
+                    sections=build_report_event_sections(
+                        events,
+                        row_prefix=WHATSAPP_REPORT_EVENT_ROW_PREFIX,
+                        lang=lang,
+                    ),
                 )
                 return True
         finally:
@@ -292,7 +297,11 @@ def handle_report_flow(*, client, message) -> bool:
                             header_text=translate("report_flow.header", lang),
                             body_text=translate("report_flow.event_required", lang),
                             button_text=translate("report_flow.choose_event", lang),
-                            sections=_build_report_event_sections(events),
+                            sections=build_report_event_sections(
+                                events,
+                                row_prefix=WHATSAPP_REPORT_EVENT_ROW_PREFIX,
+                                lang=lang,
+                            ),
                         )
                         return True
 
