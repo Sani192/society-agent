@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 from app.i18n.catalog import translate
 
 
@@ -35,3 +38,28 @@ def build_reports_sections(*, is_committee: bool, lang: str | None = None) -> li
         )
 
     return [{"title": translate("reports.section_title", lang), "rows": rows}]
+
+
+def build_report_event_sections(
+    events: Sequence[Any],
+    *,
+    row_prefix: str,
+    lang: str | None = None,
+) -> list[dict]:
+    rows = [
+        {
+            "id": f"{row_prefix}{event.id}",
+            "title": (event.name or "Event")[:24],
+            "description": f"{event.event_date.strftime('%d %b %Y %H:%M')} · {event.status}",
+        }
+        for event in events
+    ]
+    if not rows:
+        rows.append(
+            {
+                "id": "menu",
+                "title": translate("dashboard.my_account.menu.title", lang),
+                "description": "No events found.",
+            }
+        )
+    return [{"title": translate("report_flow.choose_event", lang), "rows": rows}]
