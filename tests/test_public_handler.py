@@ -69,6 +69,20 @@ def test_public_pay_requires_amount():
     assert response == "❌ Please specify amount. Example: pay 500"
 
 
+def test_public_pay_requires_amount_gujarati():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    response = handle_public_intent(
+        db=MagicMock(),
+        intent="PAY",
+        phone_number=MEMBER_PHONE,
+        message="pay",
+        event=event,
+        member=None,
+        lang="gu",
+    )
+    assert response == "❌ કૃપા કરીને રકમ આપો. ઉદાહરણ: pay 500"
+
+
 def test_public_pay_request_for_member(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     flat = SimpleNamespace(id="flat-1")

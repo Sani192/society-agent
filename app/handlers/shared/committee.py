@@ -64,6 +64,7 @@ from app.commands.parser import (
     parse_reason,
     parse_target_flat,
 )
+from app.i18n.catalog import translate
 
 
 from app.whatsapp.event_creation_session import (
@@ -690,10 +691,10 @@ def _build_committee_action_session_key(*, member, inbound_message):
     )
 
 
-def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
+def _prompt_for_pending_action_step(state: CommitteeActionSessionState, lang: str | None = None) -> str:
     prompts = {
-        ("ADD_EXPENSE", "reason"): "Please share expense reason/category.\nExpected next reply: reason text.\nType `cancel` to stop.",
-        ("ADD_EXPENSE", "amount"): "Please share expense amount. Example: 1200\nExpected next reply: numeric amount only.\nType `cancel` to stop.",
+        ("ADD_EXPENSE", "reason"): translate("committee.pending.add_expense.reason", lang),
+        ("ADD_EXPENSE", "amount"): translate("committee.pending.add_expense.amount", lang),
         ("ADD_SPONSOR", "sponsor_type"): "Sponsor type? Reply: monetary or in-kind\nExpected next reply: `monetary` or `in-kind`.\nType `cancel` to stop.",
         ("ADD_SPONSOR", "sponsor_name"): "Sponsor name (or flat number). Example: Shree Caterers or A-101\nExpected next reply: sponsor name/flat.\nType `cancel` to stop.",
         ("ADD_SPONSOR", "amount_or_details"): "Share sponsor amount/details.\nExpected next reply: amount for monetary, or details for in-kind.\nType `cancel` to stop.",
@@ -701,7 +702,7 @@ def _prompt_for_pending_action_step(state: CommitteeActionSessionState) -> str:
         ("REFUND_SPONSOR", "amount"): "Please share refund amount. Example: 500\nExpected next reply: numeric amount only.\nType `cancel` to stop.",
         ("REFUND_SPONSOR", "reason"): "Please share refund reason.\nExpected next reply: reason text.\nType `cancel` to stop.",
         ("REFUND_SPONSOR", "override_reason"): "This refund needs an override reason due to workflow state.\nExpected next reply: override reason text.\nType `cancel` to stop.",
-        ("REMIND_FLAT", "flat_number"): "Please share flat number. Example: A-101\nExpected next reply: flat number.\nType `cancel` to stop.",
+        ("REMIND_FLAT", "flat_number"): translate("committee.pending.remind_flat.flat_number", lang),
         ("ANNOUNCE_EVENT", "message_body"): "Please type the event announcement text to send.\nType `cancel` to stop.",
         ("ANNOUNCE_SOCIETY", "message_body"): "Please type the society announcement text to send.\nType `cancel` to stop.",
     }
@@ -832,6 +833,7 @@ def handle_committee_intent(
     event,
     member,
     inbound_message=None,
+    lang: str | None = None,
 ):
     committee_action_session_key = _build_committee_action_session_key(
         member=member,
@@ -856,7 +858,7 @@ def handle_committee_intent(
             return warning_response(warning)
 
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("committee.common.no_active_event", lang))
 
         amount = parse_amount(normalized_message)
         reason = normalized_message.replace(str(amount), "").strip() if amount else ""
@@ -865,12 +867,12 @@ def handle_committee_intent(
         if not has_direct_args:
             state = CommitteeActionSessionState(action="ADD_EXPENSE", step="reason")
             save_committee_action_session(committee_action_session_key, state)
-            return info_response(_prompt_for_pending_action_step(state))
+            return info_response(_prompt_for_pending_action_step(state, lang))
 
         if not reason:
             state = CommitteeActionSessionState(action="ADD_EXPENSE", step="reason")
             save_committee_action_session(committee_action_session_key, state)
-            return info_response(_prompt_for_pending_action_step(state))
+            return info_response(_prompt_for_pending_action_step(state, lang))
 
         if not amount:
             state = CommitteeActionSessionState(
@@ -879,7 +881,7 @@ def handle_committee_intent(
                 data={"reason": reason},
             )
             save_committee_action_session(committee_action_session_key, state)
-            return info_response(_prompt_for_pending_action_step(state))
+            return info_response(_prompt_for_pending_action_step(state, lang))
 
         clear_committee_action_session(committee_action_session_key)
 
@@ -892,8 +894,8 @@ def handle_committee_intent(
             override_reason=override_reason or "Via WhatsApp",
         )
         return success_response(
-            f"Expense added: {format_currency(amount)}",
-            heading="Expense added",
+            translate("committee.add_expense.added_message", lang, amount=format_currency(amount)),
+            heading=translate("committee.add_expense.heading", lang),
             emoji="🧾",
         )
 
@@ -903,24 +905,24 @@ def handle_committee_intent(
 
         if answer.lower() == "cancel":
             clear_committee_action_session(committee_action_session_key)
-            return info_response("Cancelled pending action.")
+            return info_response(translate("committee.pending.cancelled", lang))
 
         if not event and state.action not in ANNOUNCE_INTENTS:
             clear_committee_action_session(committee_action_session_key)
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("committee.common.no_active_event", lang))
 
         if state.action == "ADD_EXPENSE":
             if state.step == "reason":
                 if not answer:
-                    return error_response("Expense reason/category is required.")
+                    return error_response(translate("committee.pending.add_expense.reason_required", lang))
                 state.data["reason"] = answer
                 state.step = "amount"
                 save_committee_action_session(committee_action_session_key, state)
-                return info_response(_prompt_for_pending_action_step(state))
+                return info_response(_prompt_for_pending_action_step(state, lang))
 
             if state.step == "amount":
                 if not answer.isdigit():
-                    return info_response("Expense amount must be numeric. Example: 1200")
+                    return info_response(translate("committee.pending.add_expense.amount_numeric", lang))
                 amount = int(answer)
                 reason = state.data.get("reason") or "WhatsApp expense"
                 clear_committee_action_session(committee_action_session_key)
@@ -933,8 +935,8 @@ def handle_committee_intent(
                     override_reason="Via WhatsApp",
                 )
                 return success_response(
-                    f"Expense added: {format_currency(amount)}",
-                    heading="Expense added",
+                    translate("committee.add_expense.added_message", lang, amount=format_currency(amount)),
+                    heading=translate("committee.add_expense.heading", lang),
                     emoji="🧾",
                 )
 

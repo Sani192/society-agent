@@ -208,6 +208,71 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "page": "Page {page}",
             },
         },
+        "onboarding": {
+            "join": {
+                "example": "Example: join ABC123 A-101",
+                "invalid_code": "Invalid join code.",
+                "approved": "You are successfully added to the society.",
+                "request_sent": "Your request is sent for approval.",
+                "notify_after_approval": "You will be notified once approved.",
+                "request_submitted_heading": "Join request submitted",
+            },
+            "join_status": {
+                "no_society_context": "No society context found.",
+                "approved": "Your membership is approved.",
+                "pending": "Your join request is pending approval.",
+                "pending_heading": "Join request pending",
+                "not_found": "You have not requested to join any society.",
+            },
+        },
+        "public": {
+            "common": {
+                "no_active_event": "No active event found. Please contact committee.",
+                "veg_count": "Veg: {count}",
+                "jain_count": "Jain: {count}",
+                "kids_count": "Kids: {count}",
+            },
+            "add_pass": {
+                "specify_counts": "Specify counts. Example: add pass veg 2 jain 1 kids 1",
+                "pricing_missing": "Event pricing is missing. Please ask the committee to set adult and child pricing.",
+                "heading": "Pass updated",
+            },
+            "pay": {
+                "specify_amount": "Please specify amount. Example: pay 500",
+                "request_sent": "Payment request sent for treasurer approval.",
+                "request_submitted_heading": "Payment request submitted",
+                "approved_and_recorded": "Payment approved and recorded (Request {request_code})",
+                "payment_received": "Payment received: {amount}",
+            },
+            "refund": {
+                "example": "Example: refund 200 reason guest absent",
+                "request_sent": "Refund request sent for treasurer approval.",
+                "request_submitted_heading": "Refund request submitted",
+                "approved_and_processed": "Refund approved and processed (Request {request_code})",
+                "processed": "Refund processed: {amount}",
+            },
+        },
+        "committee": {
+            "common": {
+                "no_active_event": "No active event found. Please contact committee.",
+            },
+            "add_expense": {
+                "heading": "Expense added",
+                "added_message": "Expense added: {amount}",
+            },
+            "pending": {
+                "cancelled": "Cancelled pending action.",
+                "add_expense": {
+                    "reason": "Please share expense reason/category.\nExpected next reply: reason text.\nType `cancel` to stop.",
+                    "amount": "Please share expense amount. Example: 1200\nExpected next reply: numeric amount only.\nType `cancel` to stop.",
+                    "reason_required": "Expense reason/category is required.",
+                    "amount_numeric": "Expense amount must be numeric. Example: 1200",
+                },
+                "remind_flat": {
+                    "flat_number": "Please share flat number. Example: A-101\nExpected next reply: flat number.\nType `cancel` to stop.",
+                },
+            },
+        },
     },
     "hi": {
         "dashboard": {
@@ -303,6 +368,71 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "page": "पृष्ठ {page}",
             },
         },
+        "onboarding": {
+            "join": {
+                "example": "उदाहरण: join ABC123 A-101",
+                "invalid_code": "अमान्य जॉइन कोड।",
+                "approved": "आपको सोसायटी में सफलतापूर्वक जोड़ दिया गया है।",
+                "request_sent": "आपका अनुरोध अनुमोदन के लिए भेज दिया गया है।",
+                "notify_after_approval": "अनुमोदन के बाद आपको सूचित किया जाएगा।",
+                "request_submitted_heading": "जॉइन अनुरोध भेजा गया",
+            },
+            "join_status": {
+                "no_society_context": "सोसायटी संदर्भ नहीं मिला।",
+                "approved": "आपकी सदस्यता स्वीकृत है।",
+                "pending": "आपका जॉइन अनुरोध अनुमोदन की प्रतीक्षा में है।",
+                "pending_heading": "जॉइन अनुरोध लंबित",
+                "not_found": "आपने किसी सोसायटी में जुड़ने का अनुरोध नहीं किया है।",
+            },
+        },
+        "public": {
+            "common": {
+                "no_active_event": "कोई सक्रिय इवेंट नहीं मिला। कृपया समिति से संपर्क करें।",
+                "veg_count": "वेज: {count}",
+                "jain_count": "जैन: {count}",
+                "kids_count": "किड्स: {count}",
+            },
+            "add_pass": {
+                "specify_counts": "काउंट बताएं। उदाहरण: add pass veg 2 jain 1 kids 1",
+                "pricing_missing": "इवेंट प्राइसिंग उपलब्ध नहीं है। कृपया समिति से वयस्क और बच्चों की कीमत सेट करने को कहें।",
+                "heading": "पास अपडेट किया गया",
+            },
+            "pay": {
+                "specify_amount": "कृपया राशि बताएं। उदाहरण: pay 500",
+                "request_sent": "भुगतान अनुरोध कोषाध्यक्ष अनुमोदन के लिए भेज दिया गया है।",
+                "request_submitted_heading": "भुगतान अनुरोध भेजा गया",
+                "approved_and_recorded": "भुगतान स्वीकृत और दर्ज किया गया (अनुरोध {request_code})",
+                "payment_received": "भुगतान प्राप्त: {amount}",
+            },
+            "refund": {
+                "example": "उदाहरण: refund 200 reason guest absent",
+                "request_sent": "रिफंड अनुरोध कोषाध्यक्ष अनुमोदन के लिए भेज दिया गया है।",
+                "request_submitted_heading": "रिफंड अनुरोध भेजा गया",
+                "approved_and_processed": "रिफंड स्वीकृत और संसाधित (अनुरोध {request_code})",
+                "processed": "रिफंड संसाधित: {amount}",
+            },
+        },
+        "committee": {
+            "common": {
+                "no_active_event": "कोई सक्रिय इवेंट नहीं मिला। कृपया समिति से संपर्क करें।",
+            },
+            "add_expense": {
+                "heading": "खर्च जोड़ा गया",
+                "added_message": "खर्च जोड़ा गया: {amount}",
+            },
+            "pending": {
+                "cancelled": "लंबित कार्रवाई रद्द की गई।",
+                "add_expense": {
+                    "reason": "कृपया खर्च का कारण/श्रेणी साझा करें।\nअगला उत्तर: कारण टेक्स्ट।\nरोकने के लिए `cancel` लिखें।",
+                    "amount": "कृपया खर्च राशि साझा करें। उदाहरण: 1200\nअगला उत्तर: केवल संख्यात्मक राशि।\nरोकने के लिए `cancel` लिखें।",
+                    "reason_required": "खर्च का कारण/श्रेणी आवश्यक है।",
+                    "amount_numeric": "खर्च राशि संख्यात्मक होनी चाहिए। उदाहरण: 1200",
+                },
+                "remind_flat": {
+                    "flat_number": "कृपया फ्लैट नंबर साझा करें। उदाहरण: A-101\nअगला उत्तर: फ्लैट नंबर।\nरोकने के लिए `cancel` लिखें।",
+                },
+            },
+        },
     },
     "gu": {
         "dashboard": {
@@ -396,6 +526,71 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "generated_by": "Society Agent દ્વારા બનાવેલ",
                 "confidential": "ગોપનીય – ફક્ત સોસાયટી ઉપયોગ માટે",
                 "page": "પૃષ્ઠ {page}",
+            },
+        },
+        "onboarding": {
+            "join": {
+                "example": "ઉદાહરણ: join ABC123 A-101",
+                "invalid_code": "અમાન્ય જોડાણ કોડ.",
+                "approved": "તમને સોસાયટીમાં સફળતાપૂર્વક ઉમેરવામાં આવ્યા છો.",
+                "request_sent": "તમારી વિનંતી મંજૂરી માટે મોકલાઈ છે.",
+                "notify_after_approval": "મંજૂરી મળ્યા પછી તમને જાણ કરવામાં આવશે.",
+                "request_submitted_heading": "જોડાવાની વિનંતી મોકલાઈ",
+            },
+            "join_status": {
+                "no_society_context": "સોસાયટી સંદર્ભ મળ્યો નથી.",
+                "approved": "તમારી સભ્યતા મંજૂર થઈ છે.",
+                "pending": "તમારી જોડાવાની વિનંતી મંજૂરી માટે બાકી છે.",
+                "pending_heading": "જોડાવાની વિનંતી બાકી",
+                "not_found": "તમે કોઈ સોસાયટીમાં જોડાવાની વિનંતી કરી નથી.",
+            },
+        },
+        "public": {
+            "common": {
+                "no_active_event": "કોઈ સક્રિય ઇવેન્ટ મળ્યો નથી. કૃપા કરીને સમિતિનો સંપર્ક કરો.",
+                "veg_count": "વેજ: {count}",
+                "jain_count": "જૈન: {count}",
+                "kids_count": "કિડ્સ: {count}",
+            },
+            "add_pass": {
+                "specify_counts": "ગણતરી આપો. ઉદાહરણ: add pass veg 2 jain 1 kids 1",
+                "pricing_missing": "ઇવેન્ટ પ્રાઇસિંગ ઉપલબ્ધ નથી. કૃપા કરીને સમિતિને વયસ્ક અને બાળકો માટે કિંમત સેટ કરવા કહો.",
+                "heading": "પાસ અપડેટ થયો",
+            },
+            "pay": {
+                "specify_amount": "કૃપા કરીને રકમ આપો. ઉદાહરણ: pay 500",
+                "request_sent": "ચુકવણી વિનંતી ખજાનચીની મંજૂરી માટે મોકલાઈ છે.",
+                "request_submitted_heading": "ચુકવણી વિનંતી મોકલાઈ",
+                "approved_and_recorded": "ચુકવણી મંજૂર થઈ અને નોંધાઈ (વિનંતી {request_code})",
+                "payment_received": "ચુકવણી પ્રાપ્ત: {amount}",
+            },
+            "refund": {
+                "example": "ઉદાહરણ: refund 200 reason guest absent",
+                "request_sent": "રિફંડ વિનંતી ખજાનચીની મંજૂરી માટે મોકલાઈ છે.",
+                "request_submitted_heading": "રિફંડ વિનંતી મોકલાઈ",
+                "approved_and_processed": "રિફંડ મંજૂર થઈ અને પ્રક્રિયા થઈ (વિનંતી {request_code})",
+                "processed": "રિફંડ પ્રક્રિયા થયું: {amount}",
+            },
+        },
+        "committee": {
+            "common": {
+                "no_active_event": "કોઈ સક્રિય ઇવેન્ટ મળ્યો નથી. કૃપા કરીને સમિતિનો સંપર્ક કરો.",
+            },
+            "add_expense": {
+                "heading": "ખર્ચ ઉમેરાયો",
+                "added_message": "ખર્ચ ઉમેરાયો: {amount}",
+            },
+            "pending": {
+                "cancelled": "લંબિત કાર્યવાહી રદ કરી.",
+                "add_expense": {
+                    "reason": "કૃપા કરીને ખર્ચનું કારણ/શ્રેણી શેર કરો.\nઆગલો જવાબ: કારણ લખાણ.\nબંધ કરવા `cancel` લખો.",
+                    "amount": "કૃપા કરીને ખર્ચ રકમ શેર કરો. ઉદાહરણ: 1200\nઆગલો જવાબ: ફક્ત આંકડાકીય રકમ.\nબંધ કરવા `cancel` લખો.",
+                    "reason_required": "ખર્ચનું કારણ/શ્રેણી જરૂરી છે.",
+                    "amount_numeric": "ખર્ચ રકમ આંકડાકીય હોવી જોઈએ. ઉદાહરણ: 1200",
+                },
+                "remind_flat": {
+                    "flat_number": "કૃપા કરીને ફ્લેટ નંબર શેર કરો. ઉદાહરણ: A-101\nઆગલો જવાબ: ફ્લેટ નંબર.\nબંધ કરવા `cancel` લખો.",
+                },
             },
         },
     },

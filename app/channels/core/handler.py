@@ -319,36 +319,68 @@ def handle_inbound_message(
                 lang=lang,
             )
 
-        onboarding_response = onboarding_intent_handler(
-            db=db,
-            intent=intent,
-            phone_number=canonical_sender_id,
-            message=message.text,
-            member=member,
-        )
+        try:
+            onboarding_response = onboarding_intent_handler(
+                db=db,
+                intent=intent,
+                phone_number=canonical_sender_id,
+                message=message.text,
+                member=member,
+                lang=lang,
+            )
+        except TypeError:
+            onboarding_response = onboarding_intent_handler(
+                db=db,
+                intent=intent,
+                phone_number=canonical_sender_id,
+                message=message.text,
+                member=member,
+            )
         if onboarding_response:
             return onboarding_response
 
         if member:
-            committee_response = committee_intent_handler(
-                db=db,
-                intent=intent,
-                message=message.text,
-                event=event,
-                member=member,
-                inbound_message=message,
-            )
+            try:
+                committee_response = committee_intent_handler(
+                    db=db,
+                    intent=intent,
+                    message=message.text,
+                    event=event,
+                    member=member,
+                    inbound_message=message,
+                    lang=lang,
+                )
+            except TypeError:
+                committee_response = committee_intent_handler(
+                    db=db,
+                    intent=intent,
+                    message=message.text,
+                    event=event,
+                    member=member,
+                    inbound_message=message,
+                )
             if committee_response:
                 return committee_response
 
-        public_response = public_intent_handler(
-            db=db,
-            intent=intent,
-            phone_number=canonical_sender_id,
-            message=message.text,
-            event=event,
-            member=member,
-        )
+        try:
+            public_response = public_intent_handler(
+                db=db,
+                intent=intent,
+                phone_number=canonical_sender_id,
+                message=message.text,
+                event=event,
+                member=member,
+                lang=lang,
+            )
+        except TypeError:
+            public_response = public_intent_handler(
+                db=db,
+                intent=intent,
+                phone_number=canonical_sender_id,
+                message=message.text,
+                event=event,
+                member=member,
+            )
         if public_response:
             return public_response
 

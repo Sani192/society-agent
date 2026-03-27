@@ -28,6 +28,7 @@ from app.whatsapp.response_templates import (
 )
 from app.commands.parser import parse_amount, parse_pass_counts, parse_reason, parse_target_flat
 from app.handlers.shared.common import resolve_flat
+from app.i18n.catalog import translate
 from app.utils.guards import ensure_member_of_society
 from app.permissions.command_policy import get_event_state, member_action_state_warning
 
@@ -88,7 +89,8 @@ def handle_public_intent(
     phone_number,
     message,
     event,
-    member
+    member,
+    lang: str | None = None,
 ):
     allow_delegate = member is not None
     event_state = get_event_state(event)
@@ -99,7 +101,7 @@ def handle_public_intent(
 
     if intent == "ADD_PASS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat_number = parse_target_flat(message) if allow_delegate else None
         flat = resolve_flat(
@@ -111,13 +113,13 @@ def handle_public_intent(
 
         counts = parse_pass_counts(message)
         if sum(counts.values()) == 0:
-            return error_response("Specify counts. Example: add pass veg 2 jain 1 kids 1")
+            return error_response(translate("public.add_pass.specify_counts", lang))
 
         charge_per_adult = event.charge_per_adult
         charge_per_child = event.charge_per_child
         if charge_per_adult is None or charge_per_child is None:
             return error_response(
-                "Event pricing is missing. Please ask the committee to set adult and child pricing."
+                translate("public.add_pass.pricing_missing", lang)
             )
 
         FoodPassService.add_or_update_pass(
@@ -135,17 +137,17 @@ def handle_public_intent(
 
         return success_response(
             join_lines([
-                f"Veg: {counts['veg']}",
-                f"Jain: {counts['jain']}",
-                f"Kids: {counts['kids']}"
+                translate("public.common.veg_count", lang, count=counts["veg"]),
+                translate("public.common.jain_count", lang, count=counts["jain"]),
+                translate("public.common.kids_count", lang, count=counts["kids"]),
             ]),
-            heading="Pass updated",
+            heading=translate("public.add_pass.heading", lang),
             emoji="🎫"
         )
 
     if intent == "PAY":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat_number = parse_target_flat(message) if allow_delegate else None
         flat = resolve_flat(
@@ -157,7 +159,7 @@ def handle_public_intent(
 
         amount = parse_amount(message)
         if not amount:
-            return error_response("Please specify amount. Example: pay 500")
+            return error_response(translate("public.pay.specify_amount", lang))
 
         if not member:
             mappings = _resolve_requester_mappings(db, phone_number=phone_number, event=event)
@@ -171,10 +173,10 @@ def handle_public_intent(
             )
             return success_response(
                 join_lines([
-                    "Payment request sent for treasurer approval.",
+                    translate("public.pay.request_sent", lang),
                     f"Request ID: *{request.request_code}*"
                 ]),
-                heading="Payment request submitted",
+                heading=translate("public.pay.request_submitted_heading", lang),
                 emoji="⏳"
             )
 
@@ -191,7 +193,7 @@ def handle_public_intent(
                 performed_by=member.id
             )
             return success_response(
-                f"Payment approved and recorded (Request {request.request_code})"
+                translate("public.pay.approved_and_recorded", lang, request_code=request.request_code)
             )
 
         PaymentService.record_payment(
@@ -204,12 +206,12 @@ def handle_public_intent(
             override_reason="Via WhatsApp"
         )
         return success_response(
-            f"Payment received: {format_currency(amount)}"
+            translate("public.pay.payment_received", lang, amount=format_currency(amount))
         )
 
     if intent == "REFUND":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat_number = parse_target_flat(message) if allow_delegate else None
         flat = resolve_flat(
@@ -223,7 +225,7 @@ def handle_public_intent(
         reason = parse_reason(message)
 
         if not amount or not reason:
-            return error_response("Example: refund 200 reason guest absent")
+            return error_response(translate("public.refund.example", lang))
 
         if not member:
             try:
@@ -240,10 +242,10 @@ def handle_public_intent(
                 return error_response(str(exc))
             return success_response(
                 join_lines([
-                    "Refund request sent for treasurer approval.",
+                    translate("public.refund.request_sent", lang),
                     f"Request ID: *{request.request_code}*"
                 ]),
-                heading="Refund request submitted",
+                heading=translate("public.refund.request_submitted_heading", lang),
                 emoji="⏳"
             )
 
@@ -260,7 +262,7 @@ def handle_public_intent(
                 performed_by=member.id
             )
             return success_response(
-                f"Refund approved and processed (Request {request.request_code})"
+                translate("public.refund.approved_and_processed", lang, request_code=request.request_code)
             )
 
         try:
@@ -277,7 +279,7 @@ def handle_public_intent(
             return error_response(str(exc))
 
         return success_response(
-            f"Refund processed: {format_currency(amount)}"
+            translate("public.refund.processed", lang, amount=format_currency(amount))
         )
 
     if intent == "MY_PASS":
