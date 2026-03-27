@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,7 @@ from app.handlers.shared.public import handle_public_intent
 from app.commands.router import detect_intent
 from app.db.session import SessionLocal
 from app.db.models import Event, MemberIdentity
-from app.modules.users.language_service import get_effective_language
+from app.modules.users.language_service import resolve_sender_language
 from app.modules.users.channel_identity_service import (
     link_member_by_code,
     link_member_by_phone,
@@ -208,7 +208,11 @@ def handle_inbound_message(
                 extra={"sender_id": message.sender_id, "channel": message.channel},
             )
 
-        lang = get_effective_language(cast(MemberIdentity | None, member))
+        lang = resolve_sender_language(
+            db,
+            sender_id=canonical_sender_id,
+            channel=message.channel,
+        )
 
         society_id = getattr(member, "society_id", None)
         if not society_id:

@@ -1375,7 +1375,7 @@ def test_whatsapp_webhook_event_report_options_list_uses_localized_header_and_bo
         metadata={"message_id": f"wamid.report.localized.{lang}", "canonical_sender_id": "919999000054"},
     )
 
-    fake_member = type("M", (), {"id": "member-loc", "role": "chairman", "society_id": "soc-1", "preferred_language": lang})()
+    fake_member = type("M", (), {"id": "member-loc", "role": "chairman", "society_id": "soc-1"})()
 
     monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
     monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
@@ -1383,6 +1383,7 @@ def test_whatsapp_webhook_event_report_options_list_uses_localized_header_and_bo
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.report_flow.ensure_committee_member", lambda *args, **kwargs: fake_member)
+    monkeypatch.setattr("app.channels.whatsapp.report_flow.resolve_sender_language", lambda *args, **kwargs: lang)
     monkeypatch.setattr(
         "app.channels.whatsapp.report_flow.list_exportable_report_options",
         lambda **kwargs: [{"category": "financial", "command_key": "financial:block-payments", "label": "Block Payments", "report_key": "block-payments"}],
