@@ -152,6 +152,62 @@ UI_TEXT = {
         "committee.choose_new_role": "Choose new role",
         "committee.choose_member_remove": "Choose member to remove",
         "committee.choose_member_update": "Choose member to update",
+        "make_payment.header": "Make Payment",
+        "make_payment.outstanding_body": "Outstanding Amount: {amount}",
+        "my_account.header": "My Account",
+        "society.header": "Society",
+        "finance.header": "Finance",
+        "reports.header": "Reports",
+        "reports.select_action": "Select a report action",
+        "join.enter_code": "Please enter join code",
+        "access.restricted": "Access restricted.",
+        "event.none_contact_committee": "No active event found. Please contact committee.",
+        "food.no_pending_tokens": "No pending tokens available.",
+        "food.no_tokens": "No tokens available.",
+        "food.pending_tokens": "Pending Tokens",
+        "food.tokens": "Tokens",
+        "food.no_flats_pending": "No flats with pending tokens found.",
+        "food.flats": "Flats",
+        "food.select_to_continue": "Select to continue",
+        "food.verify_header": "Verify Food Token",
+        "food.verify_body": "Select token to serve",
+        "food.scan_header": "Scan Food QR",
+        "food.scan_body": "Select scanned token",
+        "food.status_header": "Token Status",
+        "food.status_body": "Select token to inspect",
+        "food.serve_flat_header": "Serve Flat",
+        "food.serve_flat_body": "Select flat for fallback serve",
+        "food.flat_passes_header": "Flat Passes",
+        "food.flat_passes_body": "Select flat to view status",
+        "food.served_token": "✅ Served token {token_code} ({food_type}).",
+        "food.token_status_line": "🔎 Token {token_code} | {food_type} | {status}",
+        "food.flat_not_found": "Flat not found.",
+        "food.served_flat": "✅ Served {flat_number} using token {token_code}.",
+        "food.flat_status_line": "📊 {flat_number} | Total {total_passes} | Served {served} | Remaining {remaining}",
+        "food.status_served": "Served",
+        "food.status_pending": "Pending",
+        "common.error_with_reason": "❌ {error}",
+        "participation.pass_updates_active_only": "Pass updates are available only when event is active.",
+        "finance.no_outstanding": "No outstanding balance to pay.",
+        "finance.payment_refund_active_only": "Payment and refund requests are available only when event is active.",
+        "committee.no_society_context": "No society context found.",
+        "committee.no_eligible_members_add": "No eligible members found to add.",
+        "committee.view_none": "No committee members found.",
+        "committee.view_header": "Committee members:",
+        "committee.member_not_found": "Member not found.",
+        "committee.invalid_role_selection": "Invalid role selection.",
+        "committee.action_cancelled": "Action cancelled.",
+        "committee.unable_add": "Unable to add member.",
+        "committee.member_exists": "Member already exists in committee.",
+        "committee.member_added": "Member added successfully",
+        "committee.cannot_remove_last_chairman": "Cannot remove last chairman",
+        "committee.member_removed": "Member removed successfully",
+        "committee.unable_change_role": "Unable to change role.",
+        "committee.role_updated": "Member role updated successfully",
+        "committee.unable_process_action": "Unable to process committee action.",
+        "committee.action.remove": "remove",
+        "committee.action.assign_role_to": "assign role to",
+        "committee.action.change_role_for": "change role for",
     },
     "hi": {
         "finance.select_event_header": "इवेंट चुनें",
@@ -212,6 +268,62 @@ UI_TEXT = {
         "committee.choose_new_role": "नई भूमिका चुनें",
         "committee.choose_member_remove": "हटाने के लिए सदस्य चुनें",
         "committee.choose_member_update": "अपडेट करने के लिए सदस्य चुनें",
+        "make_payment.header": "भुगतान करें",
+        "make_payment.outstanding_body": "बकाया राशि: {amount}",
+        "my_account.header": "मेरा अकाउंट",
+        "society.header": "सोसाइटी",
+        "finance.header": "वित्त",
+        "reports.header": "रिपोर्ट",
+        "reports.select_action": "रिपोर्ट कार्रवाई चुनें",
+        "join.enter_code": "कृपया जॉइन कोड दर्ज करें",
+        "access.restricted": "पहुँच प्रतिबंधित है।",
+        "event.none_contact_committee": "कोई सक्रिय इवेंट नहीं मिला। कृपया समिति से संपर्क करें।",
+        "food.no_pending_tokens": "कोई लंबित टोकन उपलब्ध नहीं है।",
+        "food.no_tokens": "कोई टोकन उपलब्ध नहीं है।",
+        "food.pending_tokens": "लंबित टोकन",
+        "food.tokens": "टोकन",
+        "food.no_flats_pending": "लंबित टोकन वाले फ्लैट नहीं मिले।",
+        "food.flats": "फ्लैट",
+        "food.select_to_continue": "आगे बढ़ने के लिए चुनें",
+        "food.verify_header": "फूड टोकन सत्यापित करें",
+        "food.verify_body": "सर्व करने के लिए टोकन चुनें",
+        "food.scan_header": "फूड QR स्कैन करें",
+        "food.scan_body": "स्कैन किया गया टोकन चुनें",
+        "food.status_header": "टोकन स्थिति",
+        "food.status_body": "जांच के लिए टोकन चुनें",
+        "food.serve_flat_header": "फ्लैट सर्व करें",
+        "food.serve_flat_body": "फॉलबैक सर्व के लिए फ्लैट चुनें",
+        "food.flat_passes_header": "फ्लैट पास",
+        "food.flat_passes_body": "स्थिति देखने के लिए फ्लैट चुनें",
+        "food.served_token": "✅ टोकन {token_code} ({food_type}) सर्व किया गया।",
+        "food.token_status_line": "🔎 टोकन {token_code} | {food_type} | {status}",
+        "food.flat_not_found": "फ्लैट नहीं मिला।",
+        "food.served_flat": "✅ टोकन {token_code} से {flat_number} सर्व किया गया।",
+        "food.flat_status_line": "📊 {flat_number} | कुल {total_passes} | सर्व {served} | शेष {remaining}",
+        "food.status_served": "सर्व",
+        "food.status_pending": "लंबित",
+        "common.error_with_reason": "❌ {error}",
+        "participation.pass_updates_active_only": "पास अपडेट केवल तब उपलब्ध हैं जब इवेंट सक्रिय हो।",
+        "finance.no_outstanding": "भुगतान करने के लिए कोई बकाया राशि नहीं है।",
+        "finance.payment_refund_active_only": "पेमेंट और रिफंड अनुरोध केवल सक्रिय इवेंट में उपलब्ध हैं।",
+        "committee.no_society_context": "कोई सोसाइटी संदर्भ नहीं मिला।",
+        "committee.no_eligible_members_add": "जोड़ने के लिए कोई योग्य सदस्य नहीं मिला।",
+        "committee.view_none": "कोई समिति सदस्य नहीं मिला।",
+        "committee.view_header": "समिति सदस्य:",
+        "committee.member_not_found": "सदस्य नहीं मिला।",
+        "committee.invalid_role_selection": "अमान्य भूमिका चयन।",
+        "committee.action_cancelled": "कार्रवाई रद्द की गई।",
+        "committee.unable_add": "सदस्य जोड़ना संभव नहीं हुआ।",
+        "committee.member_exists": "सदस्य पहले से समिति में है।",
+        "committee.member_added": "सदस्य सफलतापूर्वक जोड़ दिया गया",
+        "committee.cannot_remove_last_chairman": "अंतिम चेयरमैन को हटाया नहीं जा सकता",
+        "committee.member_removed": "सदस्य सफलतापूर्वक हटाया गया",
+        "committee.unable_change_role": "भूमिका बदलना संभव नहीं हुआ।",
+        "committee.role_updated": "सदस्य की भूमिका सफलतापूर्वक अपडेट हुई",
+        "committee.unable_process_action": "समिति कार्रवाई संसाधित नहीं की जा सकी।",
+        "committee.action.remove": "हटाना",
+        "committee.action.assign_role_to": "को भूमिका देना",
+        "committee.action.change_role_for": "की भूमिका बदलना",
     },
     "gu": {
         "finance.select_event_header": "ઇવેન્ટ પસંદ કરો",
@@ -272,6 +384,62 @@ UI_TEXT = {
         "committee.choose_new_role": "નવી ભૂમિકા પસંદ કરો",
         "committee.choose_member_remove": "દૂર કરવા માટે સભ્ય પસંદ કરો",
         "committee.choose_member_update": "અપડેટ કરવા માટે સભ્ય પસંદ કરો",
+        "make_payment.header": "ચુકવણી કરો",
+        "make_payment.outstanding_body": "બાકી રકમ: {amount}",
+        "my_account.header": "મારું એકાઉન્ટ",
+        "society.header": "સોસાયટી",
+        "finance.header": "નાણા",
+        "reports.header": "રિપોર્ટ્સ",
+        "reports.select_action": "રિપોર્ટ માટે ક્રિયા પસંદ કરો",
+        "join.enter_code": "કૃપા કરીને જોડાવાનો કોડ દાખલ કરો",
+        "access.restricted": "પ્રવેશ પ્રતિબંધિત છે.",
+        "event.none_contact_committee": "કોઈ સક્રિય ઇવેન્ટ મળી નથી. કૃપા કરીને સમિતિનો સંપર્ક કરો.",
+        "food.no_pending_tokens": "કોઈ પેન્ડિંગ ટોકન ઉપલબ્ધ નથી.",
+        "food.no_tokens": "કોઈ ટોકન ઉપલબ્ધ નથી.",
+        "food.pending_tokens": "પેન્ડિંગ ટોકન",
+        "food.tokens": "ટોકન",
+        "food.no_flats_pending": "પેન્ડિંગ ટોકન ધરાવતા ફ્લેટ મળ્યા નથી.",
+        "food.flats": "ફ્લેટ્સ",
+        "food.select_to_continue": "આગળ વધવા માટે પસંદ કરો",
+        "food.verify_header": "ફૂડ ટોકન ચકાસો",
+        "food.verify_body": "સર્વ કરવા માટે ટોકન પસંદ કરો",
+        "food.scan_header": "ફૂડ QR સ્કેન કરો",
+        "food.scan_body": "સ્કેન કરેલ ટોકન પસંદ કરો",
+        "food.status_header": "ટોકન સ્થિતિ",
+        "food.status_body": "તપાસ માટે ટોકન પસંદ કરો",
+        "food.serve_flat_header": "ફ્લેટ સર્વ કરો",
+        "food.serve_flat_body": "ફોલબેક સર્વ માટે ફ્લેટ પસંદ કરો",
+        "food.flat_passes_header": "ફ્લેટ પાસ",
+        "food.flat_passes_body": "સ્થિતિ જોવા માટે ફ્લેટ પસંદ કરો",
+        "food.served_token": "✅ ટોકન {token_code} ({food_type}) સર્વ થયું.",
+        "food.token_status_line": "🔎 ટોકન {token_code} | {food_type} | {status}",
+        "food.flat_not_found": "ફ્લેટ મળ્યો નથી.",
+        "food.served_flat": "✅ ટોકન {token_code} થી {flat_number} સર્વ થયું.",
+        "food.flat_status_line": "📊 {flat_number} | કુલ {total_passes} | સર્વ {served} | બાકી {remaining}",
+        "food.status_served": "સર્વ",
+        "food.status_pending": "પેન્ડિંગ",
+        "common.error_with_reason": "❌ {error}",
+        "participation.pass_updates_active_only": "પાસ અપડેટ્સ ફક્ત ઇવેન્ટ સક્રિય હોય ત્યારે ઉપલબ્ધ છે.",
+        "finance.no_outstanding": "ચુકવણી માટે કોઈ બાકી રકમ નથી.",
+        "finance.payment_refund_active_only": "ચુકવણી અને રિફંડ વિનંતીઓ ફક્ત સક્રિય ઇવેન્ટ દરમિયાન ઉપલબ્ધ છે.",
+        "committee.no_society_context": "સોસાયટી સંદર્ભ મળ્યો નથી.",
+        "committee.no_eligible_members_add": "ઉમેરવા માટે કોઈ પાત્ર સભ્ય મળ્યો નથી.",
+        "committee.view_none": "કોઈ સમિતિ સભ્ય મળ્યો નથી.",
+        "committee.view_header": "સમિતિ સભ્યો:",
+        "committee.member_not_found": "સભ્ય મળ્યો નથી.",
+        "committee.invalid_role_selection": "અમાન્ય ભૂમિકા પસંદગી.",
+        "committee.action_cancelled": "ક્રિયા રદ કરવામાં આવી.",
+        "committee.unable_add": "સભ્ય ઉમેરવામાં અસમર્થ.",
+        "committee.member_exists": "સભ્ય પહેલેથી જ સમિતિમાં છે.",
+        "committee.member_added": "સભ્ય સફળતાપૂર્વક ઉમેરાયો",
+        "committee.cannot_remove_last_chairman": "છેલ્લા ચેરમેનને દૂર કરી શકાતા નથી",
+        "committee.member_removed": "સભ્ય સફળતાપૂર્વક દૂર થયો",
+        "committee.unable_change_role": "ભૂમિકા બદલવામાં અસમર્થ.",
+        "committee.role_updated": "સભ્યની ભૂમિકા સફળતાપૂર્વક અપડેટ થઈ",
+        "committee.unable_process_action": "સમિતિ ક્રિયા પ્રક્રિયા કરી શકાઈ નહીં.",
+        "committee.action.remove": "દૂર કરવું",
+        "committee.action.assign_role_to": "ને ભૂમિકા આપવી",
+        "committee.action.change_role_for": "માટે ભૂમિકા બદલવી",
     },
 }
 
@@ -651,7 +819,7 @@ def _send_food_token_picker(
 
     tokens = token_query.order_by(EventFoodToken.created_at.asc()).limit(8).all()
     if not tokens:
-        empty_message = "No pending tokens available." if pending_only else "No tokens available."
+        empty_message = _ui_text(lang, "food.no_pending_tokens") if pending_only else _ui_text(lang, "food.no_tokens")
         client.send_text_message(sender_id, empty_message)
         return True
 
@@ -663,7 +831,7 @@ def _send_food_token_picker(
         }
         for token in tokens
     ]
-    section_title = "Pending Tokens" if pending_only else "Tokens"
+    section_title = _ui_text(lang, "food.pending_tokens") if pending_only else _ui_text(lang, "food.tokens")
     client.send_list_message(
         to_phone=sender_id,
         header_text=header,
@@ -690,7 +858,7 @@ def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: 
         .all()
     )
     if not flat_ids:
-        client.send_text_message(sender_id, "No flats with pending tokens found.")
+        client.send_text_message(sender_id, _ui_text(lang, "food.no_flats_pending"))
         return True
 
     ids = [row[0] for row in flat_ids]
@@ -704,7 +872,7 @@ def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: 
         {
             "id": f"{row_prefix}{flat.flat_number}",
             "title": flat.flat_number,
-            "description": "Select to continue",
+            "description": _ui_text(lang, "food.select_to_continue"),
         }
         for flat in flats
     ]
@@ -714,7 +882,7 @@ def _send_food_flat_picker(*, client, sender_id: str, db, event_id, row_prefix: 
         body_text=body,
         button_text=_ui_text(lang, "common.select"),
         sections=_with_navigation(
-            sections=[{"title": "Flats", "rows": rows}],
+            sections=[{"title": _ui_text(lang, "food.flats"), "rows": rows}],
             back_id="ui::administration:food",
             lang=lang,
         ),
@@ -783,7 +951,7 @@ def _send_committee_member_selection(*, client, sender_id: str, body_text: str, 
 
 def _send_add_member_selection(*, client, sender_id: str, db, society_id, lang: str | None = None) -> bool:
     if not society_id:
-        client.send_text_message(sender_id, "No society context found.")
+        client.send_text_message(sender_id, _ui_text(lang, "committee.no_society_context"))
         return True
 
     existing_numbers = {
@@ -813,7 +981,7 @@ def _send_add_member_selection(*, client, sender_id: str, db, society_id, lang: 
             break
 
     if not rows:
-        client.send_text_message(sender_id, "No eligible members found to add.")
+        client.send_text_message(sender_id, _ui_text(lang, "committee.no_eligible_members_add"))
         return True
 
     client.send_list_message(
@@ -830,7 +998,7 @@ def _send_add_member_selection(*, client, sender_id: str, db, society_id, lang: 
     return True
 
 
-def _handle_committee_view(*, client, sender_id: str, db, society_id) -> bool:
+def _handle_committee_view(*, client, sender_id: str, db, society_id, lang: str | None = None) -> bool:
     members = (
         db.query(CommitteeMember)
         .filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True))
@@ -838,10 +1006,10 @@ def _handle_committee_view(*, client, sender_id: str, db, society_id) -> bool:
         .all()
     )
     if not members:
-        client.send_text_message(sender_id, "No committee members found.")
+        client.send_text_message(sender_id, _ui_text(lang, "committee.view_none"))
         return True
 
-    lines = ["Committee members:"]
+    lines = [_ui_text(lang, "committee.view_header")]
     for member in members:
         lines.append(f"- {_committee_member_title(member)} ({_committee_role_label((member.role or '').lower())})")
     client.send_text_message(sender_id, "\n".join(lines))
@@ -994,8 +1162,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 return True
 
             requires_event_context = msg == "ui::menu:more"
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             if requires_event_context and not latest_event:
-                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                 _send_dashboard_all_sections(
                     client=client,
                     sender_id=message.sender_id,
@@ -1005,7 +1173,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 return True
 
             if msg == "ui::menu:more":
-                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
                 _send_dashboard_all_sections(
                     client=client,
                     sender_id=message.sender_id,
@@ -1014,7 +1181,6 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 )
                 return True
 
-            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             _send_dashboard_ui(
                 client=client,
                 sender_id=message.sender_id,
@@ -1050,8 +1216,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
             society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             is_committee = committee_member is not None
             event_state = _get_current_event_state(db, society_id)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             if not is_member_action_visible(intent="ADD_PASS", event_state=event_state, is_committee=is_committee):
-                client.send_text_message(message.sender_id, "Pass updates are available only when event is active.")
+                client.send_text_message(message.sender_id, _ui_text(lang, "participation.pass_updates_active_only"))
                 return True
         finally:
             db.close()
@@ -1156,13 +1323,13 @@ def _try_handle_ui_message(*, client, message) -> bool:
             balance = UserQueryService.get_my_balance(db=db, event_id=selected_event.id, flat_id=flat.id)
             outstanding = balance.get("balance", 0)
             if outstanding <= 0:
-                client.send_text_message(message.sender_id, "No outstanding balance to pay.")
+                client.send_text_message(message.sender_id, _ui_text(lang, "finance.no_outstanding"))
                 return True
             client.send_list_message(
                 to_phone=message.sender_id,
-                header_text="Make Payment",
-                body_text=f"Outstanding Amount: {format_currency(outstanding)}",
-                button_text="Choose",
+                header_text=_ui_text(lang, "make_payment.header"),
+                body_text=_ui_text(lang, "make_payment.outstanding_body", amount=format_currency(outstanding)),
+                button_text=_ui_text(lang, "common.select"),
                 sections=build_make_payment_sections(outstanding_amount=str(int(outstanding) if float(outstanding).is_integer() else outstanding)),
             )
             if finance_session and finance_session.pending_action == "MAKE_PAYMENT":
@@ -1189,8 +1356,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
             society_id, committee_member = _resolve_sender_society_context(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             is_committee = committee_member is not None
             event_state = _get_current_event_state(db, society_id)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             if not is_member_action_visible(intent="REFUND", event_state=event_state, is_committee=is_committee):
-                client.send_text_message(message.sender_id, "Payment and refund requests are available only when event is active.")
+                client.send_text_message(message.sender_id, _ui_text(lang, "finance.payment_refund_active_only"))
                 return True
         finally:
             db.close()
@@ -1210,7 +1378,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             db.close()
         client.send_list_message(
             to_phone=message.sender_id,
-            header_text="My Account",
+            header_text=_ui_text(lang, "my_account.header"),
             body_text=_ui_text(lang, "my_account.body"),
             button_text=_ui_text(lang, "common.open"),
             sections=_with_navigation(sections=build_my_account_sections(lang=lang), back_id="ui::menu", lang=lang),
@@ -1240,7 +1408,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             db.close()
         client.send_list_message(
             to_phone=message.sender_id,
-            header_text="Society",
+            header_text=_ui_text(lang, "society.header"),
             body_text=_ui_text(lang, "society.body"),
             button_text=_ui_text(lang, "common.open"),
             sections=_with_navigation(sections=build_society_sections(lang=lang), back_id="ui::menu", lang=lang),
@@ -1248,12 +1416,17 @@ def _try_handle_ui_message(*, client, message) -> bool:
         return True
 
     if msg == "ui::join-society":
+        db = SessionLocal()
+        try:
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+        finally:
+            db.close()
         session_key = build_join_session_key(sender_id=message.sender_id)
         save_join_session(
             session_key,
             JoinSessionState(pending_action="JOIN"),
         )
-        client.send_text_message(message.sender_id, "Please enter join code")
+        client.send_text_message(message.sender_id, _ui_text(lang, "join.enter_code"))
         return True
 
     selected_language = _parse_prefixed_row(message_text=msg, prefix=LANGUAGE_ROW_PREFIX)
@@ -1292,7 +1465,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             client.send_list_message(
                 to_phone=message.sender_id,
-                header_text="Finance",
+                header_text=_ui_text(lang, "finance.header"),
                 body_text=_ui_text(lang, "finance.body"),
                 button_text=_ui_text(lang, "common.open"),
                 sections=_with_navigation(sections=build_finance_sections(include_payment_actions=can_use_payment, lang=lang), back_id="ui::menu", lang=lang),
@@ -1310,8 +1483,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
             sections = build_reports_sections(is_committee=is_committee, lang=lang)
             client.send_list_message(
                 to_phone=message.sender_id,
-                header_text="Reports",
-                body_text="Select a report action",
+                header_text=_ui_text(lang, "reports.header"),
+                body_text=_ui_text(lang, "reports.select_action"),
                 button_text=_ui_text(lang, "common.open"),
                 sections=_with_navigation(sections=sections, back_id="ui::menu", lang=lang),
             )
@@ -1324,7 +1497,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             if not member:
-                client.send_text_message(message.sender_id, "Access restricted.")
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+                client.send_text_message(message.sender_id, _ui_text(lang, "access.restricted"))
                 return True
             lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             if msg == "ui::administration:approvals":
@@ -1378,12 +1552,14 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             if not member:
-                client.send_text_message(message.sender_id, "Access restricted.")
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+                client.send_text_message(message.sender_id, _ui_text(lang, "access.restricted"))
                 return True
 
             event = get_latest_event_for_society(db, member.society_id)
+            lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
             if not event:
-                client.send_text_message(message.sender_id, "No active event found. Please contact committee.")
+                client.send_text_message(message.sender_id, _ui_text(lang, "event.none_contact_committee"))
                 return True
 
             if msg == "verify food token":
@@ -1393,8 +1569,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db=db,
                     event_id=event.id,
                     row_prefix=FOOD_VERIFY_TOKEN_ROW_PREFIX,
-                    header="Verify Food Token",
-                    body="Select token to serve",
+                    header=_ui_text(lang, "food.verify_header"),
+                    body=_ui_text(lang, "food.verify_body"),
+                    lang=lang,
                 )
             if msg == "scan food qr":
                 return _send_food_token_picker(
@@ -1403,8 +1580,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db=db,
                     event_id=event.id,
                     row_prefix=FOOD_SCAN_QR_ROW_PREFIX,
-                    header="Scan Food QR",
-                    body="Select scanned token",
+                    header=_ui_text(lang, "food.scan_header"),
+                    body=_ui_text(lang, "food.scan_body"),
+                    lang=lang,
                 )
             if msg == "token status":
                 return _send_food_token_picker(
@@ -1413,9 +1591,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db=db,
                     event_id=event.id,
                     row_prefix=FOOD_TOKEN_STATUS_ROW_PREFIX,
-                    header="Token Status",
-                    body="Select token to inspect",
+                    header=_ui_text(lang, "food.status_header"),
+                    body=_ui_text(lang, "food.status_body"),
                     pending_only=False,
+                    lang=lang,
                 )
             if msg == "serve flat":
                 return _send_food_flat_picker(
@@ -1424,8 +1603,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db=db,
                     event_id=event.id,
                     row_prefix=FOOD_SERVE_FLAT_ROW_PREFIX,
-                    header="Serve Flat",
-                    body="Select flat for fallback serve",
+                    header=_ui_text(lang, "food.serve_flat_header"),
+                    body=_ui_text(lang, "food.serve_flat_body"),
+                    lang=lang,
                 )
             if msg == "flat passes":
                 return _send_food_flat_picker(
@@ -1434,8 +1614,9 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db=db,
                     event_id=event.id,
                     row_prefix=FOOD_FLAT_STATUS_ROW_PREFIX,
-                    header="Flat Passes",
-                    body="Select flat to view status",
+                    header=_ui_text(lang, "food.flat_passes_header"),
+                    body=_ui_text(lang, "food.flat_passes_body"),
+                    lang=lang,
                 )
 
             selected_token = _parse_prefixed_row(message_text=msg, prefix=FOOD_VERIFY_TOKEN_ROW_PREFIX)
@@ -1447,7 +1628,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     method="MANUAL_TOKEN",
                     performed_by=member.id,
                 )
-                client.send_text_message(message.sender_id, f"✅ Served token {served.token_code} ({served.food_type}).")
+                client.send_text_message(
+                    message.sender_id,
+                    _ui_text(lang, "food.served_token", token_code=served.token_code, food_type=served.food_type),
+                )
                 return True
 
             selected_token = _parse_prefixed_row(message_text=msg, prefix=FOOD_SCAN_QR_ROW_PREFIX)
@@ -1459,21 +1643,27 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     method="QR_SCAN",
                     performed_by=member.id,
                 )
-                client.send_text_message(message.sender_id, f"✅ Served token {served.token_code} ({served.food_type}).")
+                client.send_text_message(
+                    message.sender_id,
+                    _ui_text(lang, "food.served_token", token_code=served.token_code, food_type=served.food_type),
+                )
                 return True
 
             selected_token = _parse_prefixed_row(message_text=msg, prefix=FOOD_TOKEN_STATUS_ROW_PREFIX)
             if selected_token:
                 token = FoodCollectionService.inspect_token(db=db, event_id=event.id, token_code=selected_token)
-                status = "Served" if token.served_at else "Pending"
-                client.send_text_message(message.sender_id, f"🔎 Token {token.token_code} | {token.food_type} | {status}")
+                status = _ui_text(lang, "food.status_served") if token.served_at else _ui_text(lang, "food.status_pending")
+                client.send_text_message(
+                    message.sender_id,
+                    _ui_text(lang, "food.token_status_line", token_code=token.token_code, food_type=token.food_type, status=status),
+                )
                 return True
 
             selected_flat = _parse_prefixed_row(message_text=msg, prefix=FOOD_SERVE_FLAT_ROW_PREFIX)
             if selected_flat:
                 flat = db.query(Flat).filter(Flat.society_id == member.society_id, Flat.flat_number == selected_flat).first()
                 if not flat:
-                    client.send_text_message(message.sender_id, "Flat not found.")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "food.flat_not_found"))
                     return True
                 served = FoodCollectionService.serve_by_flat_lookup(
                     db=db,
@@ -1481,7 +1671,10 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     flat_id=flat.id,
                     performed_by=member.id,
                 )
-                client.send_text_message(message.sender_id, f"✅ Served {flat.flat_number} using token {served.token_code}.")
+                client.send_text_message(
+                    message.sender_id,
+                    _ui_text(lang, "food.served_flat", flat_number=flat.flat_number, token_code=served.token_code),
+                )
                 return True
 
             selected_flat = _parse_prefixed_row(message_text=msg, prefix=FOOD_FLAT_STATUS_ROW_PREFIX)
@@ -1493,11 +1686,18 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 )
                 client.send_text_message(
                     message.sender_id,
-                    f"📊 {summary['flat_number']} | Total {summary['total_passes']} | Served {summary['served']} | Remaining {summary['remaining']}",
+                    _ui_text(
+                        lang,
+                        "food.flat_status_line",
+                        flat_number=summary["flat_number"],
+                        total_passes=summary["total_passes"],
+                        served=summary["served"],
+                        remaining=summary["remaining"],
+                    ),
                 )
                 return True
         except Exception as exc:
-            client.send_text_message(message.sender_id, f"❌ {exc}")
+            client.send_text_message(message.sender_id, _ui_text(lang, "common.error_with_reason", error=exc))
             return True
         finally:
             db.close()
@@ -1554,7 +1754,8 @@ def _try_handle_ui_message(*, client, message) -> bool:
         try:
             member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=message.sender_id)
             if not member:
-                client.send_text_message(message.sender_id, "Access restricted.")
+                lang = _resolve_sender_language(db=db, sender_id=canonical_sender)
+                client.send_text_message(message.sender_id, _ui_text(lang, "access.restricted"))
                 return True
 
             society_id = getattr(member, "society_id", None)
@@ -1564,7 +1765,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
 
             if msg == "committee::view":
                 clear_committee_management_session(session_key)
-                return _handle_committee_view(client=client, sender_id=message.sender_id, db=db, society_id=society_id)
+                return _handle_committee_view(client=client, sender_id=message.sender_id, db=db, society_id=society_id, lang=lang)
 
             if msg == "committee::add":
                 save_committee_management_session(session_key, CommitteeManagementSessionState(pending_action="ADD"))
@@ -1599,12 +1800,18 @@ def _try_handle_ui_message(*, client, message) -> bool:
             if selected_member_id and session_state and session_state.pending_action in {"REMOVE", "CHANGE_ROLE"}:
                 target = db.query(CommitteeMember).filter(CommitteeMember.id == selected_member_id, CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).first()
                 if not target:
-                    client.send_text_message(message.sender_id, "Member not found.")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "committee.member_not_found"))
                     return True
                 session_state.selected_member_id = str(target.id)
                 save_committee_management_session(session_key, session_state)
                 if session_state.pending_action == "REMOVE":
-                    _send_committee_confirmation(client=client, sender_id=message.sender_id, action="remove", member_label=_committee_member_title(target), lang=lang)
+                    _send_committee_confirmation(
+                        client=client,
+                        sender_id=message.sender_id,
+                        action=_ui_text(lang, "committee.action.remove"),
+                        member_label=_committee_member_title(target),
+                        lang=lang,
+                    )
                 else:
                     client.send_list_message(
                         to_phone=message.sender_id,
@@ -1619,7 +1826,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
             if selected_role and session_state and session_state.pending_action in {"ADD", "CHANGE_ROLE"}:
                 allowed_roles = {role for role, _label in COMMITTEE_ROLE_OPTIONS}
                 if selected_role not in allowed_roles:
-                    client.send_text_message(message.sender_id, "Invalid role selection.")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "committee.invalid_role_selection"))
                     return True
                 session_state.selected_role = selected_role
                 save_committee_management_session(session_key, session_state)
@@ -1632,7 +1839,11 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 _send_committee_confirmation(
                     client=client,
                     sender_id=message.sender_id,
-                    action="assign role to" if session_state.pending_action == "ADD" else "change role for",
+                    action=(
+                        _ui_text(lang, "committee.action.assign_role_to")
+                        if session_state.pending_action == "ADD"
+                        else _ui_text(lang, "committee.action.change_role_for")
+                    ),
                     member_label=member_label,
                     role_label=_committee_role_label(selected_role),
                     lang=lang,
@@ -1643,20 +1854,20 @@ def _try_handle_ui_message(*, client, message) -> bool:
             if confirm_choice and session_state:
                 if confirm_choice != "yes":
                     clear_committee_management_session(session_key)
-                    client.send_text_message(message.sender_id, "Action cancelled.")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "committee.action_cancelled"))
                     return True
 
                 if session_state.pending_action == "ADD":
                     identity = db.query(MemberIdentity).filter(MemberIdentity.id == session_state.selected_member_id).first()
                     if not identity or not session_state.selected_role:
                         clear_committee_management_session(session_key)
-                        client.send_text_message(message.sender_id, "Unable to add member.")
+                        client.send_text_message(message.sender_id, _ui_text(lang, "committee.unable_add"))
                         return True
                     identifier = (identity.normalized_phone or identity.normalized_identifier or "").strip()
                     existing = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.phone_number == identifier, CommitteeMember.is_active.is_(True)).first()
                     if existing:
                         clear_committee_management_session(session_key)
-                        client.send_text_message(message.sender_id, "Member already exists in committee.")
+                        client.send_text_message(message.sender_id, _ui_text(lang, "committee.member_exists"))
                         return True
                     new_member = CommitteeMember(
                         society_id=society_id,
@@ -1668,49 +1879,49 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     db.add(new_member)
                     db.commit()
                     clear_committee_management_session(session_key)
-                    client.send_text_message(message.sender_id, "Member added successfully")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "committee.member_added"))
                     return True
 
                 if session_state.pending_action == "REMOVE":
                     target = db.query(CommitteeMember).filter(CommitteeMember.id == session_state.selected_member_id, CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).first()
                     if not target:
                         clear_committee_management_session(session_key)
-                        client.send_text_message(message.sender_id, "Member not found.")
+                        client.send_text_message(message.sender_id, _ui_text(lang, "committee.member_not_found"))
                         return True
                     if (target.role or "").lower() == "chairman":
                         chairman_count = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True), CommitteeMember.role == "chairman").count()
                         if chairman_count <= 1:
                             clear_committee_management_session(session_key)
-                            client.send_text_message(message.sender_id, "Cannot remove last chairman")
+                            client.send_text_message(message.sender_id, _ui_text(lang, "committee.cannot_remove_last_chairman"))
                             return True
                     setattr(target, "is_active", False)
                     db.commit()
                     clear_committee_management_session(session_key)
-                    client.send_text_message(message.sender_id, "Member removed successfully")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "committee.member_removed"))
                     return True
 
                 if session_state.pending_action == "CHANGE_ROLE":
                     target = db.query(CommitteeMember).filter(CommitteeMember.id == session_state.selected_member_id, CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True)).first()
                     if not target or not session_state.selected_role:
                         clear_committee_management_session(session_key)
-                        client.send_text_message(message.sender_id, "Unable to change role.")
+                        client.send_text_message(message.sender_id, _ui_text(lang, "committee.unable_change_role"))
                         return True
                     if (target.role or "").lower() == "chairman" and session_state.selected_role != "chairman":
                         chairman_count = db.query(CommitteeMember).filter(CommitteeMember.society_id == society_id, CommitteeMember.is_active.is_(True), CommitteeMember.role == "chairman").count()
                         if chairman_count <= 1:
                             clear_committee_management_session(session_key)
-                            client.send_text_message(message.sender_id, "Cannot remove last chairman")
+                            client.send_text_message(message.sender_id, _ui_text(lang, "committee.cannot_remove_last_chairman"))
                             return True
                     setattr(target, "role", session_state.selected_role)
                     db.commit()
                     clear_committee_management_session(session_key)
-                    client.send_text_message(message.sender_id, "Member role updated successfully")
+                    client.send_text_message(message.sender_id, _ui_text(lang, "committee.role_updated"))
                     return True
 
             return False
         except Exception:
             logger.exception("Failed committee management flow")
-            client.send_text_message(message.sender_id, "Unable to process committee action.")
+            client.send_text_message(message.sender_id, _ui_text(lang, "committee.unable_process_action"))
             return True
         finally:
             db.close()

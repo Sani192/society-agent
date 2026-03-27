@@ -233,6 +233,82 @@ def test_whatsapp_webhook_event_menu_falls_back_to_english_for_missing_translati
     assert button_attempts[0]["body_text"] == "Select an action"
 
 
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        (
+            "hi",
+            {
+                "my_account_header": "मेरा अकाउंट",
+                "my_account_body": "अकाउंट कार्रवाइयाँ",
+                "join_code": "कृपया जॉइन कोड दर्ज करें",
+                "reports_header": "रिपोर्ट",
+                "reports_body": "रिपोर्ट कार्रवाई चुनें",
+                "pass_blocked": "पास अपडेट केवल तब उपलब्ध हैं जब इवेंट सक्रिय हो।",
+            },
+        ),
+        (
+            "gu",
+            {
+                "my_account_header": "મારું એકાઉન્ટ",
+                "my_account_body": "એકાઉન્ટ ક્રિયાઓ",
+                "join_code": "કૃપા કરીને જોડાવાનો કોડ દાખલ કરો",
+                "reports_header": "રિપોર્ટ્સ",
+                "reports_body": "રિપોર્ટ માટે ક્રિયા પસંદ કરો",
+                "pass_blocked": "પાસ અપડેટ્સ ફક્ત ઇવેન્ટ સક્રિય હોય ત્યારે ઉપલબ્ધ છે.",
+            },
+        ),
+    ],
+)
+def test_ui_router_localized_output_paths_for_hindi_and_gujarati(monkeypatch, lang, expected):
+    from app.channels.whatsapp import ui_router
+
+    sent_lists = []
+    sent_texts = []
+
+    class StubClient:
+        def send_list_message(self, **kwargs):
+            sent_lists.append(kwargs)
+            return {"messages": [{"id": "wamid.list"}]}
+
+        def send_text_message(self, to_phone: str, body: str):
+            sent_texts.append((to_phone, body))
+            return {"messages": [{"id": "wamid.text"}]}
+
+    class StubDB:
+        def close(self):
+            return None
+
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.SessionLocal", lambda: StubDB())
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_language", lambda **kwargs: lang)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_society_context", lambda **kwargs: ("soc-1", None))
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._get_current_event_state", lambda *args, **kwargs: "CLOSED")
+    monkeypatch.setattr("app.channels.whatsapp.ui_router.is_member_action_visible", lambda **kwargs: False)
+
+    base_message = {
+        "channel": "whatsapp",
+        "sender_id": "919999000066",
+        "display_name": "Jane",
+        "metadata": {"message_id": "wamid.localization", "canonical_sender_id": "919999000066"},
+    }
+
+    for path in ["ui::my-account", "ui::join-society", "ui::reports", "ui::participation:add-update-pass"]:
+        inbound = InboundMessage(text=path, **base_message)
+        handled = ui_router._try_handle_ui_message(client=StubClient(), message=inbound)
+        assert handled is True
+
+    assert any(
+        item["header_text"] == expected["my_account_header"] and item["body_text"] == expected["my_account_body"]
+        for item in sent_lists
+    )
+    assert any(
+        item["header_text"] == expected["reports_header"] and item["body_text"] == expected["reports_body"]
+        for item in sent_lists
+    )
+    assert ("919999000066", expected["join_code"]) in sent_texts
+    assert ("919999000066", expected["pass_blocked"]) in sent_texts
+
+
 def test_whatsapp_webhook_event_unknown_number_menu_prompts_to_join(monkeypatch):
     button_attempts = []
     text_attempts = []
@@ -1928,6 +2004,7 @@ def test_whatsapp_webhook_event_verify_food_token_opens_picker(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: db)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_language", lambda **kwargs: "en")
     monkeypatch.setattr("app.channels.whatsapp.ui_router._is_committee_member", lambda *args, **kwargs: True)
     monkeypatch.setattr(
         "app.channels.whatsapp.ui_router._get_committee_member",
@@ -1975,6 +2052,7 @@ def test_whatsapp_webhook_event_token_status_picker_includes_served_tokens(monke
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: db)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.channels.whatsapp.ui_router._resolve_sender_language", lambda **kwargs: "en")
     monkeypatch.setattr("app.channels.whatsapp.ui_router._is_committee_member", lambda *args, **kwargs: True)
     monkeypatch.setattr(
         "app.channels.whatsapp.ui_router._get_committee_member",
