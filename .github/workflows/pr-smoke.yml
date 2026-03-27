@@ -73,6 +73,9 @@ jobs:
       - name: Enforce integration/endpoint marker policy
         run: python scripts/ci/check_test_markers.py
 
+      - name: Enforce localized user-facing response strings
+        run: python scripts/ci/check_localization_literals.py
+
       - name: Run fast unit tests with impact selection
         run: |
           mkdir -p artifacts/junit artifacts/coverage

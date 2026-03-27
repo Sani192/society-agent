@@ -176,7 +176,12 @@ Run from repository root:
   ```bash
   python scripts/ci/check_test_markers.py
   ```
+- Localization literal guard:
+  ```bash
+  python scripts/ci/check_localization_literals.py
+  ```
 
-### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 - Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
 This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
