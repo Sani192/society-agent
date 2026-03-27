@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: public.ecr.aws/docker/library/postgres:16-alpine
     environment:
       POSTGRES_DB: society_db
       POSTGRES_USER: society_user
@@ -14,7 +14,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: public.ecr.aws/docker/library/redis:7-alpine
     ports:
       - "6379:6379"
     healthcheck:
@@ -24,7 +24,7 @@ services:
       retries: 20
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: public.ecr.aws/docker/library/rabbitmq:3.13-management-alpine
     ports:
       - "5672:5672"
       - "15672:15672"
