@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.channels.core.handler import handle_inbound_message
 from app.channels.core.types import InboundMessage
 from app.handlers.shared.public import handle_public_intent
@@ -198,6 +200,39 @@ def test_whatsapp_no_intent_falls_back_to_menu_hint():
     )
 
     assert response == "ℹ️ Invalid option. Try a listed menu command. Use: menu, help."
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected_prefix"),
+    [
+        ("hi", "ℹ️ अमान्य विकल्प।"),
+        ("gu", "ℹ️ અમાન્ય વિકલ્પ."),
+    ],
+)
+def test_whatsapp_committee_invalid_command_uses_resolved_language(monkeypatch, lang, expected_prefix):
+    db = MagicMock()
+    message = InboundMessage(
+        channel="whatsapp",
+        sender_id="919999000001",
+        display_name="John",
+        text="what is this",
+        metadata={"canonical_sender_id": "919999000001"},
+    )
+
+    monkeypatch.setattr("app.channels.core.handler.resolve_sender_language", lambda *args, **kwargs: lang)
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: object(),
+        latest_event_getter=lambda db: None,
+        intent_detector=lambda text: None,
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert response.startswith(expected_prefix)
 
 
 def test_whatsapp_pending_committee_action_maps_free_text_to_pending_intent():

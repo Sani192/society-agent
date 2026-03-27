@@ -24,6 +24,7 @@ from app.modules.reports.common.whatsapp_report_registry import (
     resolve_report_entry,
 )
 from app.modules.reports.whatsapp_export_service import WhatsAppReportExportService
+from app.modules.users.language_service import resolve_sender_language
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
 from app.whatsapp.ui.reports import build_report_event_sections
@@ -114,7 +115,11 @@ def handle_report_flow(*, client, message) -> bool:
                 channel_type="whatsapp",
                 external_user_id=message.sender_id,
             )
-            lang = getattr(member, "preferred_language", None)
+            lang = resolve_sender_language(
+                db,
+                sender_id=canonical_sender,
+                channel="whatsapp",
+            )
             latest_event = _get_latest_event_in_context(
                 db=db,
                 society_id=member.society_id,
@@ -166,7 +171,11 @@ def handle_report_flow(*, client, message) -> bool:
                 channel_type="whatsapp",
                 external_user_id=message.sender_id,
             )
-            lang = getattr(member, "preferred_language", None)
+            lang = resolve_sender_language(
+                db,
+                sender_id=canonical_sender,
+                channel="whatsapp",
+            )
             report_options = list_exportable_report_options(
                 registry=build_whatsapp_report_registry(
                     handlers_by_code=WhatsAppReportExportService.handlers_by_report_code()

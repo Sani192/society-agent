@@ -7,7 +7,7 @@ from datetime import timedelta
 from app.db.session import SessionLocal
 from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
 from app.modules.users.member_identity_service import MemberIdentityService
-from app.modules.users.language_service import get_effective_language, normalize_language_code, set_preferred_language
+from app.modules.users.language_service import normalize_language_code, resolve_sender_language, set_preferred_language
 from app.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.handlers.shared.common import (
@@ -284,9 +284,9 @@ def _ui_text(lang: str | None, key: str, **params) -> str:
 
 def _resolve_sender_language(*, db, sender_id: str) -> str:
     try:
-        return get_effective_language(_resolve_member_identity(db=db, sender_id=sender_id))
+        return resolve_sender_language(db, sender_id=sender_id, channel="whatsapp")
     except Exception:
-        return get_effective_language(None)
+        return "en"
 
 
 def _default_report_event_id(event) -> str | None:
