@@ -49,6 +49,27 @@ def test_committee_add_expense_success(monkeypatch):
     assert "Expense added: ₹1,200" in response
 
 
+def test_committee_add_expense_success_hindi(monkeypatch):
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    member = SimpleNamespace(id="member-1", role="secretary")
+
+    monkeypatch.setattr(
+        "app.handlers.shared.committee.ExpenseService.add_expense",
+        lambda **kwargs: None,
+    )
+
+    response = handle_committee_intent(
+        db=MagicMock(),
+        intent="ADD_EXPENSE",
+        message="expense water 1200",
+        event=event,
+        member=member,
+        lang="hi",
+    )
+
+    assert "खर्च जोड़ा गया" in response
+
+
 def test_committee_pending_payments_forbidden():
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     member = SimpleNamespace(id="member-1", role="secretary")

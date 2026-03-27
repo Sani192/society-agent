@@ -250,3 +250,26 @@ def test_onboarding_join_status_no_event(monkeypatch):
     )
 
     assert response == "❌ No society context found."
+
+
+def test_onboarding_join_status_approved_hindi(monkeypatch):
+    event = SimpleNamespace(society_id="soc-1")
+    monkeypatch.setattr(
+        "app.handlers.shared.onboarding.get_latest_event",
+        lambda db: event
+    )
+    monkeypatch.setattr(
+        "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
+        lambda **kwargs: "APPROVED"
+    )
+
+    response = handle_onboarding_intent(
+        db=MagicMock(),
+        intent="JOIN_STATUS",
+        phone_number=MEMBER_PHONE,
+        message="join status",
+        member=None,
+        lang="hi",
+    )
+
+    assert response == "✅ आपकी सदस्यता स्वीकृत है।"

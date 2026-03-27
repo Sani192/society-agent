@@ -18,6 +18,7 @@ from app.whatsapp.response_templates import (
 )
 from app.commands.parser import parse_target_phone
 from app.handlers.shared.common import get_latest_event, resolve_sender_society_id
+from app.i18n.catalog import translate
 
 
 def handle_onboarding_intent(
@@ -26,12 +27,13 @@ def handle_onboarding_intent(
     intent,
     phone_number,
     message,
-    member
+    member,
+    lang: str | None = None,
 ):
     if intent == "JOIN":
         parts = message.split()
         if len(parts) < 3:
-            return error_response("Example: join ABC123 A-101")
+            return error_response(translate("onboarding.join.example", lang))
 
         join_code = parts[1]
         flat_number = parts[2]
@@ -44,7 +46,7 @@ def handle_onboarding_intent(
 
         society = JoinCodeService.get_society_by_join_code(db, join_code)
         if not society:
-            return error_response("Invalid join code.")
+            return error_response(translate("onboarding.join.invalid_code", lang))
 
         try:
             result = OnboardingService.start_onboarding(
@@ -57,15 +59,15 @@ def handle_onboarding_intent(
             return error_response(str(exc))
 
         if result == "APPROVED":
-            return success_response("You are successfully added to the society.")
+            return success_response(translate("onboarding.join.approved", lang))
 
         return success_response(
             join_lines([
-                "Your request is sent for approval.",
+                translate("onboarding.join.request_sent", lang),
                 f"Request ID: *{result}*",
-                "You will be notified once approved."
+                translate("onboarding.join.notify_after_approval", lang),
             ]),
-            heading="Join request submitted",
+            heading=translate("onboarding.join.request_submitted_heading", lang),
             emoji="⏳"
         )
 
@@ -75,7 +77,7 @@ def handle_onboarding_intent(
             latest_event = get_latest_event(db)
             society_id = getattr(latest_event, "society_id", None)
         if not society_id:
-            return error_response("No society context found.")
+            return error_response(translate("onboarding.join_status.no_society_context", lang))
 
 
         target_phone = None
@@ -93,15 +95,15 @@ def handle_onboarding_intent(
         )
 
         if status == "APPROVED":
-            return success_response("Your membership is approved.")
+            return success_response(translate("onboarding.join_status.approved", lang))
 
         if status == "PENDING":
             return success_response(
-                "Your join request is pending approval.",
-                heading="Join request pending",
+                translate("onboarding.join_status.pending", lang),
+                heading=translate("onboarding.join_status.pending_heading", lang),
                 emoji="⏳"
             )
 
-        return error_response("You have not requested to join any society.")
+        return error_response(translate("onboarding.join_status.not_found", lang))
 
     return None
