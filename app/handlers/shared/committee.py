@@ -855,7 +855,7 @@ def handle_committee_intent(
             override_reason=override_reason,
         )
         if not can_execute:
-            return warning_response(warning)
+            return warning_response(warning or "Action is not allowed.")
 
         if not event:
             return error_response(translate("committee.common.no_active_event", lang))
@@ -1454,7 +1454,7 @@ def handle_committee_intent(
             override_reason=None,
         )
         if not can_execute:
-            return warning_response(warning)
+            return warning_response(warning or "Action is not allowed.")
 
         reason = parse_reason(message, command_prefixes=("close event",))
         if not reason or not reason.strip():
@@ -1814,7 +1814,7 @@ def handle_committee_intent(
             override_reason=None,
         )
         if not can_execute:
-            return warning_response(warning)
+            return warning_response(warning or "Action is not allowed.")
 
         if not event:
             return error_response("No active event found. Please contact committee.")
@@ -1837,7 +1837,7 @@ def handle_committee_intent(
             override_reason=None,
         )
         if not can_execute:
-            return warning_response(warning)
+            return warning_response(warning or "Action is not allowed.")
 
         command_prefix = "announce event" if intent == "ANNOUNCE_EVENT" else "announce society"
         announcement_body = _extract_announcement_body(message=message, command_prefix=command_prefix)
@@ -1976,7 +1976,7 @@ def handle_committee_intent(
             override_reason=override_reason,
         )
         if not can_execute:
-            return warning_response(warning)
+            return warning_response(warning or "Action is not allowed.")
 
         if not event:
             return error_response("No active event found. Please contact committee.")
@@ -2069,7 +2069,7 @@ def handle_committee_intent(
             override_reason=override_reason,
         )
         if not can_execute:
-            return warning_response(warning)
+            return warning_response(warning or "Action is not allowed.")
 
         parts = normalized_message.split()
 
