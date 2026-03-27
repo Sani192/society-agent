@@ -1,0 +1,251 @@
+# Baseline allowlist for scripts/ci/check_localization_literals.py
+# Format: path:line:call_name:literal
+app/channels/core/handler.py:89:info_response:Use: link member CODE
+app/channels/core/handler.py:100:error_response:Invalid or expired link code.
+app/channels/core/handler.py:101:success_response:Telegram account linked successfully.
+app/channels/core/handler.py:106:info_response:Use: verify phone <number>
+app/channels/core/handler.py:117:error_response:Phone verification failed. Contact committee.
+app/channels/core/handler.py:118:success_response:Phone verified. Telegram account linked.
+app/channels/core/handler.py:405:error_response:Something went wrong. Please try again later.
+app/handlers/shared/committee.py:302:info_response:Event setup (guided)
+app/handlers/shared/committee.py:312:error_response:Event name cannot be empty. Please enter a valid name.
+app/handlers/shared/committee.py:320:error_response:Please enter date/time in YYYY-MM-DD HH:MM format. Example: 2026-12-31 19:00
+app/handlers/shared/committee.py:326:info_response:Please provide at least one food type. Example: veg,jain
+app/handlers/shared/committee.py:331:info_response:Adult charge must be a whole number. Example: 300
+app/handlers/shared/committee.py:336:info_response:Child charge must be a whole number. Example: 150
+app/handlers/shared/committee.py:346:error_response:Please enter deadline in YYYY-MM-DD HH:MM format, or reply `skip`.\nExample: 2026-12-30 18:00
+app/handlers/shared/committee.py:366:success_response:Event: 
+app/handlers/shared/committee.py:367:success_response:Date: 
+app/handlers/shared/committee.py:368:success_response:Food: 
+app/handlers/shared/committee.py:369:success_response:Adult: 
+app/handlers/shared/committee.py:370:success_response:Child: 
+app/handlers/shared/committee.py:371:success_response:Deadline: 
+app/handlers/shared/committee.py:374:success_response:Event created
+app/handlers/shared/committee.py:381:error_response:Could not continue guided event setup. Please send `add event` to restart.
+app/handlers/shared/committee.py:387:info_response:Event setup (guided)
+app/handlers/shared/committee.py:415:format_heading:Choose report event + report
+app/handlers/shared/committee.py:457:format_heading:Choose a report to export
+app/handlers/shared/committee.py:486:error_response:Couldn’t send report right now, try again
+app/handlers/shared/committee.py:516:error_response:Couldn’t send report right now, try again
+app/handlers/shared/committee.py:536:success_response:Report exported
+app/handlers/shared/committee.py:625:join_lines:* tokens are ready.
+app/handlers/shared/committee.py:626:join_lines:Total tokens for your flat: 
+app/handlers/shared/committee.py:743:success_response:In-kind sponsor added successfully.
+app/handlers/shared/committee.py:744:success_response:Sponsor added
+app/handlers/shared/committee.py:760:success_response:Sponsor added
+app/handlers/shared/committee.py:760:success_response:Sponsor added successfully.
+app/handlers/shared/committee.py:773:error_response:Flat not found.
+app/handlers/shared/committee.py:786:error_response:Flat has not joined the event.
+app/handlers/shared/committee.py:807:success_response: has no pending payment.
+app/handlers/shared/committee.py:808:success_response:Payment Reminder
+app/handlers/shared/committee.py:815:success_response:Dear 
+app/handlers/shared/committee.py:816:success_response:* is 
+app/handlers/shared/committee.py:816:success_response:Your pending amount for *
+app/handlers/shared/committee.py:818:success_response:Please pay at your convenience.
+app/handlers/shared/committee.py:820:success_response:Thank you.
+app/handlers/shared/committee.py:823:success_response:Payment Reminder
+app/handlers/shared/committee.py:858:warning_response:Action is not allowed.
+app/handlers/shared/committee.py:947:error_response:Sponsor type must be `monetary` or `in-kind`.
+app/handlers/shared/committee.py:955:error_response:Sponsor name (or flat) is required.
+app/handlers/shared/committee.py:965:info_response:Sponsor amount must be numeric. Example: 5000
+app/handlers/shared/committee.py:967:error_response:Sponsor amount/details is required.
+app/handlers/shared/committee.py:981:error_response:Contribution code is required.
+app/handlers/shared/committee.py:989:info_response:Refund amount must be numeric. Example: 500
+app/handlers/shared/committee.py:997:error_response:Refund reason is required.
+app/handlers/shared/committee.py:1017:success_response:Sponsor refund processed (
+app/handlers/shared/committee.py:1018:success_response:Refund processed
+app/handlers/shared/committee.py:1024:error_response:Override reason is required.
+app/handlers/shared/committee.py:1039:success_response:Sponsor refund processed (
+app/handlers/shared/committee.py:1040:success_response:Refund processed
+app/handlers/shared/committee.py:1047:error_response:Flat number is required.
+app/handlers/shared/committee.py:1054:error_response:Announcement body cannot be empty.
+app/handlers/shared/committee.py:1057:error_response: chars). Max allowed is 
+app/handlers/shared/committee.py:1057:error_response:Announcement is too long (
+app/handlers/shared/committee.py:1072:success_response:, Announcement ID: 
+app/handlers/shared/committee.py:1072:success_response:, Skipped: 
+app/handlers/shared/committee.py:1072:success_response:Announcement accepted for processing. Accepted: 
+app/handlers/shared/committee.py:1077:success_response:Announcement queued
+app/handlers/shared/committee.py:1093:warning_response:Only Chairman or Secretary can add events.
+app/handlers/shared/committee.py:1116:success_response:Event: 
+app/handlers/shared/committee.py:1117:success_response:Date: 
+app/handlers/shared/committee.py:1118:success_response:Food: 
+app/handlers/shared/committee.py:1119:success_response:Adult: 
+app/handlers/shared/committee.py:1120:success_response:Child: 
+app/handlers/shared/committee.py:1121:success_response:Deadline: 
+app/handlers/shared/committee.py:1124:success_response:Event created
+app/handlers/shared/committee.py:1149:warning_response:Only Chairman or Secretary can activate events.
+app/handlers/shared/committee.py:1161:error_response:No event found to activate. Please create an event first.
+app/handlers/shared/committee.py:1174:success_response:Event activated: 
+app/handlers/shared/committee.py:1175:success_response:Event activated
+app/handlers/shared/committee.py:1181:warning_response:Only Chairman or Secretary can lock passes.
+app/handlers/shared/committee.py:1184:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1197:success_response:Passes locked for event: 
+app/handlers/shared/committee.py:1198:success_response:Passes locked
+app/handlers/shared/committee.py:1204:warning_response:Only Chairman or Secretary can start event day.
+app/handlers/shared/committee.py:1207:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1220:success_response:Event day started: 
+app/handlers/shared/committee.py:1221:success_response:Event started
+app/handlers/shared/committee.py:1228:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1245:success_response: food tokens for 
+app/handlers/shared/committee.py:1245:success_response:. Share 'my tokens' with members.
+app/handlers/shared/committee.py:1245:success_response:Generated 
+app/handlers/shared/committee.py:1246:success_response:Food tokens generated
+app/handlers/shared/committee.py:1253:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1291:success_response:Food counter is now open.
+app/handlers/shared/committee.py:1292:success_response:Auto-closes at: 
+app/handlers/shared/committee.py:1293:success_response:Ask members to keep QR or token ready.
+app/handlers/shared/committee.py:1295:success_response:Food counter opened
+app/handlers/shared/committee.py:1302:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1306:error_response: AB2K9M
+app/handlers/shared/committee.py:1306:error_response:Token is required. Example: 
+app/handlers/shared/committee.py:1322:success_response:Served token 
+app/handlers/shared/committee.py:1323:success_response:Plate served
+app/handlers/shared/committee.py:1330:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1336:info_response:Flat number is required. Example: serve flat A-101
+app/handlers/shared/committee.py:1347:error_response:Flat not found.
+app/handlers/shared/committee.py:1359:success_response: via no-token fallback (
+app/handlers/shared/committee.py:1359:success_response:Served 
+app/handlers/shared/committee.py:1360:success_response:Plate served
+app/handlers/shared/committee.py:1366:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1370:info_response:Flat number is required. Example: flat passes A-101
+app/handlers/shared/committee.py:1382:success_response:Flat: 
+app/handlers/shared/committee.py:1383:success_response:Total: 
+app/handlers/shared/committee.py:1384:success_response:Served: 
+app/handlers/shared/committee.py:1385:success_response:Remaining: 
+app/handlers/shared/committee.py:1386:success_response:Fallback served (no-token): 
+app/handlers/shared/committee.py:1388:success_response:Flat pass status
+app/handlers/shared/committee.py:1394:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1397:info_response:Token is required. Example: token status AB2K9M
+app/handlers/shared/committee.py:1409:success_response:Token: 
+app/handlers/shared/committee.py:1410:success_response:Food type: 
+app/handlers/shared/committee.py:1411:success_response:Status: 
+app/handlers/shared/committee.py:1413:success_response:Token status
+app/handlers/shared/committee.py:1419:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1435:success_response:Total: 
+app/handlers/shared/committee.py:1436:success_response:Served: 
+app/handlers/shared/committee.py:1437:success_response:Remaining: 
+app/handlers/shared/committee.py:1439:success_response:By type:
+app/handlers/shared/committee.py:1442:success_response:Recent served:
+app/handlers/shared/committee.py:1445:success_response:Food dashboard
+app/handlers/shared/committee.py:1457:warning_response:Action is not allowed.
+app/handlers/shared/committee.py:1461:info_response:Please provide a close reason. Example: close event reason settlement completed
+app/handlers/shared/committee.py:1473:error_response:No event found to close. Please contact committee.
+app/handlers/shared/committee.py:1486:success_response:Event closed: 
+app/handlers/shared/committee.py:1487:success_response:Event closed
+app/handlers/shared/committee.py:1493:warning_response:This action normally requires Treasurer approval.
+app/handlers/shared/committee.py:1496:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1504:success_response:All flats have completed payments.
+app/handlers/shared/committee.py:1505:success_response:Pending Payments
+app/handlers/shared/committee.py:1509:format_heading:Pending Payments
+app/handlers/shared/committee.py:1517:warning_response:Only Treasurer can view payment requests.
+app/handlers/shared/committee.py:1520:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1526:success_response:No payment requests found.
+app/handlers/shared/committee.py:1526:success_response:Payment Requests
+app/handlers/shared/committee.py:1529:format_heading:Payment Requests
+app/handlers/shared/committee.py:1546:warning_response:Only Treasurer can view refund requests.
+app/handlers/shared/committee.py:1549:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1555:success_response:No refund requests found.
+app/handlers/shared/committee.py:1555:success_response:Refund Requests
+app/handlers/shared/committee.py:1558:format_heading:Refund Requests
+app/handlers/shared/committee.py:1611:info_response:No active export session. Send `report options` first.
+app/handlers/shared/committee.py:1619:error_response:Invalid event selection. Reply with `event <number>` from report options.
+app/handlers/shared/committee.py:1657:error_response:Invalid selection. Use `event <number>` or `export <number>` from report options.
+app/handlers/shared/committee.py:1673:error_response:Export failed: 
+app/handlers/shared/committee.py:1691:info_response:No committee members found.
+app/handlers/shared/committee.py:1693:format_heading:Committee members
+app/handlers/shared/committee.py:1703:info_response:Usage: add committee member <name>|<phone>|<role>\nRoles: chairman, treasurer, secretary, committee_member
+app/handlers/shared/committee.py:1725:success_response:Committee member saved: 
+app/handlers/shared/committee.py:1726:success_response:Committee updated
+app/handlers/shared/committee.py:1733:info_response:Usage: remove committee member <member_id>
+app/handlers/shared/committee.py:1750:success_response:Committee member removed: 
+app/handlers/shared/committee.py:1751:success_response:Committee updated
+app/handlers/shared/committee.py:1759:info_response:Usage: change committee role <member_id> <role>\nRoles: chairman, treasurer, secretary, committee_member
+app/handlers/shared/committee.py:1781:success_response: is now 
+app/handlers/shared/committee.py:1781:success_response:Role updated: 
+app/handlers/shared/committee.py:1782:success_response:Committee updated
+app/handlers/shared/committee.py:1789:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1799:format_heading:Participation Report (
+app/handlers/shared/committee.py:1817:warning_response:Action is not allowed.
+app/handlers/shared/committee.py:1820:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:1840:warning_response:Action is not allowed.
+app/handlers/shared/committee.py:1852:error_response: chars). Max allowed is 
+app/handlers/shared/committee.py:1852:error_response:Announcement is too long (
+app/handlers/shared/committee.py:1868:success_response:, Announcement ID: 
+app/handlers/shared/committee.py:1868:success_response:, Skipped: 
+app/handlers/shared/committee.py:1868:success_response:Announcement accepted for processing. Accepted: 
+app/handlers/shared/committee.py:1873:success_response:Announcement queued
+app/handlers/shared/committee.py:1879:warning_response:Only Chairman can approve users.
+app/handlers/shared/committee.py:1883:info_response:Example: approve user REQ-003
+app/handlers/shared/committee.py:1893:success_response:User approved (
+app/handlers/shared/committee.py:1897:warning_response:Only Treasurer can approve payments.
+app/handlers/shared/committee.py:1901:info_response:Example: approve payment PAY-001
+app/handlers/shared/committee.py:1908:error_response:Payment request not found.
+app/handlers/shared/committee.py:1910:warning_response:Payment request already processed.
+app/handlers/shared/committee.py:1915:success_response:Payment approved (
+app/handlers/shared/committee.py:1919:warning_response:Only Treasurer can approve refunds.
+app/handlers/shared/committee.py:1923:info_response:Example: approve refund REF-001
+app/handlers/shared/committee.py:1930:error_response:Refund request not found.
+app/handlers/shared/committee.py:1932:warning_response:Refund request already processed.
+app/handlers/shared/committee.py:1937:success_response:Refund approved (
+app/handlers/shared/committee.py:1941:warning_response:Only Chairman can view pending users.
+app/handlers/shared/committee.py:1945:error_response:No society context found.
+app/handlers/shared/committee.py:1955:success_response:No pending user requests.
+app/handlers/shared/committee.py:1955:success_response:Pending Join Requests
+app/handlers/shared/committee.py:1958:format_heading:Pending Join Requests
+app/handlers/shared/committee.py:1979:warning_response:Action is not allowed.
+app/handlers/shared/committee.py:1982:error_response:No active event found. Please contact committee.
+app/handlers/shared/committee.py:2072:warning_response:Action is not allowed.
+app/handlers/shared/committee.py:2151:success_response:Sponsor refund processed (
+app/handlers/shared/committee.py:2152:success_response:Refund processed
+app/handlers/shared/onboarding.py:67:success_response:Request ID: *
+app/handlers/shared/public.py:177:success_response:Request ID: *
+app/handlers/shared/public.py:246:success_response:Request ID: *
+app/handlers/shared/public.py:287:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:303:success_response:You have not taken a food pass for this event.
+app/handlers/shared/public.py:304:success_response:Food pass
+app/handlers/shared/public.py:334:success_response:Your Food Pass
+app/handlers/shared/public.py:338:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:352:success_response:Tokens are not generated yet. Please wait for committee update.
+app/handlers/shared/public.py:353:success_response:Your tokens
+app/handlers/shared/public.py:380:success_response:Your tokens
+app/handlers/shared/public.py:386:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:404:success_response:No payment requests found.
+app/handlers/shared/public.py:405:success_response:Your Payment Requests
+app/handlers/shared/public.py:409:format_heading:Your Payment Requests
+app/handlers/shared/public.py:421:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:439:success_response:No refund requests found.
+app/handlers/shared/public.py:440:success_response:Your Refund Requests
+app/handlers/shared/public.py:444:format_heading:Your Refund Requests
+app/handlers/shared/public.py:456:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:498:join_lines:Payment Summary
+app/handlers/shared/public.py:499:join_lines:Paid: 
+app/handlers/shared/public.py:500:join_lines:Refunded: 
+app/handlers/shared/public.py:501:join_lines:Net Paid: 
+app/handlers/shared/public.py:503:join_lines:Status: 
+app/handlers/shared/public.py:513:success_response:No payment requests found for this event.
+app/handlers/shared/public.py:517:format_heading:Your Payment Requests
+app/handlers/shared/public.py:529:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:545:success_response:Expected: 
+app/handlers/shared/public.py:546:success_response:Paid: 
+app/handlers/shared/public.py:547:success_response:Remaining: 
+app/handlers/shared/public.py:549:success_response:Your Balance
+app/handlers/shared/public.py:555:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:569:success_response:Event Status: 
+app/handlers/shared/public.py:569:success_response:Status
+app/handlers/shared/public.py:573:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:591:format_heading:Event Summary
+app/handlers/shared/public.py:605:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:624:success_response:No block contributions recorded yet.
+app/handlers/shared/public.py:625:success_response:Block Contribution Report
+app/handlers/shared/public.py:629:format_heading:Block Contribution Report
+app/handlers/shared/public.py:638:success_response:Main menu:
+app/handlers/shared/public.py:639:success_response:• my status
+app/handlers/shared/public.py:640:success_response:• my balance
+app/handlers/shared/public.py:641:success_response:• my payments
+app/handlers/shared/public.py:642:success_response:• my pass
+app/handlers/shared/public.py:643:success_response:• help
+app/handlers/shared/public.py:645:success_response:Main Menu
+app/handlers/shared/public.py:652:success_response:Type *menu*.
+app/handlers/shared/public.py:653:success_response:Need onboarding? Try `join <code> <flat>` or `join status`.
+app/handlers/shared/public.py:654:success_response:Need support? Contact your committee.
+app/handlers/shared/public.py:656:success_response:Society Control Panel
