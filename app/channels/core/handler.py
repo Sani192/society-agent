@@ -243,6 +243,7 @@ def handle_inbound_message(
         try:
             intent = intent_detector(
                 message.text,
+                language=lang,
                 allow_numeric_export_selection=allow_numeric_export_selection,
             )
         except TypeError:

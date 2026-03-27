@@ -115,3 +115,24 @@ def test_detect_intent_committee_member_crud_commands():
 def test_export_command_examples_are_detectable():
     for example in EXPORT_COMMAND_EXAMPLES:
         assert detect_intent(example) in {"REPORT_OPTIONS", "EXPORT_SELECTION"}
+
+
+def test_detect_intent_localized_hindi_commands_map_to_same_intents():
+    assert detect_intent("रिपोर्ट विकल्प", language="hi") == "REPORT_OPTIONS"
+    assert detect_intent("सारांश अब", language="hi") == "SUMMARY"
+    assert detect_intent("भुगतान 500", language="hi") == "PAY"
+    assert detect_intent("वापसी 200", language="hi") == "REFUND"
+    assert detect_intent("मदद मेनू", language="hi") == "HELP"
+
+
+def test_detect_intent_localized_gujarati_commands_map_to_same_intents():
+    assert detect_intent("રિપોર્ટ વિકલ્પો", language="gu") == "REPORT_OPTIONS"
+    assert detect_intent("સારાંશ હવે", language="gu") == "SUMMARY"
+    assert detect_intent("ચુકવણી 700", language="gu") == "PAY"
+    assert detect_intent("પરત 100", language="gu") == "REFUND"
+    assert detect_intent("મદદ મેનુ", language="gu") == "HELP"
+
+
+def test_detect_intent_localized_high_risk_gating_blocks_sentence_starters():
+    assert detect_intent("भुगतान कृपया इसको करें", language="hi") is None
+    assert detect_intent("ચુકવો કૃપા કરીને આ ઇન્વોઇસ", language="gu") is None
