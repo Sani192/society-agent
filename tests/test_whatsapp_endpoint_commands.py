@@ -69,12 +69,12 @@ def _setup_common_mocks(monkeypatch, member=None):
     monkeypatch.setattr("app.channels.core.handler.SessionLocal", fake_session_local)
     monkeypatch.setattr(
         "app.channels.core.handler.get_latest_event_for_society",
-        lambda db: SimpleNamespace(id="event-1", society_id="soc-1", status="ACTIVE")
+        lambda db, society_id: SimpleNamespace(id="event-1", society_id="soc-1", status="ACTIVE")
     )
     monkeypatch.setattr("app.channels.core.handler.get_intent_state_warning", lambda **kwargs: None)
 
     if member is None:
-        def fake_ensure_committee_member(phone_number, db):
+        def fake_ensure_committee_member(phone_number, db, **kwargs):
             raise Exception("Not a committee member")
 
         monkeypatch.setattr(
@@ -84,7 +84,7 @@ def _setup_common_mocks(monkeypatch, member=None):
     else:
         monkeypatch.setattr(
             "app.channels.core.handler.ensure_committee_member",
-            lambda phone_number, db: member
+            lambda phone_number, db, **kwargs: member
         )
 
 

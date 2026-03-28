@@ -8,6 +8,9 @@ Created on Tue Feb 04 10:35:03 2026
 
 # app/whatsapp/handlers/onboarding_handler.py
 
+from sqlalchemy.orm import Session
+
+from app.db.models import CommitteeMember
 from app.modules.onboarding.join_code_service import JoinCodeService
 from app.modules.onboarding.onboarding_service import OnboardingService
 from app.modules.onboarding.onboarding_query_service import OnboardingQueryService
@@ -23,13 +26,13 @@ from app.i18n.catalog import translate
 
 def handle_onboarding_intent(
     *,
-    db,
-    intent,
-    phone_number,
-    message,
-    member,
+    db: Session,
+    intent: str,
+    phone_number: str,
+    message: str,
+    member: CommitteeMember | None,
     lang: str | None = None,
-):
+) -> str | None:
     if intent == "JOIN":
         parts = message.split()
         if len(parts) < 3:

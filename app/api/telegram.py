@@ -218,25 +218,19 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
             ])
             continue
         try:
-            try:
-                reply_text = handle_inbound_message(
-                    message,
-                    trace_id=trace_id,
-                    correlation_id=correlation_id_str,
-                )
-            except TypeError:
-                reply_text = handle_inbound_message(message)
+            reply_text = handle_inbound_message(
+                message,
+                trace_id=trace_id,
+                correlation_id=correlation_id_str,
+            )
 
             reply_chat_id = message.metadata.get("chat_id") or message.sender_id
-            try:
-                client.send_text_message(
-                    reply_chat_id,
-                    reply_text,
-                    trace_id=trace_id,
-                    correlation_id=correlation_id_str,
-                )
-            except TypeError:
-                client.send_text_message(reply_chat_id, reply_text)
+            client.send_text_message(
+                chat_id=str(reply_chat_id),
+                text=reply_text,
+                trace_id=trace_id,
+                correlation_id=correlation_id_str,
+            )
 
             terminal_event = _build_processing_completed_event(
                 trace_id=trace_id,

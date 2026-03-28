@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,75 @@ from app.channels.whatsapp.response_templates import (
     success_response,
     INVALID_INPUT_METADATA_KEY,
 )
+
+IntentHandlerResult = str | None
+
+
+class CommitteeMemberResolver(Protocol):
+    def __call__(
+        self,
+        phone_number: str,
+        db: Session,
+        *,
+        channel_type: str,
+        external_user_id: str | None,
+        username: str | None,
+    ) -> object: ...
+
+
+class LatestEventGetter(Protocol):
+    def __call__(self, db: Session, society_id: object | None) -> Any: ...
+
+
+class IntentDetector(Protocol):
+    def __call__(
+        self,
+        message: str,
+        *,
+        language: str | None,
+        allow_numeric_export_selection: bool,
+    ) -> str | None: ...
+
+
+class OnboardingIntentHandler(Protocol):
+    def __call__(
+        self,
+        *,
+        db: Session,
+        intent: str,
+        phone_number: str,
+        message: str,
+        member: object | None,
+        lang: str | None,
+    ) -> IntentHandlerResult: ...
+
+
+class CommitteeIntentHandler(Protocol):
+    def __call__(
+        self,
+        *,
+        db: Session,
+        intent: str,
+        message: str,
+        event: Any,
+        member: object,
+        inbound_message: InboundMessage,
+        lang: str | None,
+    ) -> IntentHandlerResult: ...
+
+
+class PublicIntentHandler(Protocol):
+    def __call__(
+        self,
+        *,
+        db: Session,
+        intent: str,
+        phone_number: str,
+        message: str,
+        event: Any,
+        member: object | None,
+        lang: str | None,
+    ) -> IntentHandlerResult: ...
 
 
 def _invalid_command_reply(*, message: InboundMessage, reason: str, is_committee: bool, lang: str | None = None) -> str:
@@ -126,12 +195,12 @@ def handle_inbound_message(
     trace_id: str | None = None,
     correlation_id: str | None = None,
     session_factory: Callable[[], Session] = SessionLocal,
-    committee_member_resolver: Callable[..., object] = ensure_committee_member,
-    latest_event_getter: Callable[..., Any] = get_latest_event_for_society,
-    intent_detector: Callable[..., str | None] = detect_intent,
-    onboarding_intent_handler: Callable[..., str | None] = handle_onboarding_intent,
-    committee_intent_handler: Callable[..., str | None] = handle_committee_intent,
-    public_intent_handler: Callable[..., str | None] = handle_public_intent,
+    committee_member_resolver: CommitteeMemberResolver = ensure_committee_member,
+    latest_event_getter: LatestEventGetter = get_latest_event_for_society,
+    intent_detector: IntentDetector = detect_intent,
+    onboarding_intent_handler: OnboardingIntentHandler = handle_onboarding_intent,
+    committee_intent_handler: CommitteeIntentHandler = handle_committee_intent,
+    public_intent_handler: PublicIntentHandler = handle_public_intent,
 ) -> str:
     logger.info(
         "Incoming channel message",
@@ -188,16 +257,13 @@ def handle_inbound_message(
         canonical_sender_id = _get_canonical_sender(message)
         member = None
         try:
-            try:
-                member = committee_member_resolver(
-                    canonical_sender_id,
-                    db,
-                    channel_type=message.channel,
-                    external_user_id=message.sender_id,
-                    username=message.metadata.get("username"),
-                )
-            except TypeError:
-                member = committee_member_resolver(canonical_sender_id, db)
+            member = committee_member_resolver(
+                canonical_sender_id,
+                db,
+                channel_type=message.channel,
+                external_user_id=message.sender_id,
+                username=message.metadata.get("username"),
+            )
             logger.info(
                 "Sender is committee member",
                 extra={"sender_id": message.sender_id, "channel": message.channel},
@@ -218,10 +284,7 @@ def handle_inbound_message(
         if not society_id:
             society_id = resolve_sender_society_id(db, canonical_sender_id)
 
-        try:
-            event = latest_event_getter(db, society_id)
-        except TypeError:
-            event = latest_event_getter(db)
+        event = latest_event_getter(db, society_id)
         logger.info(
             "Loaded latest event context",
             extra={
@@ -240,14 +303,11 @@ def handle_inbound_message(
                 export_session_key and get_export_session(export_session_key)
             )
 
-        try:
-            intent = intent_detector(
-                message.text,
-                language=lang,
-                allow_numeric_export_selection=allow_numeric_export_selection,
-            )
-        except TypeError:
-            intent = intent_detector(message.text)
+        intent = intent_detector(
+            message.text,
+            language=lang,
+            allow_numeric_export_selection=allow_numeric_export_selection,
+        )
 
         if not intent and member and message.channel == "whatsapp":
             event_session_key = build_event_creation_session_key(
@@ -324,68 +384,39 @@ def handle_inbound_message(
                 lang=lang,
             )
 
-        try:
-            onboarding_response = onboarding_intent_handler(
-                db=db,
-                intent=intent,
-                phone_number=canonical_sender_id,
-                message=message.text,
-                member=member,
-                lang=lang,
-            )
-        except TypeError:
-            onboarding_response = onboarding_intent_handler(
-                db=db,
-                intent=intent,
-                phone_number=canonical_sender_id,
-                message=message.text,
-                member=member,
-            )
+        onboarding_response = onboarding_intent_handler(
+            db=db,
+            intent=intent,
+            phone_number=canonical_sender_id,
+            message=message.text,
+            member=member,
+            lang=lang,
+        )
         if onboarding_response:
             return onboarding_response
 
         if member:
-            try:
-                committee_response = committee_intent_handler(
-                    db=db,
-                    intent=intent,
-                    message=message.text,
-                    event=event,
-                    member=member,
-                    inbound_message=message,
-                    lang=lang,
-                )
-            except TypeError:
-                committee_response = committee_intent_handler(
-                    db=db,
-                    intent=intent,
-                    message=message.text,
-                    event=event,
-                    member=member,
-                    inbound_message=message,
-                )
+            committee_response = committee_intent_handler(
+                db=db,
+                intent=intent,
+                message=message.text,
+                event=event,
+                member=member,
+                inbound_message=message,
+                lang=lang,
+            )
             if committee_response:
                 return committee_response
 
-        try:
-            public_response = public_intent_handler(
-                db=db,
-                intent=intent,
-                phone_number=canonical_sender_id,
-                message=message.text,
-                event=event,
-                member=member,
-                lang=lang,
-            )
-        except TypeError:
-            public_response = public_intent_handler(
-                db=db,
-                intent=intent,
-                phone_number=canonical_sender_id,
-                message=message.text,
-                event=event,
-                member=member,
-            )
+        public_response = public_intent_handler(
+            db=db,
+            intent=intent,
+            phone_number=canonical_sender_id,
+            message=message.text,
+            event=event,
+            member=member,
+            lang=lang,
+        )
         if public_response:
             return public_response
 

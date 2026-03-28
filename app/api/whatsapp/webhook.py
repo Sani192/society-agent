@@ -293,46 +293,32 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
                 handled = True
 
             if not handled:
-                try:
-                    reply_text = handle_inbound_message(
-                        message,
-                        trace_id=trace_id,
-                        correlation_id=correlation_id_str,
-                    )
-                except TypeError:
-                    reply_text = handle_inbound_message(message)
+                reply_text = handle_inbound_message(
+                    message,
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                )
                 invalid_contract = message.metadata.get(INVALID_INPUT_METADATA_KEY)
                 if isinstance(invalid_contract, dict) and invalid_contract.get("response_type") == "invalid_input":
                     cta_rows = invalid_contract.get("ctas") or []
                     buttons = [_button_row(cta.get("id", "menu"), cta.get("label", "Main Menu")) for cta in cta_rows[:3]]
                     if not buttons:
                         buttons = [_button_row("menu", "Main Menu"), _button_row("help", "Help")]
-                    try:
-                        send_response = client.send_button_message(
-                            to_phone=message.sender_id,
-                            header_text="Invalid command",
-                            body_text=reply_text,
-                            buttons=buttons,
-                            trace_id=trace_id,
-                            correlation_id=correlation_id_str,
-                        )
-                    except TypeError:
-                        send_response = client.send_button_message(
-                            to_phone=message.sender_id,
-                            header_text="Invalid command",
-                            body_text=reply_text,
-                            buttons=buttons,
-                        )
+                    send_response = client.send_button_message(
+                        to_phone=message.sender_id,
+                        header_text="Invalid command",
+                        body_text=reply_text,
+                        buttons=buttons,
+                        trace_id=trace_id,
+                        correlation_id=correlation_id_str,
+                    )
                 else:
-                    try:
-                        send_response = client.send_text_message(
-                            message.sender_id,
-                            reply_text,
-                            trace_id=trace_id,
-                            correlation_id=correlation_id_str,
-                        )
-                    except TypeError:
-                        send_response = client.send_text_message(message.sender_id, reply_text)
+                    send_response = client.send_text_message(
+                        to_phone=message.sender_id,
+                        body=reply_text,
+                        trace_id=trace_id,
+                        correlation_id=correlation_id_str,
+                    )
                 logger.info("WhatsApp text reply sent", extra={"response_keys": sorted(send_response.keys())})
 
             terminal_event = _build_processing_completed_event(

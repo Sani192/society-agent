@@ -106,7 +106,7 @@ def test_telegram_webhook_success_validation_auth_and_retry(monkeypatch):
     sent: list[tuple[str, str]] = []
 
     class StubClient:
-        def send_text_message(self, chat_id: str, text: str):
+        def send_text_message(self, chat_id: str, text: str, **kwargs):
             sent.append((chat_id, text))
 
     payload_data = {
@@ -126,7 +126,7 @@ def test_telegram_webhook_success_validation_auth_and_retry(monkeypatch):
     monkeypatch.setattr("app.api.telegram.settings.TELEGRAM_ENABLED", True)
     monkeypatch.setattr("app.api.telegram.settings.TELEGRAM_WEBHOOK_SECRET", "secret")
     monkeypatch.setattr("app.api.telegram.get_telegram_client", lambda: StubClient())
-    monkeypatch.setattr("app.api.telegram.handle_inbound_message", lambda message: "reply")
+    monkeypatch.setattr("app.api.telegram.handle_inbound_message", lambda message, **kwargs: "reply")
 
     payload = TelegramWebhookPayload.model_validate(payload_data)
     request = StubRequest(payload.model_dump(), raw=b"{}")

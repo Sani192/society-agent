@@ -11,7 +11,7 @@ class DummyClient:
         self.sent_text = []
         self.sent_template = []
 
-    def send_text_message(self, to_phone, body):
+    def send_text_message(self, to_phone, body, **kwargs):
         self.sent_text.append((to_phone, body))
 
     def send_template_message(self, **kwargs):
