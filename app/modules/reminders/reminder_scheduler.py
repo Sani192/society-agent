@@ -14,6 +14,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import text
 from app.db.session import SessionLocal
 from app.db.models import Event, ReminderConfig, WorkflowState
+from app.modules.audit.retention_service import AuditRetentionService
 from app.modules.events.service import EventService
 from app.modules.reminders.reminder_service import ReminderService
 from app.utils.logger import logger
@@ -21,6 +22,7 @@ from app.utils.logger import logger
 scheduler = BackgroundScheduler()
 AUTO_CLOSE_SOURCE = "system:auto_close_job"
 AUTO_CLOSE_MIN_AGE_HOURS = 2
+AUDIT_PRUNE_JOB_ID = "audit_retention_prune"
 
 
 def run_payment_reminders(society_id):
@@ -95,6 +97,18 @@ def run_event_auto_close_job(society_id, min_age_hours=AUTO_CLOSE_MIN_AGE_HOURS)
         db.close()
 
 
+def run_audit_retention_prune():
+    db = SessionLocal()
+    try:
+        deleted_counts = AuditRetentionService.prune(db)
+        logger.info("Audit retention prune completed | deleted=%s", deleted_counts)
+    except Exception:
+        db.rollback()
+        logger.exception("Error running audit retention prune job")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     db = SessionLocal()
     try:
@@ -133,6 +147,16 @@ def start_scheduler():
                 f"Auto-close scheduler loaded for society {config.society_id} "
                 f"at {config.run_hour:02d}:{config.run_minute:02d}"
             )
+
+        scheduler.add_job(
+            run_audit_retention_prune,
+            trigger="cron",
+            hour=3,
+            minute=15,
+            id=AUDIT_PRUNE_JOB_ID,
+            replace_existing=True,
+        )
+        logger.info("Audit retention prune scheduler loaded at 03:15")
 
         scheduler.start()
     finally:

@@ -10,12 +10,20 @@ import json
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db.session import get_read_db
 from app.channels.core.audit_security import decrypt_from_audit_store
 from app.config import settings
-from app.db.models import ChannelMessageEvent, Society
+from app.db.models import (
+    ChannelMessageEvent,
+    CommitteeMember,
+    CommitteeMemberChannelIdentity,
+    MemberIdentity,
+    Society,
+    UserFlatMapping,
+)
 from app.utils.response import error_envelope
 from app.api.reports.common import authorize_committee_member_report, record_report_access
 
@@ -24,6 +32,47 @@ from app.modules.reports.pdf.governance_audit_pdf import generate_governance_aud
 from app.modules.reports.common.exporters import export_csv, export_excel
 
 router = APIRouter(prefix="/reports/governance", tags=["Reports | Governance"])
+
+
+def _society_identity_tokens(db: Session, *, society_id) -> set[str]:
+    tokens: set[str] = set()
+
+    committee_members = (
+        db.query(CommitteeMember.phone_number)
+        .filter(CommitteeMember.society_id == society_id)
+        .all()
+    )
+    for (phone_number,) in committee_members:
+        if phone_number:
+            tokens.add(str(phone_number))
+
+    committee_channel_ids = (
+        db.query(CommitteeMemberChannelIdentity.external_user_id)
+        .join(CommitteeMember, CommitteeMember.id == CommitteeMemberChannelIdentity.committee_member_id)
+        .filter(CommitteeMember.society_id == society_id)
+        .all()
+    )
+    for (external_user_id,) in committee_channel_ids:
+        if external_user_id:
+            tokens.add(str(external_user_id))
+
+    resident_identities = (
+        db.query(
+            MemberIdentity.normalized_identifier,
+            MemberIdentity.normalized_phone,
+            MemberIdentity.whatsapp_user_id,
+            MemberIdentity.telegram_user_id,
+        )
+        .join(UserFlatMapping, UserFlatMapping.member_identity_id == MemberIdentity.id)
+        .filter(UserFlatMapping.society_id == society_id, UserFlatMapping.is_active.is_(True))
+        .all()
+    )
+    for row in resident_identities:
+        for value in row:
+            if value:
+                tokens.add(str(value))
+
+    return tokens
 
 @router.get("/audit/export")
 def export_governance_audit(
@@ -121,7 +170,15 @@ def read_protected_audit_events(
         society_id=member.society_id,
     )
 
-    query = db.query(ChannelMessageEvent).order_by(ChannelMessageEvent.occurred_at.desc())
+    identity_tokens = _society_identity_tokens(db, society_id=member.society_id)
+    query = db.query(ChannelMessageEvent)
+    query = query.filter(
+        or_(
+            ChannelMessageEvent.society_id == member.society_id,
+            ChannelMessageEvent.external_user_id.in_(identity_tokens),
+            ChannelMessageEvent.chat_id_or_phone.in_(identity_tokens),
+        )
+    ).order_by(ChannelMessageEvent.occurred_at.desc())
     if channel:
         query = query.filter(ChannelMessageEvent.channel == channel)
     if event_type:

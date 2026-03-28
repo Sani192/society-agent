@@ -131,6 +131,7 @@ class ChannelMessageEvent(Base):
     trace_id = Column(String(255), nullable=True, index=True)
     correlation_id = Column(String(255), nullable=True, index=True)
     channel = Column(String(20), nullable=False)
+    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=True, index=True)
     direction = Column(String(20), nullable=False)
     event_type = Column(String(50), nullable=False)
 
@@ -577,6 +578,12 @@ class AuditLog(Base):
 
     action = Column(String(50), nullable=False)
     reason = Column(String(255))
+    source = Column(String(50), nullable=True)
+    trace_id = Column(String(255), nullable=True)
+    correlation_id = Column(String(255), nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+    old_values_json = Column(JSONB, nullable=True)
+    new_values_json = Column(JSONB, nullable=True)
 
     performed_by = Column(UUID(as_uuid=True), ForeignKey("committee_members.id"))
     performed_at = Column(DateTime(timezone=True), server_default=func.now())

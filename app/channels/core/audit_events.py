@@ -17,7 +17,13 @@ from app.channels.core.audit_security import (
     sanitize_payload,
 )
 from app.config import settings
-from app.db.models import ChannelMessageEvent
+from app.db.models import (
+    ChannelMessageEvent,
+    CommitteeMember,
+    CommitteeMemberChannelIdentity,
+    MemberIdentity,
+    UserFlatMapping,
+)
 from app.db.session import SessionLocal
 from app.utils.logger import logger
 
@@ -40,6 +46,7 @@ class NormalizedAuditEvent:
     channel: ChannelName
     direction: Direction
     event_type: EventKind
+    society_id: str | None = None
     provider_message_id: str | None = None
     provider_update_id: str | None = None
     chat_id_or_phone: str | None = None
@@ -71,6 +78,7 @@ class NormalizedAuditEvent:
 
         return ChannelMessageEvent(
             channel=self.channel,
+            society_id=self.society_id,
             direction=self.direction,
             event_type=self.event_type,
             provider_message_id=self.provider_message_id,
@@ -107,6 +115,12 @@ def persist_audit_events(events: list[NormalizedAuditEvent]) -> int:
                 previous_by_channel[event.channel] = previous_hash
 
             db_event = event.to_db_model()
+            if db_event.society_id is None:
+                db_event.society_id = _resolve_society_id_for_event(
+                    db,
+                    external_user_id=db_event.external_user_id,
+                    chat_id_or_phone=db_event.chat_id_or_phone,
+                )
             prev_hash = previous_by_channel[event.channel]
             event_payload = {
                 "channel": db_event.channel,
@@ -137,6 +151,47 @@ def persist_audit_events(events: list[NormalizedAuditEvent]) -> int:
         return 0
     finally:
         db.close()
+
+
+def _resolve_society_id_for_event(db, *, external_user_id: str | None, chat_id_or_phone: str | None):
+    lookup_values = [value for value in {external_user_id, chat_id_or_phone} if value]
+    if not lookup_values:
+        return None
+
+    committee_society = (
+        db.query(CommitteeMember.society_id)
+        .filter(CommitteeMember.phone_number.in_(lookup_values))
+        .first()
+    )
+    if committee_society:
+        return committee_society[0]
+
+    committee_channel_society = (
+        db.query(CommitteeMember.society_id)
+        .join(CommitteeMemberChannelIdentity, CommitteeMemberChannelIdentity.committee_member_id == CommitteeMember.id)
+        .filter(CommitteeMemberChannelIdentity.external_user_id.in_(lookup_values))
+        .first()
+    )
+    if committee_channel_society:
+        return committee_channel_society[0]
+
+    member_identity = (
+        db.query(UserFlatMapping.society_id)
+        .join(MemberIdentity, MemberIdentity.id == UserFlatMapping.member_identity_id)
+        .filter(
+            UserFlatMapping.is_active.is_(True),
+            (
+                MemberIdentity.normalized_identifier.in_(lookup_values)
+                | MemberIdentity.normalized_phone.in_(lookup_values)
+                | MemberIdentity.whatsapp_user_id.in_(lookup_values)
+                | MemberIdentity.telegram_user_id.in_(lookup_values)
+            ),
+        )
+        .first()
+    )
+    if member_identity:
+        return member_identity[0]
+    return None
 
 
 def summarize_exception_stack(exc: Exception, *, max_frames: int = 8) -> list[str]:

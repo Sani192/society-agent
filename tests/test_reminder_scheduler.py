@@ -82,10 +82,11 @@ def test_start_scheduler_registers_auto_close_with_config_timing(monkeypatch):
     reminder_scheduler.start_scheduler()
 
     add_job_calls = scheduler_mock.add_job.call_args_list
-    assert len(add_job_calls) == 2
+    assert len(add_job_calls) == 3
 
     payment_call = add_job_calls[0]
     auto_close_call = add_job_calls[1]
+    audit_prune_call = add_job_calls[2]
 
     assert payment_call.kwargs["hour"] == 8
     assert payment_call.kwargs["minute"] == 30
@@ -95,6 +96,10 @@ def test_start_scheduler_registers_auto_close_with_config_timing(monkeypatch):
     assert auto_close_call.kwargs["minute"] == 30
     assert auto_close_call.kwargs["args"] == ["soc-1"]
     assert auto_close_call.kwargs["id"] == "auto_close_soc-1"
+
+    assert audit_prune_call.kwargs["hour"] == 3
+    assert audit_prune_call.kwargs["minute"] == 15
+    assert audit_prune_call.kwargs["id"] == reminder_scheduler.AUDIT_PRUNE_JOB_ID
 
     scheduler_mock.start.assert_called_once()
     db.close.assert_called_once()

@@ -22,4 +22,7 @@ REPORT_PERMISSIONS = {
     "ANNOUNCEMENT_HISTORY": {"chairman", "secretary"},
     "LEDGER": {"chairman", "secretary", "treasurer"},
     "FOOD_PASS_OPERATIONS": {"chairman", "secretary", "committee_member"},
+    "PENDING_PAYMENTS_OPERATIONS": {"chairman", "secretary", "treasurer", "committee_member"},
+    "EXPENSE_SUMMARY": {"chairman", "secretary", "treasurer"},
+    "EVENT_PARTICIPATION": {"chairman", "secretary", "committee_member"},
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.db.session import SessionLocal
 from app.modules.reports.common.resolvers import get_event
 from app.permissions.report_guard import ensure_report_access
 from app.utils.audit_logger import log_report_access
@@ -17,9 +18,11 @@ def authorize_committee_member_report(
     report_code: str,
     log_message: str,
 ):
+    if not phone:
+        return None, error_envelope("Phone is required for report access.")
     try:
         member = ensure_committee_member(phone, db)
-        ensure_report_access(role=member.role, report_code=report_code)
+        ensure_report_access(role=str(member.role), report_code=report_code)
     except Exception:
         logger.exception(log_message)
         return None, error_envelope("Unable to authorize report access.")
@@ -49,11 +52,37 @@ def record_report_access(
     elif society_id is None:
         society_id = member.society_id
 
-    log_report_access(
-        db=db,
-        society_id=society_id,
-        event_id=event_id,
-        report_code=report_code,
-        performed_by=member.id,
-        format=format,
-    )
+    try:
+        log_report_access(
+            db=db,
+            society_id=society_id,
+            event_id=event_id,
+            report_code=report_code,
+            performed_by=member.id,
+            format=format,
+        )
+        db.commit()
+    except Exception:
+        logger.warning(
+            "Report access audit write failed on current session; retrying with write session",
+            extra={"report_code": report_code, "member_id": str(member.id)},
+        )
+        write_db = SessionLocal()
+        try:
+            log_report_access(
+                db=write_db,
+                society_id=society_id,
+                event_id=event_id,
+                report_code=report_code,
+                performed_by=member.id,
+                format=format,
+            )
+            write_db.commit()
+        except Exception:
+            write_db.rollback()
+            logger.exception(
+                "Failed to persist report access audit log",
+                extra={"report_code": report_code, "member_id": str(member.id)},
+            )
+        finally:
+            write_db.close()

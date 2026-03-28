@@ -9,6 +9,7 @@ Created on Sun Jan 11 21:42:26 2026
 # app/utils/logger.py
 
 import logging
+from logging.config import dictConfig
 import os
 from logging.handlers import TimedRotatingFileHandler
 
@@ -17,20 +18,43 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(LOG_DIR, "society-agent.log")
 
+dictConfig(
+    {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "default",
+                "level": "INFO",
+            },
+            "file": {
+                "class": "logging.handlers.TimedRotatingFileHandler",
+                "formatter": "default",
+                "filename": LOG_FILE,
+                "when": "midnight",
+                "backupCount": 5,
+                "level": "INFO",
+            },
+        },
+        "root": {
+            "level": "INFO",
+            "handlers": ["console", "file"],
+        },
+    }
+)
+
+for handler in logging.getLogger().handlers:
+    if isinstance(handler, TimedRotatingFileHandler):
+        handler.suffix = "%Y-%m-%d.log"
+
 logger = logging.getLogger("society-agent")
-logger.setLevel(logging.INFO)
 
-if not any(isinstance(existing, TimedRotatingFileHandler) for existing in logger.handlers):
-    handler = TimedRotatingFileHandler(
-        LOG_FILE,
-        when="midnight",
-        backupCount=5
-    )
-    handler.suffix = "%Y-%m-%d.log"
 
-    formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(message)s"
-    )
-    handler.setFormatter(formatter)
-
-    logger.addHandler(handler)
+def get_logger(name: str) -> logging.Logger:
+    return logging.getLogger(name)
