@@ -11,7 +11,7 @@ Created on Tue Feb 04 10:35:03 2026
 from app.modules.onboarding.join_code_service import JoinCodeService
 from app.modules.onboarding.onboarding_service import OnboardingService
 from app.modules.onboarding.onboarding_query_service import OnboardingQueryService
-from app.whatsapp.response_templates import (
+from app.channels.whatsapp.response_templates import (
     error_response,
     join_lines,
     success_response,

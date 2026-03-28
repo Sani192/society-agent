@@ -5,12 +5,12 @@ import pytest
 from app.channels.core.handler import handle_inbound_message
 from app.channels.core.types import InboundMessage
 from app.handlers.shared.public import handle_public_intent
-from app.whatsapp.committee_action_session import (
+from app.channels.whatsapp.committee_action_session import (
     CommitteeActionSessionState,
     clear_committee_action_session,
     save_committee_action_session,
 )
-from app.whatsapp.export_session import (
+from app.channels.whatsapp.export_session import (
     ExportSessionState,
     clear_export_session,
     save_export_session,

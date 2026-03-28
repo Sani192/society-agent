@@ -1,13 +1,13 @@
 from app.channels.whatsapp.report_flow import _build_reports_list_sections
 from app.i18n.catalog import get_catalog, translate
-from app.whatsapp.response_templates import build_invalid_command_response, format_report_options_response
-from app.whatsapp.ui.dashboard import (
+from app.channels.whatsapp.response_templates import build_invalid_command_response, format_report_options_response
+from app.channels.whatsapp.ui.dashboard import (
     build_finance_sections,
     build_main_dashboard_sections,
     build_my_account_sections,
     build_society_sections,
 )
-from app.whatsapp.ui.reports import build_reports_sections, reports_intro
+from app.channels.whatsapp.ui.reports import build_reports_sections, reports_intro
 
 
 def test_translate_falls_back_to_english_for_unknown_language_code():

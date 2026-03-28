@@ -514,7 +514,7 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
 
     monkeypatch.setattr("app.channels.core.handler.handle_committee_intent", fake_committee_handler)
 
-    from app.whatsapp.event_creation_session import (
+    from app.channels.whatsapp.event_creation_session import (
         EventCreationSessionState,
         build_event_creation_session_key,
         save_event_creation_session,

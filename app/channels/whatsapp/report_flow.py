@@ -27,15 +27,15 @@ from app.modules.reports.whatsapp_export_service import WhatsAppReportExportServ
 from app.modules.users.language_service import resolve_sender_language
 from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
-from app.whatsapp.ui.reports import build_report_event_sections
-from app.whatsapp.export_session import (
+from app.channels.whatsapp.ui.reports import build_report_event_sections
+from app.channels.whatsapp.export_session import (
     ExportSessionState,
     build_export_session_key,
     get_export_session,
     save_export_session,
 )
-from app.whatsapp.intents import WHATSAPP_INTENTS
-from app.whatsapp.router import detect_whatsapp_intent
+from app.channels.whatsapp.intents import WHATSAPP_INTENTS
+from app.channels.whatsapp.router import detect_whatsapp_intent
 
 
 def _build_reports_list_sections(

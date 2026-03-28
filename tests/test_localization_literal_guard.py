@@ -18,7 +18,7 @@ def _load_guard_module():
 def test_collect_violations_flags_direct_response_literal(tmp_path):
     module = _load_guard_module()
     target = tmp_path / "sample.py"
-    target.write_text("from app.whatsapp.response_templates import success_response\nresult = success_response('Hello member')\n", encoding="utf-8")
+    target.write_text("from app.channels.whatsapp.response_templates import success_response\nresult = success_response('Hello member')\n", encoding="utf-8")
 
     module.TARGET_GLOBS = (str(target),)
 
@@ -34,7 +34,7 @@ def test_collect_violations_ignores_translate_keys(tmp_path):
     target = tmp_path / "sample.py"
     target.write_text(
         "from app.i18n.catalog import translate\n"
-        "from app.whatsapp.response_templates import success_response\n"
+        "from app.channels.whatsapp.response_templates import success_response\n"
         "result = success_response(translate('public.help.title', 'en'))\n",
         encoding="utf-8",
     )

@@ -6,14 +6,14 @@ from app.commands.parser import parse_pass_counts
 from app.db.models import Event
 from app.db.session import SessionLocal
 from app.modules.onboarding.join_code_service import JoinCodeService
-from app.whatsapp.finance_action_session import (
+from app.channels.whatsapp.finance_action_session import (
     FinanceActionSessionState,
     build_finance_action_session_key,
     clear_finance_action_session,
     get_finance_action_session,
     save_finance_action_session,
 )
-from app.whatsapp.join_session import (
+from app.channels.whatsapp.join_session import (
     JoinSessionState,
     build_join_session_key,
     clear_join_session,

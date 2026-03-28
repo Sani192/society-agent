@@ -2,7 +2,7 @@ import re
 
 from app.utils.logger import logger
 from app.modules.users.language_service import DEFAULT_LANGUAGE, normalize_language_code
-from app.whatsapp.intents import INTENTS, INTENT_KEYWORDS_BY_LANGUAGE
+from app.channels.whatsapp.intents import INTENTS, INTENT_KEYWORDS_BY_LANGUAGE
 
 
 HIGH_RISK_GENERIC_INTENTS = {"PAY", "REFUND", "SUMMARY", "HELP"}

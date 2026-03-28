@@ -40,7 +40,7 @@ from app.config import settings
 from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
 from app.db.session import SessionLocal
 from app.utils.logger import logger
-from app.whatsapp.response_templates import INVALID_INPUT_METADATA_KEY
+from app.channels.whatsapp.response_templates import INVALID_INPUT_METADATA_KEY
 
 router = APIRouter()
 

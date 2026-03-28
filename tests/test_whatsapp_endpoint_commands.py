@@ -7,18 +7,18 @@ import app.channels.core.handler as core_handler
 import app.commands.router as commands_router
 from app.channels.core.handler import handle_inbound_message
 from app.channels.whatsapp.adapter import parse_webhook_payload
-from app.whatsapp.intents import WHATSAPP_INTENTS
-from app.whatsapp.ui.committee import (
+from app.channels.whatsapp.intents import WHATSAPP_INTENTS
+from app.channels.whatsapp.ui.committee import (
     build_committee_food_collection_sections,
     build_committee_more_sections,
     build_committee_operations_more_sections,
     build_committee_operations_sections,
     build_committee_sections,
 )
-from app.whatsapp.ui.dashboard import build_finance_sections, build_my_account_sections, build_society_sections
-from app.whatsapp.ui.finance import build_make_payment_sections, build_payments_sections
-from app.whatsapp.ui.participation import build_participation_sections
-from app.whatsapp.ui.reports import build_reports_sections
+from app.channels.whatsapp.ui.dashboard import build_finance_sections, build_my_account_sections, build_society_sections
+from app.channels.whatsapp.ui.finance import build_make_payment_sections, build_payments_sections
+from app.channels.whatsapp.ui.participation import build_participation_sections
+from app.channels.whatsapp.ui.reports import build_reports_sections
 
 pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 

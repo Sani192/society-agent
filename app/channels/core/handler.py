@@ -23,20 +23,20 @@ from app.utils.guards import ensure_committee_member
 from app.permissions.command_policy import get_event_state, get_intent_state_warning
 from app.utils.logger import logger
 from app.utils.identity import normalize_identifier
-from app.whatsapp.event_creation_session import (
+from app.channels.whatsapp.event_creation_session import (
     build_event_creation_session_key,
     get_event_creation_session,
 )
-from app.whatsapp.committee_action_session import (
+from app.channels.whatsapp.committee_action_session import (
     build_committee_action_session_key,
     get_committee_action_session,
 )
-from app.whatsapp.export_session import (
+from app.channels.whatsapp.export_session import (
     build_export_session_key,
     clear_export_session,
     get_export_session,
 )
-from app.whatsapp.response_templates import (
+from app.channels.whatsapp.response_templates import (
     build_invalid_command_response,
     error_response,
     info_response,

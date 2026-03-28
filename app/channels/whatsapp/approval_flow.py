@@ -3,7 +3,7 @@
 from app.modules.onboarding.admin_query_service import AdminOnboardingQueryService
 from app.modules.payments.payment_request_service import PaymentRequestService
 from app.modules.payments.refund_request_service import RefundRequestService
-from app.whatsapp.response_templates import format_currency
+from app.channels.whatsapp.response_templates import format_currency
 from app.utils.logger import logger
 
 from app.handlers.shared.common import get_latest_event, get_latest_event_for_society
