@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 from app.handlers.shared.committee import handle_committee_intent
 from app.permissions.command_policy import get_intent_state_warning
-from app.whatsapp.committee_action_session import clear_committee_action_session
+from app.channels.whatsapp.committee_action_session import clear_committee_action_session
 from tests.utils import QueryMock
 
 

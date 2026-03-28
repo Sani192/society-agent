@@ -8,7 +8,7 @@ from app.db.session import SessionLocal
 from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
 from app.modules.users.member_identity_service import MemberIdentityService
 from app.modules.users.language_service import normalize_language_code, resolve_sender_language, set_preferred_language
-from app.whatsapp.intents import WHATSAPP_INTENTS
+from app.channels.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.handlers.shared.common import (
     get_latest_event,
@@ -16,8 +16,8 @@ from app.handlers.shared.common import (
     resolve_flat,
     resolve_sender_society_id,
 )
-from app.whatsapp.response_templates import format_currency
-from app.whatsapp.ui import (
+from app.channels.whatsapp.response_templates import format_currency
+from app.channels.whatsapp.ui import (
     add_or_update_pass_prompt,
     build_committee_approvals_sections,
     build_committee_food_collection_sections,
@@ -43,19 +43,19 @@ from app.permissions.command_policy import get_event_state, is_member_action_vis
 from app.utils.logger import logger
 from app.utils.time import utc_now
 from app.modules.events.food_collection_service import FoodCollectionService
-from app.whatsapp.finance_action_session import (
+from app.channels.whatsapp.finance_action_session import (
     FinanceActionSessionState,
     build_finance_action_session_key,
     clear_finance_action_session,
     get_finance_action_session,
     save_finance_action_session,
 )
-from app.whatsapp.join_session import (
+from app.channels.whatsapp.join_session import (
     JoinSessionState,
     build_join_session_key,
     save_join_session,
 )
-from app.whatsapp.committee_management_session import (
+from app.channels.whatsapp.committee_management_session import (
     CommitteeManagementSessionState,
     build_committee_management_session_key,
     clear_committee_management_session,

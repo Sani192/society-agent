@@ -19,7 +19,7 @@ from app.modules.reports.public.public_event_summary_report import PublicEventSu
 from app.db.models import AuditLog, Payment
 from app.modules.users.user_query_service import UserQueryService
 from app.utils.logger import logger
-from app.whatsapp.response_templates import (
+from app.channels.whatsapp.response_templates import (
     error_response,
     format_currency,
     format_heading,

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from app.commands.router import detect_intent
-from app.whatsapp.intents import WHATSAPP_INTENTS
+from app.channels.whatsapp.intents import WHATSAPP_INTENTS
 
 
 def detect_whatsapp_intent(

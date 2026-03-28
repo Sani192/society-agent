@@ -5,9 +5,9 @@ import pytest
 
 from app.api.whatsapp.webhook import whatsapp_webhook_event
 from app.channels.core.types import InboundMessage
-from app.whatsapp.finance_action_session import clear_finance_action_session, get_finance_action_session
-from app.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
-from app.whatsapp.ui import build_committee_sections
+from app.channels.whatsapp.finance_action_session import clear_finance_action_session, get_finance_action_session
+from app.channels.whatsapp.join_session import JoinSessionState, get_join_session, save_join_session
+from app.channels.whatsapp.ui import build_committee_sections
 from tests.utils import QueryMock
 
 pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
@@ -1545,7 +1545,7 @@ def test_whatsapp_webhook_event_export_requires_event_then_opens_event_selection
     monkeypatch.setattr("app.channels.whatsapp.report_flow.ensure_committee_member", lambda *args, **kwargs: fake_member)
     monkeypatch.setattr("app.channels.whatsapp.report_flow._recent_report_events", lambda **kwargs: [fake_event, fake_event_2])
 
-    from app.whatsapp.export_session import ExportSessionState, save_export_session
+    from app.channels.whatsapp.export_session import ExportSessionState, save_export_session
     save_export_session(
         "member-3:919999000019",
         ExportSessionState(options=[{"category": "financial", "report_key": "block-payments", "command_key": "financial:block-payments", "label": "Block Payments"}], event_id=None),
@@ -1594,7 +1594,7 @@ def test_whatsapp_webhook_event_export_requires_event_with_single_candidate_auto
     monkeypatch.setattr("app.channels.whatsapp.report_flow._recent_report_events", lambda **kwargs: [fake_event])
     monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: "✅ exported with auto event")
 
-    from app.whatsapp.export_session import ExportSessionState, get_export_session, save_export_session
+    from app.channels.whatsapp.export_session import ExportSessionState, get_export_session, save_export_session
     save_export_session(
         "member-29:919999000029",
         ExportSessionState(options=[{"category": "financial", "report_key": "block-payments", "command_key": "financial:block-payments", "label": "Block Payments"}], event_id=None),

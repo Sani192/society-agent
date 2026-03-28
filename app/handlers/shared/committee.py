@@ -48,7 +48,7 @@ from app.utils.logger import logger
 from app.utils.time import utc_now
 from app.config import settings
 from app.permissions.guard import is_action_allowed
-from app.whatsapp.response_templates import (
+from app.channels.whatsapp.response_templates import (
     error_response,
     format_currency,
     format_datetime,
@@ -67,21 +67,21 @@ from app.commands.parser import (
 from app.i18n.catalog import translate
 
 
-from app.whatsapp.event_creation_session import (
+from app.channels.whatsapp.event_creation_session import (
     EventCreationSessionState,
     build_event_creation_session_key,
     clear_event_creation_session,
     get_event_creation_session,
     save_event_creation_session,
 )
-from app.whatsapp.export_session import (
+from app.channels.whatsapp.export_session import (
     ExportSessionState,
     build_export_session_key,
     clear_export_session,
     get_export_session,
     save_export_session,
 )
-from app.whatsapp.committee_action_session import (
+from app.channels.whatsapp.committee_action_session import (
     CommitteeActionSessionState,
     build_committee_action_session_key,
     clear_committee_action_session,

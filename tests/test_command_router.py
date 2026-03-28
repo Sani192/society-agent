@@ -1,4 +1,4 @@
-from app.whatsapp.response_templates import EXPORT_COMMAND_EXAMPLES
+from app.channels.whatsapp.response_templates import EXPORT_COMMAND_EXAMPLES
 from app.commands.router import detect_intent
 
 
