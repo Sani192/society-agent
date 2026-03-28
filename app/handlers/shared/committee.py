@@ -9,12 +9,12 @@ Created on Tue Feb 04 10:33:10 2026
 # app/whatsapp/handlers/committee_handler.py
 
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models import (
-    CommitteeMember,
     Event,
     Flat,
     Payment,
@@ -833,8 +833,8 @@ def handle_committee_intent(
     db: Session,
     intent: str,
     message: str,
-    event: Event | None,
-    member: CommitteeMember,
+    event: Any,
+    member: Any,
     inbound_message: InboundMessage | None = None,
     lang: str | None = None,
 ) -> str | None:

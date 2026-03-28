@@ -8,9 +8,9 @@ Created on Tue Feb 04 10:35:03 2026
 
 # app/whatsapp/handlers/onboarding_handler.py
 
-from sqlalchemy.orm import Session
+from typing import Any
 
-from app.db.models import CommitteeMember
+from sqlalchemy.orm import Session
 from app.modules.onboarding.join_code_service import JoinCodeService
 from app.modules.onboarding.onboarding_service import OnboardingService
 from app.modules.onboarding.onboarding_query_service import OnboardingQueryService
@@ -30,7 +30,7 @@ def handle_onboarding_intent(
     intent: str,
     phone_number: str,
     message: str,
-    member: CommitteeMember | None,
+    member: Any,
     lang: str | None = None,
 ) -> str | None:
     if intent == "JOIN":

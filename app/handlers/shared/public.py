@@ -8,9 +8,10 @@ Created on Tue Feb 04 10:30:44 2026
 
 # app/whatsapp/handlers/public_handler.py
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
-from app.db.models import CommitteeMember, Event
 from app.modules.events.food_pass_service import FoodPassService
 from app.modules.events.food_collection_service import FoodCollectionService
 from app.modules.payments.payment_service import PaymentService
@@ -91,8 +92,8 @@ def handle_public_intent(
     intent: str,
     phone_number: str,
     message: str,
-    event: Event | None,
-    member: CommitteeMember | None,
+    event: Any,
+    member: Any,
     lang: str | None = None,
 ) -> str | None:
     allow_delegate = member is not None

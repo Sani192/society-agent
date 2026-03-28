@@ -81,7 +81,7 @@ class OnboardingIntentHandler(Protocol):
         intent: str,
         phone_number: str,
         message: str,
-        member: object | None,
+        member: Any,
         lang: str | None,
     ) -> IntentHandlerResult: ...
 
@@ -94,8 +94,8 @@ class CommitteeIntentHandler(Protocol):
         intent: str,
         message: str,
         event: Any,
-        member: object,
-        inbound_message: InboundMessage,
+        member: Any,
+        inbound_message: InboundMessage | None,
         lang: str | None,
     ) -> IntentHandlerResult: ...
 
@@ -109,7 +109,7 @@ class PublicIntentHandler(Protocol):
         phone_number: str,
         message: str,
         event: Any,
-        member: object | None,
+        member: Any,
         lang: str | None,
     ) -> IntentHandlerResult: ...
 
