@@ -24,6 +24,9 @@ from app.modules.reports.financial.member_refund_report import MemberRefundRepor
 from app.modules.reports.financial.sponsor_contribution_report import SponsorContributionReport
 from app.modules.reports.governance.audit_report import GovernanceAuditReport
 from app.modules.reports.operations.food_pass_report import FoodPassOperationsReport
+from app.modules.reports.pending_payments.service import PendingPaymentsReport
+from app.modules.reports.expenses.expense_summary_service import ExpenseSummaryReport
+from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.reports.pdf.balance_continuity_pdf import generate_balance_continuity_pdf
 from app.modules.reports.pdf.block_payment_pdf import generate_block_payment_pdf
 from app.modules.reports.pdf.contribution_refund_pdf import generate_contribution_refund_pdf
@@ -59,6 +62,9 @@ class WhatsAppReportExportService:
             "ANNOUNCEMENT_HISTORY": WhatsAppReportExportService._export_announcement_history,
             "GOVERNANCE_AUDIT": WhatsAppReportExportService._export_governance_audit,
             "FOOD_PASS_OPERATIONS": WhatsAppReportExportService._export_food_pass_operations,
+            "PENDING_PAYMENTS_OPERATIONS": WhatsAppReportExportService._export_pending_payments,
+            "EXPENSE_SUMMARY": WhatsAppReportExportService._export_expense_summary,
+            "EVENT_PARTICIPATION": WhatsAppReportExportService._export_participation,
         }
 
     @staticmethod
@@ -543,6 +549,72 @@ class WhatsAppReportExportService:
             event=target_event,
             row_count=len(report_data["rows"]),
             filename_stem="food_pass_operations",
+            payload=payload,
+        )
+
+    @staticmethod
+    def _export_pending_payments(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
+        target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
+        report_data = PendingPaymentsReport.generate(db=db, event_id=target_event.id)
+        headers = ["Flat Number", "Block", "Expected Amount", "Paid Amount", "Pending Amount"]
+        rows = [[row["flat_number"], row["block"], row["expected_amount"], row["paid_amount"], row["pending_amount"]] for row in report_data]
+        payload = WhatsAppReportExportService._render_tabular_export(
+            normalized_format=normalized_format,
+            report_data={"headers": headers, "rows": rows},
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.pending_payments", lang),
+            pdf_renderer=lambda _data: b"",
+        )
+        return WhatsAppReportExportService._build_result(
+            category="operations",
+            report="pending-payments",
+            normalized_format=normalized_format,
+            event=target_event,
+            row_count=len(rows),
+            filename_stem="pending_payments",
+            payload=payload,
+        )
+
+    @staticmethod
+    def _export_expense_summary(*, db, member, event, normalized_format, event_id):
+        lang = WhatsAppReportExportService._member_lang(member)
+        target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
+        report_data = ExpenseSummaryReport.generate(db=db, event_id=target_event.id)
+        headers = ["Category", "Amount"]
+        rows = [[key, value] for key, value in report_data.items()]
+        payload = WhatsAppReportExportService._render_tabular_export(
+            normalized_format=normalized_format,
+            report_data={"headers": headers, "rows": rows},
+            excel_sheet_name=WhatsAppReportExportService._sheet_label("report_flow.report_labels.expense_summary", lang),
+            pdf_renderer=lambda _data: b"",
+        )
+        return WhatsAppReportExportService._build_result(
+            category="operations",
+            report="expense-summary",
+            normalized_format=normalized_format,
+            event=target_event,
+            row_count=len(rows),
+            filename_stem="expense_summary",
+            payload=payload,
+        )
+
+    @staticmethod
+    def _export_participation(*, db, member, event, normalized_format, event_id):
+        target_event = WhatsAppReportExportService._require_event(db=db, fallback_event=event, event_id=event_id)
+        report_data = EventParticipationReport.generate(db=db, event_id=target_event.id, society_id=target_event.society_id)
+        headers = ["Group", "Flats"]
+        rows = [
+            ["Participating", ", ".join(report_data.get("participating", []))],
+            ["Not Participating", ", ".join(report_data.get("not_participating", []))],
+        ]
+        payload = export_csv(headers, rows)
+        return WhatsAppReportExportService._build_result(
+            category="operations",
+            report="participation",
+            normalized_format=normalized_format,
+            event=target_event,
+            row_count=len(rows),
+            filename_stem="participation",
             payload=payload,
         )
 
