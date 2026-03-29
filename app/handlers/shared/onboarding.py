@@ -69,7 +69,7 @@ def handle_onboarding_intent(
         return success_response(
             join_lines([
                 translate("onboarding.join.request_sent", lang),
-                f"Request ID: *{result}*",
+                translate("onboarding.join.request_id_line", lang, request_id=result),
                 translate("onboarding.join.notify_after_approval", lang),
             ]),
             heading=translate("onboarding.join.request_submitted_heading", lang),
