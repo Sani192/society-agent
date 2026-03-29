@@ -254,12 +254,7 @@ def list_exportable_report_options(
                 "report_key": entry.report_key,
                 "label": translate(entry.label_key, lang),
                 "supported_formats": list(entry.supported_formats),
-                "example_command": (
-                    "report export "
-                    f"--category {entry.category} "
-                    f"--report {entry.report_key} "
-                    f"--format {entry.supported_formats[0]}"
-                ),
+                "example_command": f"export::{command_key}",
                 "command_key": command_key,
                 "requires_event_id": entry.requires_event_id,
             }

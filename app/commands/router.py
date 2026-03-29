@@ -103,14 +103,6 @@ def detect_intent(
         logger.info("Intent detected by conversational event selection", extra={"intent": "EXPORT_SELECTION"})
         return "EXPORT_SELECTION"
 
-    if msg == "reports":
-        logger.info("Legacy reports alias detected")
-        return "LEGACY_REPORTS_ALIAS"
-
-    if msg.startswith("report export"):
-        logger.info("Legacy report export free-text detected")
-        return "LEGACY_REPORT_EXPORT"
-
     if msg.startswith("export::"):
         logger.info(
             "Intent detected by interactive export selection",

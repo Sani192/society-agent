@@ -340,50 +340,6 @@ def test_whatsapp_numeric_intent_treated_as_export_with_active_session_for_sende
     assert captured["allow_numeric"] is True
 
 
-def test_whatsapp_legacy_reports_alias_returns_migration_hint():
-    db = MagicMock()
-    message = InboundMessage(
-        channel="whatsapp",
-        sender_id="919999000010",
-        display_name="John",
-        text="reports",
-        metadata={"canonical_sender_id": "919999000010"},
-    )
-
-    response = handle_inbound_message(
-        message,
-        session_factory=lambda: db,
-        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
-        latest_event_getter=lambda db, society_id: None,
-        onboarding_intent_handler=lambda **kwargs: None,
-        committee_intent_handler=lambda **kwargs: None,
-        public_intent_handler=lambda **kwargs: None,
-    )
-
-    assert response == "ℹ️ `reports` is no longer supported. Send `report options` to view exportable reports."
-
-
-def test_whatsapp_legacy_report_export_returns_migration_hint():
-    db = MagicMock()
-    message = InboundMessage(
-        channel="whatsapp",
-        sender_id="919999000011",
-        display_name="John",
-        text="report export --category financial --report ledger --format pdf",
-        metadata={"canonical_sender_id": "919999000011"},
-    )
-
-    response = handle_inbound_message(
-        message,
-        session_factory=lambda: db,
-        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(Exception("unauthorized")),
-        latest_event_getter=lambda db, society_id: None,
-        onboarding_intent_handler=lambda **kwargs: None,
-        committee_intent_handler=lambda **kwargs: None,
-        public_intent_handler=lambda **kwargs: None,
-    )
-
-    assert response == "ℹ️ `report export ...` is no longer supported. Send `report options`, then reply with `export <number>` or tap an `export::<key>` option."
 
 
 def test_invalid_command_contract_is_consistent_for_whatsapp_and_telegram():
