@@ -37,9 +37,9 @@ def test_handle_message_unknown_intent(monkeypatch):
     monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
         "app.channels.core.handler.ensure_committee_member",
-        lambda phone, db: SimpleNamespace(id="member-1")
+        lambda phone, db, **kwargs: SimpleNamespace(id="member-1")
     )
-    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: None)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message, **kwargs: None)
 
     response = handle_message("999", "unknown")
 
@@ -52,10 +52,10 @@ def test_handle_message_onboarding_short_circuit(monkeypatch):
     monkeypatch.setattr("app.channels.core.handler.SessionLocal", lambda: db)
     monkeypatch.setattr(
         "app.channels.core.handler.ensure_committee_member",
-        lambda phone, db: SimpleNamespace(id="member-1")
+        lambda phone, db, **kwargs: SimpleNamespace(id="member-1")
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: None)
-    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: "ONBOARD")
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: None)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message, **kwargs: "ONBOARD")
 
     onboarding_handler = MagicMock(return_value="✅ Onboarded")
     committee_handler = MagicMock(return_value=None)
@@ -92,8 +92,8 @@ def test_handle_message_routes_report_options_to_committee(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
-    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: "REPORT_OPTIONS")
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message, **kwargs: "REPORT_OPTIONS")
 
     onboarding_handler = MagicMock(return_value=None)
     committee_handler = MagicMock(return_value="✅ Report options")
@@ -134,7 +134,7 @@ def test_export_session_list_options_end_to_end(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     response = handle_message("919001", "report options")
 
@@ -153,7 +153,7 @@ def test_export_session_select_option_end_to_end(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.WhatsAppReportExportService.export",
@@ -199,7 +199,7 @@ def test_export_session_select_option_by_number_only_end_to_end(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.WhatsAppReportExportService.export",
@@ -245,7 +245,7 @@ def test_export_session_invalid_selection_recovery_end_to_end(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     handle_message("919003", "report options")
     response = handle_message("919003", "export 99")
@@ -264,7 +264,7 @@ def test_export_session_successful_export_dispatch_end_to_end(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     monkeypatch.setattr(
         "app.handlers.shared.committee.WhatsAppReportExportService.export",
@@ -504,7 +504,7 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: None)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: None)
 
     calls = []
 
@@ -523,7 +523,7 @@ def test_handle_message_continues_event_wizard_without_intent(monkeypatch):
     session_key = build_event_creation_session_key(member_id="member-wizard", sender_id="999")
     save_event_creation_session(session_key, EventCreationSessionState(step="event_date", name="Diwali"))
 
-    monkeypatch.setattr("app.commands.router.detect_intent", lambda message: None)
+    monkeypatch.setattr("app.commands.router.detect_intent", lambda message, **kwargs: None)
 
     response = handle_message("999", "2026-11-01 19:00")
 
@@ -541,7 +541,7 @@ def test_activate_event_intent_to_event_service(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     called = {}
 
@@ -571,7 +571,7 @@ def test_lock_passes_intent_to_event_service(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     called = {}
 
@@ -601,7 +601,7 @@ def test_start_event_intent_to_event_service(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     called = {}
 
@@ -631,7 +631,7 @@ def test_add_sponsor_intent_to_contribution_service(monkeypatch):
         "app.channels.core.handler.ensure_committee_member",
         lambda phone, db, **kwargs: member,
     )
-    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db: event)
+    monkeypatch.setattr("app.channels.core.handler.get_latest_event_for_society", lambda db, society_id: event)
 
     db.query.return_value.filter.return_value.first.return_value = None
 

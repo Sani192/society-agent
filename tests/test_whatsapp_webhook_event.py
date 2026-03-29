@@ -37,7 +37,7 @@ def test_whatsapp_webhook_event_handles_send_text_errors(monkeypatch):
     sent_attempts = []
 
     class StubWhatsAppClient:
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             sent_attempts.append((to_phone, body))
             raise RuntimeError("send failed")
 
@@ -53,7 +53,7 @@ def test_whatsapp_webhook_event_handles_send_text_errors(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
     monkeypatch.setattr("app.channels.whatsapp.report_flow.detect_whatsapp_intent", lambda message: None)
-    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: "reply")
+    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message, **kwargs: "reply")
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
@@ -70,7 +70,7 @@ def test_whatsapp_webhook_event_sends_dashboard_buttons_for_menu(monkeypatch):
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.1"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     class StubDB:
@@ -112,7 +112,7 @@ def test_whatsapp_webhook_event_menu_uses_hindi_copy_for_hindi_user(monkeypatch)
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.menu.hindi"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     class StubDB:
@@ -154,7 +154,7 @@ def test_whatsapp_webhook_event_menu_uses_gujarati_copy_for_gujarati_user(monkey
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.menu.gujarati"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     class StubDB:
@@ -196,7 +196,7 @@ def test_whatsapp_webhook_event_menu_falls_back_to_english_for_missing_translati
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.menu.fallback"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     class StubDB:
@@ -271,7 +271,7 @@ def test_ui_router_localized_output_paths_for_hindi_and_gujarati(monkeypatch, la
             sent_lists.append(kwargs)
             return {"messages": [{"id": "wamid.list"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             sent_texts.append((to_phone, body))
             return {"messages": [{"id": "wamid.text"}]}
 
@@ -318,7 +318,7 @@ def test_whatsapp_webhook_event_unknown_number_menu_prompts_to_join(monkeypatch)
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.1x"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.1y"}]}
 
@@ -366,7 +366,7 @@ def test_whatsapp_webhook_event_unknown_number_menu_prompts_to_join_without_late
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.1n"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text should not be sent")
 
     class StubDB:
@@ -413,7 +413,7 @@ def test_whatsapp_webhook_event_unknown_number_ui_section_prompts_to_join(monkey
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text should not be sent")
 
     class StubDB:
@@ -456,7 +456,7 @@ def test_whatsapp_webhook_event_prompts_for_add_pass_from_ui(monkeypatch):
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.3"}]}
 
@@ -492,7 +492,7 @@ def test_whatsapp_webhook_event_add_pass_pending_action_accepts_count_only_reply
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.pass.1"}]}
 
@@ -534,7 +534,7 @@ def test_whatsapp_webhook_event_add_pass_pending_action_rejects_zero_counts(monk
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.pass.3"}]}
 
@@ -557,7 +557,7 @@ def test_whatsapp_webhook_event_add_pass_pending_action_rejects_zero_counts(monk
     monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound_trigger, inbound_counts])
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
-    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: f"handled:{message.text}")
+    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message, **kwargs: f"handled:{message.text}")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
@@ -579,7 +579,7 @@ def test_whatsapp_webhook_event_menu_for_committee_includes_administration(monke
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.4"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -612,7 +612,7 @@ def test_whatsapp_webhook_event_menu_more_for_member_shows_all_sections_list(mon
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.4a"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -650,7 +650,7 @@ def test_whatsapp_webhook_event_menu_without_active_event_shows_onboarding_butto
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.menu.noevent.button"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.menu.noevent.text"}]}
 
@@ -691,7 +691,7 @@ def test_whatsapp_webhook_event_menu_more_without_active_event_shows_onboarding_
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.menu.more.noevent.list"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.menu.more.noevent.text"}]}
 
@@ -727,7 +727,7 @@ def test_whatsapp_webhook_event_language_menu_opens_list(monkeypatch):
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.language.list"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("language menu should use list message")
 
     inbound = InboundMessage(
@@ -762,7 +762,7 @@ def test_whatsapp_webhook_event_language_selection_updates_preference(monkeypatc
     identity = type("Identity", (), {"preferred_language": "en"})()
 
     class StubWhatsAppClient:
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.language.update"}]}
 
@@ -810,7 +810,7 @@ def test_whatsapp_webhook_event_administration_menu_respects_row_limit(monkeypat
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.5"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -845,7 +845,7 @@ def test_whatsapp_webhook_event_reports_menu_committee_gated_rows(monkeypatch):
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.6"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -880,7 +880,7 @@ def test_whatsapp_webhook_event_administration_operations_menu_respects_row_limi
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.7"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -917,7 +917,7 @@ def test_whatsapp_webhook_event_administration_operations_more_menu_respects_row
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.7b"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -953,7 +953,7 @@ def test_whatsapp_webhook_event_food_collection_menu(monkeypatch):
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.food"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -988,7 +988,7 @@ def test_whatsapp_webhook_event_committee_management_menu(monkeypatch):
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.8"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1027,7 +1027,7 @@ def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(mon
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.approval.user"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     pending_user = type("PendingUser", (), {"request_code": "REQ-009"})()
@@ -1071,7 +1071,7 @@ def test_whatsapp_webhook_event_ui_approve_payment_falls_back_to_template_when_l
         def send_list_message(self, **kwargs):
             raise RuntimeError("list unsupported")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.approval.payment"}]}
 
@@ -1114,7 +1114,7 @@ def test_whatsapp_webhook_event_ui_join_society_starts_conversation(monkeypatch)
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.join.1"}]}
 
@@ -1147,7 +1147,7 @@ def test_whatsapp_webhook_event_conversational_join_submits_on_flat(monkeypatch)
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.join.2"}]}
 
@@ -1201,7 +1201,7 @@ def test_whatsapp_webhook_event_ui_pay_custom_sets_pending_action(monkeypatch):
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.pay.1"}]}
 
@@ -1235,7 +1235,7 @@ def test_whatsapp_webhook_event_pay_custom_numeric_reply_routes_to_pay(monkeypat
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.pay.2"}]}
 
@@ -1258,7 +1258,7 @@ def test_whatsapp_webhook_event_pay_custom_numeric_reply_routes_to_pay(monkeypat
     monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound_trigger, inbound_amount])
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
-    monkeypatch.setattr("app.channels.whatsapp.session_flows.handle_inbound_message", lambda message: f"handled:{message.text}")
+    monkeypatch.setattr("app.channels.whatsapp.session_flows.handle_inbound_message", lambda message, **kwargs: f"handled:{message.text}")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
@@ -1274,7 +1274,7 @@ def test_whatsapp_webhook_event_refund_pending_action_accepts_amount_and_reason_
         def send_list_message(self, **kwargs):
             raise AssertionError("list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.refund.1"}]}
 
@@ -1297,7 +1297,7 @@ def test_whatsapp_webhook_event_refund_pending_action_accepts_amount_and_reason_
     monkeypatch.setattr("app.api.whatsapp.webhook._verify_signature", lambda raw, sig: None)
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound_trigger, inbound_payload])
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
-    monkeypatch.setattr("app.channels.whatsapp.session_flows.handle_inbound_message", lambda message: f"handled:{message.text}")
+    monkeypatch.setattr("app.channels.whatsapp.session_flows.handle_inbound_message", lambda message, **kwargs: f"handled:{message.text}")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
@@ -1315,7 +1315,7 @@ def test_whatsapp_webhook_event_help_behaves_like_menu(monkeypatch):
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.help"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1351,7 +1351,7 @@ def test_whatsapp_webhook_event_invalid_option_sends_main_menu_button(monkeypatc
             button_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.invalid"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("invalid option should use buttons")
 
     inbound = InboundMessage(
@@ -1367,7 +1367,7 @@ def test_whatsapp_webhook_event_invalid_option_sends_main_menu_button(monkeypatc
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [inbound])
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.channels.whatsapp.report_flow.detect_whatsapp_intent", lambda message: None)
-    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: message.metadata.update({"response_contract": {"response_type": "invalid_input", "ctas": [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}]}}) or "ℹ️ Invalid option. Try a listed menu command. Use: menu, help.")
+    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message, **kwargs: message.metadata.update({"response_contract": {"response_type": "invalid_input", "ctas": [{"id": "menu", "label": "Main Menu"}, {"id": "help", "label": "Help"}]}}) or "ℹ️ Invalid option. Try a listed menu command. Use: menu, help.")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
@@ -1386,7 +1386,7 @@ def test_whatsapp_webhook_event_report_options_opens_report_list_without_forcing
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.report.events"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1440,7 +1440,7 @@ def test_whatsapp_webhook_event_report_options_list_uses_localized_header_and_bo
             list_attempts.append(kwargs)
             return {"messages": [{"id": f"wamid.report.localized.{lang}"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1482,7 +1482,7 @@ def test_whatsapp_webhook_event_report_event_selection_opens_report_list(monkeyp
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.report.list"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1522,7 +1522,7 @@ def test_whatsapp_webhook_event_export_requires_event_then_opens_event_selection
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.report.need-event"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1568,7 +1568,7 @@ def test_whatsapp_webhook_event_export_requires_event_with_single_candidate_auto
         def send_list_message(self, **kwargs):
             raise AssertionError("event selection list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.report.single-event"}]}
 
@@ -1592,7 +1592,7 @@ def test_whatsapp_webhook_event_export_requires_event_with_single_candidate_auto
     monkeypatch.setattr("app.channels.whatsapp.report_flow.ensure_committee_member", lambda *args, **kwargs: fake_member)
     monkeypatch.setattr("app.channels.whatsapp.report_flow._get_latest_event_in_context", lambda **kwargs: None)
     monkeypatch.setattr("app.channels.whatsapp.report_flow._recent_report_events", lambda **kwargs: [fake_event])
-    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: "✅ exported with auto event")
+    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message, **kwargs: "✅ exported with auto event")
 
     from app.channels.whatsapp.export_session import ExportSessionState, get_export_session, save_export_session
     save_export_session(
@@ -1615,7 +1615,7 @@ def test_whatsapp_webhook_event_report_intent_requires_event_opens_event_selecto
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.report.intent"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1650,7 +1650,7 @@ def test_whatsapp_webhook_event_export_without_session_bootstraps(monkeypatch):
     text_attempts = []
 
     class StubWhatsAppClient:
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.export.bootstrap"}]}
 
@@ -1676,7 +1676,7 @@ def test_whatsapp_webhook_event_export_without_session_bootstraps(monkeypatch):
     monkeypatch.setattr("app.channels.whatsapp.report_flow.ensure_committee_member", lambda *args, **kwargs: fake_member)
     monkeypatch.setattr("app.channels.whatsapp.ui_router.get_latest_event", lambda db: latest_event)
     monkeypatch.setattr("app.channels.whatsapp.report_flow.list_exportable_report_options", lambda **kwargs: [{"category": "financial", "report_key": "ledger", "command_key": "financial:ledger", "label": "Ledger"}])
-    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: "✅ exported")
+    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message, **kwargs: "✅ exported")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
@@ -1691,7 +1691,7 @@ def test_whatsapp_webhook_event_report_intent_uses_active_latest_event_without_s
         def send_list_message(self, **kwargs):
             raise AssertionError("event selection list should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append((to_phone, body))
             return {"messages": [{"id": "wamid.report.active-latest"}]}
 
@@ -1714,7 +1714,7 @@ def test_whatsapp_webhook_event_report_intent_uses_active_latest_event_without_s
     monkeypatch.setattr("app.channels.whatsapp.report_flow.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.report_flow.ensure_committee_member", lambda *args, **kwargs: fake_member)
     monkeypatch.setattr("app.channels.whatsapp.report_flow._get_latest_event_in_context", lambda **kwargs: active_event)
-    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message: "✅ summary with active event")
+    monkeypatch.setattr("app.api.whatsapp.webhook.handle_inbound_message", lambda message, **kwargs: "✅ summary with active event")
 
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
@@ -1730,7 +1730,7 @@ def test_whatsapp_webhook_event_ui_view_balance_requests_event_selection_when_mu
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.finance.event-select"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text response should not be sent")
 
     class StubDB:
@@ -1801,7 +1801,7 @@ def test_whatsapp_webhook_event_ui_make_payment_requests_event_selection_when_no
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.finance.makepay-select"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("no direct text fallback expected")
 
     class StubDB:
@@ -1872,7 +1872,7 @@ def test_whatsapp_webhook_event_administration_menu_shows_manage_committee_for_a
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.admin.committee"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -1905,7 +1905,7 @@ def test_whatsapp_webhook_event_committee_routes_trigger_expected_flows(monkeypa
         def send_list_message(self, **kwargs):
             return {"messages": [{"id": "wamid.committee.route"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             return {"messages": [{"id": "wamid.committee.route.text"}]}
 
     monkeypatch.setattr("app.api.whatsapp.webhook._ensure_channel_enabled", lambda: None)
@@ -1981,7 +1981,7 @@ def test_whatsapp_webhook_event_verify_food_token_opens_picker(monkeypatch):
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.food.verify"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -2026,7 +2026,7 @@ def test_whatsapp_webhook_event_token_status_picker_includes_served_tokens(monke
             list_attempts.append(kwargs)
             return {"messages": [{"id": "wamid.food.status"}]}
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             raise AssertionError("text fallback should not be sent")
 
     inbound = InboundMessage(
@@ -2075,7 +2075,7 @@ def test_whatsapp_webhook_event_verify_food_token_selection_serves(monkeypatch):
         def send_list_message(self, **kwargs):
             raise AssertionError("list message should not be sent")
 
-        def send_text_message(self, to_phone: str, body: str):
+        def send_text_message(self, to_phone: str, body: str, **kwargs):
             text_attempts.append(body)
             return {"messages": [{"id": "wamid.food.serve"}]}
 

@@ -174,7 +174,7 @@ def test_member_link_code_login_workflow_e2e(smoke_db, monkeypatch):
     delivered = []
 
     class StubTelegramClient:
-        def send_text_message(self, chat_id, text):
+        def send_text_message(self, chat_id, text, **kwargs):
             delivered.append((chat_id, text))
 
     monkeypatch.setattr("app.api.telegram.get_telegram_client", lambda: StubTelegramClient())
@@ -182,7 +182,7 @@ def test_member_link_code_login_workflow_e2e(smoke_db, monkeypatch):
     from app.channels.core.handler import handle_inbound_message as real_handle_inbound_message
     monkeypatch.setattr(
         "app.api.telegram.handle_inbound_message",
-        lambda message: real_handle_inbound_message(message, session_factory=lambda: smoke_db),
+        lambda message, **kwargs: real_handle_inbound_message(message, session_factory=lambda: smoke_db, **kwargs),
     )
 
     payload = {
