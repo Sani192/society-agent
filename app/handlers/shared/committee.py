@@ -9,10 +9,8 @@ Created on Tue Feb 04 10:33:10 2026
 # app/whatsapp/handlers/committee_handler.py
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
 
 from app.db.models import (
     Event,
@@ -46,7 +44,6 @@ from app.modules.reports.common.whatsapp_report_registry import (
     list_exportable_report_options,
 )
 from app.channels.whatsapp.client import get_whatsapp_client
-from app.channels.core.types import InboundMessage
 from app.utils.logger import logger
 from app.utils.time import utc_now
 from app.config import settings
@@ -830,14 +827,14 @@ def _build_reminder_preview(*, db, event, flat_number: str):
 
 def handle_committee_intent(
     *,
-    db: Session,
-    intent: str,
-    message: str,
-    event: Any,
-    member: Any,
-    inbound_message: InboundMessage | None = None,
+    db,
+    intent,
+    message,
+    event,
+    member,
+    inbound_message=None,
     lang: str | None = None,
-) -> str | None:
+):
     committee_action_session_key = _build_committee_action_session_key(
         member=member,
         inbound_message=inbound_message,
