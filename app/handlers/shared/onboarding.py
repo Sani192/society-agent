@@ -17,8 +17,13 @@ from app.channels.whatsapp.response_templates import (
     success_response,
 )
 from app.commands.parser import parse_target_phone
-from app.handlers.shared.common import get_latest_event, resolve_sender_society_id
+from app.handlers.shared.common import resolve_sender_society_id
 from app.i18n.catalog import translate
+
+
+def get_latest_event(_db):
+    """Deprecated compatibility shim; global latest-event fallback is removed."""
+    return None
 
 
 def handle_onboarding_intent(
@@ -64,7 +69,7 @@ def handle_onboarding_intent(
         return success_response(
             join_lines([
                 translate("onboarding.join.request_sent", lang),
-                f"Request ID: *{result}*",
+                translate("onboarding.join.request_id_line", lang, request_id=result),
                 translate("onboarding.join.notify_after_approval", lang),
             ]),
             heading=translate("onboarding.join.request_submitted_heading", lang),
@@ -73,9 +78,6 @@ def handle_onboarding_intent(
 
     if intent == "JOIN_STATUS":
         society_id = getattr(member, "society_id", None) or resolve_sender_society_id(db, phone_number)
-        if not society_id:
-            latest_event = get_latest_event(db)
-            society_id = getattr(latest_event, "society_id", None)
         if not society_id:
             return error_response(translate("onboarding.join_status.no_society_context", lang))
 

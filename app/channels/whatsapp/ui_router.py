@@ -11,7 +11,6 @@ from app.modules.users.language_service import normalize_language_code, resolve_
 from app.channels.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.handlers.shared.common import (
-    get_latest_event,
     get_latest_event_for_society,
     resolve_flat,
     resolve_sender_society_id,
@@ -63,6 +62,12 @@ from app.channels.whatsapp.committee_management_session import (
     save_committee_management_session,
 )
 from app.channels.whatsapp.approval_flow import _send_approval_selection_list
+
+
+def get_latest_event(_db):
+    """Deprecated compatibility shim; global latest-event fallback is removed."""
+    return None
+
 
 WHATSAPP_LIST_MAX_ROWS = 10
 WHATSAPP_MORE_REPORTS_ROW_ID = "export::more-reports"
@@ -492,13 +497,8 @@ def _next_report_page(current_page: int, total_pages: int) -> int:
 
 
 
-def _get_latest_event_in_context(*, db, society_id, allow_global_fallback: bool = True):
-    event = get_latest_event_for_society(db, society_id)
-    if event:
-        return event
-    if not allow_global_fallback:
-        return None
-    return get_latest_event(db)
+def _get_latest_event_in_context(*, db, society_id):
+    return get_latest_event_for_society(db, society_id)
 
 
 def _recent_report_events(*, db, society_id) -> list[Event]:
@@ -1077,7 +1077,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     sender_id=canonical_sender,
                     external_user_id=message.sender_id,
                 )
-                latest_event = _get_latest_event_in_context(db=db, society_id=society_id, allow_global_fallback=False)
+                latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
                 is_committee = committee_member is not None
                 is_society_member = None if not is_committee else False
                 if not is_committee:
@@ -1125,7 +1125,7 @@ def _try_handle_ui_message(*, client, message) -> bool:
                 sender_id=canonical_sender,
                 external_user_id=message.sender_id,
             )
-            latest_event = _get_latest_event_in_context(db=db, society_id=society_id, allow_global_fallback=False)
+            latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
             is_committee = committee_member is not None
             is_society_member = None if not is_committee else False
             if not is_committee:

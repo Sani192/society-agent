@@ -13,14 +13,6 @@ from uuid import UUID
 from app.db.models import Event, Flat, MemberIdentity, UserFlatMapping
 from app.utils.guards import ensure_member_of_society, normalize_phone
 
-
-
-
-def get_latest_event(db):
-    """Backward-compatible global latest event resolver; prefer society-scoped resolver."""
-    return db.query(Event).order_by(Event.created_at.desc()).first()
-
-
 def get_latest_event_for_society(db, society_id):
     if not society_id:
         return None
