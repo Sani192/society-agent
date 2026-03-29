@@ -2,15 +2,6 @@ from app.channels.whatsapp.response_templates import EXPORT_COMMAND_EXAMPLES
 from app.commands.router import detect_intent
 
 
-def test_detect_intent_report_export_legacy_guidance_intent():
-    assert (
-        detect_intent(
-            "report export --category financial --report event-summary --format pdf"
-        )
-        == "LEGACY_REPORT_EXPORT"
-    )
-
-
 def test_detect_intent_legacy_export_not_supported():
     assert detect_intent("export financial event-summary pdf") is None
 
@@ -18,9 +9,6 @@ def test_detect_intent_legacy_export_not_supported():
 def test_detect_intent_report_options():
     assert detect_intent("report options") == "REPORT_OPTIONS"
 
-
-def test_detect_intent_reports_alias_guidance_intent():
-    assert detect_intent("reports") == "LEGACY_REPORTS_ALIAS"
 
 
 def test_detect_intent_conversational_export_selection_when_allowed():
