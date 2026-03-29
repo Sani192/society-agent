@@ -139,11 +139,7 @@ def test_onboarding_join_committee_for_phone(monkeypatch):
 
 
 def test_onboarding_join_status(monkeypatch):
-    event = SimpleNamespace(society_id="soc-1")
-    monkeypatch.setattr(
-        "app.handlers.shared.onboarding.get_latest_event",
-        lambda db: event
-    )
+    monkeypatch.setattr("app.handlers.shared.onboarding.resolve_sender_society_id", lambda *_args, **_kwargs: "soc-1")
     monkeypatch.setattr(
         "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: "APPROVED"
@@ -161,11 +157,7 @@ def test_onboarding_join_status(monkeypatch):
 
 
 def test_onboarding_join_status_pending(monkeypatch):
-    event = SimpleNamespace(society_id="soc-1")
-    monkeypatch.setattr(
-        "app.handlers.shared.onboarding.get_latest_event",
-        lambda db: event
-    )
+    monkeypatch.setattr("app.handlers.shared.onboarding.resolve_sender_society_id", lambda *_args, **_kwargs: "soc-1")
     monkeypatch.setattr(
         "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: "PENDING"
@@ -183,11 +175,7 @@ def test_onboarding_join_status_pending(monkeypatch):
 
 
 def test_onboarding_join_status_not_found(monkeypatch):
-    event = SimpleNamespace(society_id="soc-1")
-    monkeypatch.setattr(
-        "app.handlers.shared.onboarding.get_latest_event",
-        lambda db: event
-    )
+    monkeypatch.setattr("app.handlers.shared.onboarding.resolve_sender_society_id", lambda *_args, **_kwargs: "soc-1")
     monkeypatch.setattr(
         "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: None
@@ -205,12 +193,7 @@ def test_onboarding_join_status_not_found(monkeypatch):
 
 
 def test_onboarding_join_status_committee_for_phone(monkeypatch):
-    event = SimpleNamespace(society_id="soc-1")
-    member = SimpleNamespace(id="member-1", role="chairman")
-    monkeypatch.setattr(
-        "app.handlers.shared.onboarding.get_latest_event",
-        lambda db: event
-    )
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
 
     captured = {}
 
@@ -236,10 +219,7 @@ def test_onboarding_join_status_committee_for_phone(monkeypatch):
 
 
 def test_onboarding_join_status_no_event(monkeypatch):
-    monkeypatch.setattr(
-        "app.handlers.shared.onboarding.get_latest_event",
-        lambda db: None
-    )
+    monkeypatch.setattr("app.handlers.shared.onboarding.resolve_sender_society_id", lambda *_args, **_kwargs: None)
 
     response = handle_onboarding_intent(
         db=MagicMock(),
@@ -253,11 +233,7 @@ def test_onboarding_join_status_no_event(monkeypatch):
 
 
 def test_onboarding_join_status_approved_hindi(monkeypatch):
-    event = SimpleNamespace(society_id="soc-1")
-    monkeypatch.setattr(
-        "app.handlers.shared.onboarding.get_latest_event",
-        lambda db: event
-    )
+    monkeypatch.setattr("app.handlers.shared.onboarding.resolve_sender_society_id", lambda *_args, **_kwargs: "soc-1")
     monkeypatch.setattr(
         "app.handlers.shared.onboarding.OnboardingQueryService.get_user_join_status",
         lambda **kwargs: "APPROVED"

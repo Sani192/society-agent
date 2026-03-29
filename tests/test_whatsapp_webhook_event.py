@@ -1046,7 +1046,10 @@ def test_whatsapp_webhook_event_ui_approve_user_sends_pending_user_selection(mon
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.approval_flow._is_committee_member", lambda *args, **kwargs: True)
-    monkeypatch.setattr("app.channels.whatsapp.approval_flow._get_committee_member", lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman"})())
+    monkeypatch.setattr(
+        "app.channels.whatsapp.approval_flow._get_committee_member",
+        lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman", "society_id": "soc-1"})(),
+    )
     monkeypatch.setattr(
         "app.channels.whatsapp.approval_flow._get_latest_event_in_context",
         lambda db, society_id: type("Event", (), {"id": "evt-1", "society_id": "soc-1"})(),
@@ -1091,7 +1094,10 @@ def test_whatsapp_webhook_event_ui_approve_payment_falls_back_to_template_when_l
     monkeypatch.setattr("app.api.whatsapp.webhook.get_whatsapp_client", lambda: StubWhatsAppClient())
     monkeypatch.setattr("app.api.whatsapp.webhook.SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr("app.channels.whatsapp.approval_flow._is_committee_member", lambda *args, **kwargs: True)
-    monkeypatch.setattr("app.channels.whatsapp.approval_flow._get_committee_member", lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman"})())
+    monkeypatch.setattr(
+        "app.channels.whatsapp.approval_flow._get_committee_member",
+        lambda *args, **kwargs: type("Member", (), {"id": "m-1", "role": "chairman", "society_id": "soc-1"})(),
+    )
     monkeypatch.setattr(
         "app.channels.whatsapp.approval_flow._get_latest_event_in_context",
         lambda db, society_id: type("Event", (), {"id": "evt-1", "society_id": "soc-1"})(),

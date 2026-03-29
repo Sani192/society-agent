@@ -6,7 +6,7 @@ from app.modules.payments.refund_request_service import RefundRequestService
 from app.channels.whatsapp.response_templates import format_currency
 from app.utils.logger import logger
 
-from app.handlers.shared.common import get_latest_event, get_latest_event_for_society
+from app.handlers.shared.common import get_latest_event_for_society
 from app.utils.guards import ensure_committee_member
 
 WHATSAPP_APPROVAL_ROW_LIMIT = 10
@@ -38,10 +38,7 @@ def _get_committee_member(*, db, sender_id: str, external_user_id: str):
 
 
 def _get_latest_event_in_context(*, db, society_id):
-    event = get_latest_event_for_society(db, society_id)
-    if event:
-        return event
-    return get_latest_event(db)
+    return get_latest_event_for_society(db, society_id)
 
 def _send_approval_selection_list(
     *,
@@ -62,6 +59,9 @@ def _send_approval_selection_list(
 
     committee_member = _get_committee_member(db=db, sender_id=canonical_sender, external_user_id=external_user_id)
     society_id = getattr(committee_member, "society_id", None)
+    if not society_id:
+        client.send_text_message(sender_id, "No society context found.")
+        return True
     latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
     if not latest_event:
         client.send_text_message(sender_id, "No active event found.")
