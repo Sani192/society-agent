@@ -211,6 +211,21 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "page": "Page {page}",
             },
         },
+        "common": {
+            "unexpected_error": "Something went wrong. Please try again later.",
+        },
+        "telegram": {
+            "link_member": {
+                "usage": "Use: link member CODE",
+                "invalid_or_expired": "Invalid or expired link code.",
+                "success": "Telegram account linked successfully.",
+            },
+            "verify_phone": {
+                "usage": "Use: verify phone <number>",
+                "failed": "Phone verification failed. Contact committee.",
+                "success": "Phone verified. Telegram account linked.",
+            },
+        },
         "onboarding": {
             "join": {
                 "example": "Example: join ABC123 A-101",
@@ -374,6 +389,21 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "page": "पृष्ठ {page}",
             },
         },
+        "common": {
+            "unexpected_error": "Something went wrong. Please try again later.",
+        },
+        "telegram": {
+            "link_member": {
+                "usage": "Use: link member CODE",
+                "invalid_or_expired": "Invalid or expired link code.",
+                "success": "Telegram account linked successfully.",
+            },
+            "verify_phone": {
+                "usage": "Use: verify phone <number>",
+                "failed": "Phone verification failed. Contact committee.",
+                "success": "Phone verified. Telegram account linked.",
+            },
+        },
         "onboarding": {
             "join": {
                 "example": "उदाहरण: join ABC123 A-101",
@@ -535,6 +565,21 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "generated_by": "Society Agent દ્વારા બનાવેલ",
                 "confidential": "ગોપનીય – ફક્ત સોસાયટી ઉપયોગ માટે",
                 "page": "પૃષ્ઠ {page}",
+            },
+        },
+        "common": {
+            "unexpected_error": "Something went wrong. Please try again later.",
+        },
+        "telegram": {
+            "link_member": {
+                "usage": "Use: link member CODE",
+                "invalid_or_expired": "Invalid or expired link code.",
+                "success": "Telegram account linked successfully.",
+            },
+            "verify_phone": {
+                "usage": "Use: verify phone <number>",
+                "failed": "Phone verification failed. Contact committee.",
+                "success": "Phone verified. Telegram account linked.",
             },
         },
         "onboarding": {

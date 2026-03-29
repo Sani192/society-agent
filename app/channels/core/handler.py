@@ -43,6 +43,7 @@ from app.channels.whatsapp.response_templates import (
     success_response,
     INVALID_INPUT_METADATA_KEY,
 )
+from app.i18n.catalog import translate
 
 IntentHandlerResult = str | None
 
@@ -147,7 +148,7 @@ def _get_canonical_sender(message: InboundMessage) -> str:
 
 
 def _attempt_telegram_member_link(
-    *, db, message: InboundMessage, intent: str | None
+    *, db, message: InboundMessage, intent: str | None, lang: str | None
 ) -> str | None:
     if message.channel != "telegram" or not intent:
         return None
@@ -155,7 +156,7 @@ def _attempt_telegram_member_link(
     if intent == "LINK_MEMBER":
         parts = message.text.split()
         if len(parts) < 3:
-            return info_response("Use: link member CODE")
+            return info_response(translate("telegram.link_member.usage", lang))
 
         code = parts[2]
         linked_member = link_member_by_code(
@@ -166,13 +167,13 @@ def _attempt_telegram_member_link(
             username=message.metadata.get("username"),
         )
         if not linked_member:
-            return error_response("Invalid or expired link code.")
-        return success_response("Telegram account linked successfully.")
+            return error_response(translate("telegram.link_member.invalid_or_expired", lang))
+        return success_response(translate("telegram.link_member.success", lang))
 
     if intent == "VERIFY_PHONE":
         parts = message.text.split()
         if len(parts) < 3:
-            return info_response("Use: verify phone <number>")
+            return info_response(translate("telegram.verify_phone.usage", lang))
 
         phone = parts[2]
         linked_member = link_member_by_phone(
@@ -183,8 +184,8 @@ def _attempt_telegram_member_link(
             username=message.metadata.get("username"),
         )
         if not linked_member:
-            return error_response("Phone verification failed. Contact committee.")
-        return success_response("Phone verified. Telegram account linked.")
+            return error_response(translate("telegram.verify_phone.failed", lang))
+        return success_response(translate("telegram.verify_phone.success", lang))
 
     return None
 
@@ -348,7 +349,7 @@ def handle_inbound_message(
                     event = selected_event
 
         link_response = _attempt_telegram_member_link(
-            db=db, message=message, intent=intent
+            db=db, message=message, intent=intent, lang=lang
         )
         if link_response:
             return link_response
@@ -433,6 +434,6 @@ def handle_inbound_message(
 
     except Exception:
         logger.exception("Unhandled error in shared channel handler")
-        return error_response("Something went wrong. Please try again later.")
+        return error_response(translate("common.unexpected_error", None))
     finally:
         db.close()
