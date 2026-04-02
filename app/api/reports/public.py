@@ -42,6 +42,9 @@ def public_event_summary_pdf(
         return error_envelope("Unable to authorize report access.")
 
     society = db.query(Society).get(event.society_id)
+    if society is None:
+        return error_envelope("Society not found")
+
     summary = PublicEventSummaryReport.generate(db, event.id)
 
     branding = (society.config_json or {}).get("branding", {})
