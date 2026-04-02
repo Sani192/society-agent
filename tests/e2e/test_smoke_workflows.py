@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 
+from app.api.auth import AuthenticatedPrincipal
 from app.api.health import health_check
 from app.api.reports.financial import event_summary
 from app.api.telegram import telegram_webhook_event
@@ -434,7 +435,11 @@ def test_contribution_refund_workflow_e2e(smoke_db):
         performed_by=chairman.id,
     )
 
-    report_response = event_summary(phone=chairman.phone_number, event_id=event.id, db=smoke_db)
+    report_response = event_summary(
+        event_id=event.id,
+        db=smoke_db,
+        principal=AuthenticatedPrincipal(committee_member_id=chairman.id, phone="0000000000"),
+    )
 
     refund = smoke_db.query(ContributionRefund).first()
     contribution = smoke_db.query(EventContribution).filter_by(contribution_code=contribution_code).first()

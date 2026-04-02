@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.api.auth import AuthenticatedPrincipal
 from app.api.reports.governance import read_protected_audit_events
 from app.db.models import AuditLog
 from tests.utils import QueryMock
@@ -24,11 +25,11 @@ def test_read_protected_audit_events_creates_audit_log(db_session, monkeypatch):
     db_session.query.return_value = QueryMock(all_result=[])
 
     response = read_protected_audit_events(
-        phone="+919999999999",
         channel="telegram",
         event_type="webhook_received",
         limit=10,
         db=db_session,
+        principal=AuthenticatedPrincipal(committee_member_id=member.id),
     )
 
     assert response["count"] == 0
