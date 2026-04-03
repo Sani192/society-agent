@@ -5,6 +5,7 @@ import pytest
 from app.api import telegram as telegram_api
 import app.api.whatsapp.webhook as whatsapp_webhook_api
 from app.channels.core.types import InboundMessage
+from app.utils.operational_metrics import get_counter, reset_counters
 
 pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
 
@@ -258,3 +259,81 @@ def test_whatsapp_duplicate_webhook_retry_executes_business_once(monkeypatch):
 
     assert calls["handle"] == 1
     assert calls["send"] == 1
+
+
+def test_telegram_nonrecoverable_failure_marks_failed_and_pushes_dead_letter(monkeypatch):
+    statuses = []
+    dead_letters = []
+    reset_counters()
+
+    class StubClient:
+        def send_text_message(self, *_args, **_kwargs):
+            return {"ok": True}
+
+    inbound = InboundMessage(
+        channel="telegram",
+        sender_id="u1",
+        display_name="A",
+        text="hello",
+        metadata={"chat_id": "c1", "message_id": 1, "update_id": 101},
+    )
+
+    monkeypatch.setattr(telegram_api, "parse_webhook_payload", lambda _payload: [inbound])
+    monkeypatch.setattr(telegram_api, "get_telegram_client", lambda: StubClient())
+    monkeypatch.setattr(telegram_api, "_claim_idempotency_key", lambda **_kwargs: True)
+    monkeypatch.setattr(telegram_api, "persist_audit_events", lambda _batch: 1)
+    monkeypatch.setattr(telegram_api, "_mark_envelope_status", lambda **kwargs: statuses.append(kwargs["status"]))
+
+    def _raise(*_args, **_kwargs):
+        raise ValueError("bad payload")
+
+    monkeypatch.setattr(telegram_api, "handle_inbound_message", _raise)
+
+    class _AuditStub:
+        def __init__(self, **_kwargs):
+            pass
+
+        def persist_dead_letter(self, **kwargs):
+            dead_letters.append(kwargs)
+
+    monkeypatch.setattr(telegram_api, "AuditTransport", _AuditStub)
+
+    telegram_api.process_telegram_envelope(envelope_id="env-1", payload_dict={"update_id": 1}, enforce_idempotency=False)
+
+    assert statuses == ["processing", "failed"]
+    assert len(dead_letters) == 1
+    assert get_counter("telegram.webhook.failed_processing") == 1
+
+
+def test_whatsapp_recoverable_failure_schedules_retry_and_sets_queued(monkeypatch):
+    statuses = []
+    reset_counters()
+    whatsapp_webhook_api._RETRY_QUEUE.clear()
+
+    class StubClient:
+        def send_text_message(self, *_args, **_kwargs):
+            raise ConnectionError("temporary down")
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="9191",
+        display_name="A",
+        text="hello",
+        metadata={"message_id": "wamid.a"},
+    )
+
+    monkeypatch.setattr(whatsapp_webhook_api, "parse_webhook_payload", lambda _payload: [inbound])
+    monkeypatch.setattr(whatsapp_webhook_api, "_claim_idempotency_key", lambda **_kwargs: True)
+    monkeypatch.setattr(whatsapp_webhook_api, "persist_audit_events", lambda _batch: 1)
+    monkeypatch.setattr(whatsapp_webhook_api, "_try_handle_ui_message", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_session_flow", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_report_flow", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_inbound_message", lambda *_args, **_kwargs: "ok")
+    monkeypatch.setattr(whatsapp_webhook_api, "get_whatsapp_client", lambda: StubClient())
+    monkeypatch.setattr(whatsapp_webhook_api, "_mark_envelope_status", lambda **kwargs: statuses.append(kwargs["status"]))
+
+    whatsapp_webhook_api.process_whatsapp_envelope(envelope_id="env-1", payload_dict={"entry": [{}]}, enforce_idempotency=False)
+
+    assert statuses == ["processing", "queued"]
+    assert len(whatsapp_webhook_api._RETRY_QUEUE) == 1
+    assert get_counter("whatsapp.webhook.retries_scheduled") == 1
