@@ -14,6 +14,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db.session import get_read_db
+from app.api.auth import AuthenticatedPrincipal, get_authenticated_principal
 from app.channels.core.audit_security import decrypt_from_audit_store
 from app.config import settings
 from app.db.models import (
@@ -76,12 +77,12 @@ def _society_identity_tokens(db: Session, *, society_id) -> set[str]:
 
 @router.get("/audit/export")
 def export_governance_audit(
-    phone: str = Query(...),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="GOVERNANCE_AUDIT",
         log_message="Failed to authorize governance audit export",
@@ -139,14 +140,14 @@ def export_governance_audit(
 
 @router.get("/audit/events")
 def read_protected_audit_events(
-    phone: str = Query(...),
     channel: str | None = Query(default=None),
     event_type: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="GOVERNANCE_AUDIT",
         log_message="Failed to authorize secure audit read",

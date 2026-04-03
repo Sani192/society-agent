@@ -121,6 +121,8 @@ class Settings:
         if role.strip()
     }
 
+    REPORTS_API_AUTH_SECRET = os.getenv("REPORTS_API_AUTH_SECRET")
+
     # Declared explicitly for static type-checkers; values are populated from env.
     WHATSAPP_VERIFY_TOKEN: str | None
     WHATSAPP_APP_SECRET: str | None

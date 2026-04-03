@@ -6,6 +6,7 @@ from typing import Any, cast
 from app.api.reports.common import authorize_committee_member_report, record_report_access, require_event
 from app.db.models import Society
 from app.db.session import get_read_db
+from app.api.auth import AuthenticatedPrincipal, get_authenticated_principal
 from app.modules.reports.common.exporters import export_csv, export_excel
 from app.modules.reports.event_participation_report import EventParticipationReport
 from app.modules.reports.expenses.expense_summary_service import ExpenseSummaryReport
@@ -25,12 +26,12 @@ def _headers_rows_from_dict(summary: dict[str, int]) -> tuple[list[str], list[li
 
 @router.get("/food-pass")
 def food_pass_operations_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="FOOD_PASS_OPERATIONS",
         log_message="Failed to authorize food pass operations report",
@@ -56,13 +57,13 @@ def food_pass_operations_report(
 
 @router.get("/food-pass/export")
 def export_food_pass_operations_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="FOOD_PASS_OPERATIONS",
         log_message="Failed to authorize food pass operations export",
@@ -126,12 +127,12 @@ def export_food_pass_operations_report(
 
 @router.get("/pending-payments")
 def pending_payments_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="PENDING_PAYMENTS_OPERATIONS",
         log_message="Failed to authorize pending payments operations report",
@@ -156,13 +157,13 @@ def pending_payments_report(
 
 @router.get("/pending-payments/export")
 def export_pending_payments_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="PENDING_PAYMENTS_OPERATIONS",
         log_message="Failed to authorize pending payments export",
@@ -198,12 +199,12 @@ def export_pending_payments_report(
 
 @router.get("/expense-summary")
 def expense_summary_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="EXPENSE_SUMMARY",
         log_message="Failed to authorize expense summary report",
@@ -228,13 +229,13 @@ def expense_summary_report(
 
 @router.get("/expense-summary/export")
 def export_expense_summary_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="EXPENSE_SUMMARY",
         log_message="Failed to authorize expense summary export",
@@ -268,12 +269,12 @@ def export_expense_summary_report(
 
 @router.get("/participation")
 def participation_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="EVENT_PARTICIPATION",
         log_message="Failed to authorize participation report",

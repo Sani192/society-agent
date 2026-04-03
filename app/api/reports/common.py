@@ -2,26 +2,55 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.api.auth import AuthenticatedPrincipal
+from app.db.models import CommitteeMember, CommitteeMemberChannelIdentity
 from app.db.session import SessionLocal
 from app.modules.reports.common.resolvers import get_event
 from app.permissions.report_guard import ensure_report_access
 from app.utils.audit_logger import log_report_access
-from app.utils.guards import ensure_committee_member
 from app.utils.logger import logger
 from app.utils.response import error_envelope
 
 
+def _resolve_authenticated_committee_member(*, principal: AuthenticatedPrincipal, db: Session):
+    if principal.committee_member_id is not None:
+        return (
+            db.query(CommitteeMember)
+            .filter(
+                CommitteeMember.id == principal.committee_member_id,
+                CommitteeMember.is_active.is_(True),
+            )
+            .first()
+        )
+
+    if principal.channel_type and principal.external_user_id:
+        identity = (
+            db.query(CommitteeMemberChannelIdentity)
+            .join(CommitteeMember, CommitteeMember.id == CommitteeMemberChannelIdentity.committee_member_id)
+            .filter(
+                CommitteeMemberChannelIdentity.channel_type == principal.channel_type,
+                CommitteeMemberChannelIdentity.external_user_id == principal.external_user_id,
+                CommitteeMember.is_active.is_(True),
+            )
+            .first()
+        )
+        if identity:
+            return identity.committee_member
+
+    return None
+
+
 def authorize_committee_member_report(
     *,
-    phone: str | None,
+    principal: AuthenticatedPrincipal,
     db: Session,
     report_code: str,
     log_message: str,
 ):
-    if not phone:
-        return None, error_envelope("Phone is required for report access.")
     try:
-        member = ensure_committee_member(phone, db)
+        member = _resolve_authenticated_committee_member(principal=principal, db=db)
+        if not member:
+            raise Exception("No active committee member found for principal")
         ensure_report_access(role=str(member.role), report_code=report_code)
     except Exception:
         logger.exception(log_message)

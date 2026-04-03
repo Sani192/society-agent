@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_read_db
+from app.api.auth import AuthenticatedPrincipal, get_authenticated_principal
 from app.db.models import Society
 from app.utils.response import error_envelope
 from app.api.reports.common import authorize_committee_member_report, record_report_access
@@ -25,12 +26,12 @@ router = APIRouter(prefix="/reports/admin", tags=["Reports | Admin"])
 
 @router.get("/members/export")
 def export_member_directory(
-    phone: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="MEMBER_DIRECTORY",
         log_message="Failed to authorize member directory export",
@@ -76,12 +77,12 @@ def export_member_directory(
 
 @router.get("/onboarding/export")
 def export_onboarding_status(
-    phone: str = Query(...),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="ONBOARDING_STATUS",
         log_message="Failed to authorize onboarding status export",
@@ -128,12 +129,12 @@ def export_onboarding_status(
 
 @router.get("/announcements/export")
 def export_announcement_history(
-    phone: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="ANNOUNCEMENT_HISTORY",
         log_message="Failed to authorize announcement history export",

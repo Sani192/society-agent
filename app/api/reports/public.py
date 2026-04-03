@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_read_db
+from app.api.auth import AuthenticatedPrincipal, get_authenticated_principal
 from app.db.models import Society
 from app.api.reports.common import require_event
 from app.utils.logger import logger
@@ -22,21 +23,28 @@ router = APIRouter(prefix="/reports/public", tags=["Reports | Public"])
 
 @router.get("/event-summary/pdf")
 def public_event_summary_pdf(
-    phone: str = Query(...),
     event_id: str = Query(...),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     event, error_response = require_event(db=db, event_id=event_id)
     if error_response:
         return error_response
     
+    identity_for_society_membership = principal.phone or principal.external_user_id
+    if not identity_for_society_membership:
+        return error_envelope("Unable to authorize report access.")
+
     try:
-        ensure_member_of_society(phone, db, event.society_id)
+        ensure_member_of_society(identity_for_society_membership, db, event.society_id)
     except Exception:
         logger.exception("Failed to authorize public event summary export")
         return error_envelope("Unable to authorize report access.")
 
     society = db.query(Society).get(event.society_id)
+    if society is None:
+        return error_envelope("Society not found")
+
     summary = PublicEventSummaryReport.generate(db, event.id)
 
     branding = (society.config_json or {}).get("branding", {})

@@ -13,6 +13,7 @@ from typing import Any, cast
 from sqlalchemy.orm import Session
 
 from app.db.session import get_read_db
+from app.api.auth import AuthenticatedPrincipal, get_authenticated_principal
 from app.db.models import Society
 from app.modules.reports.financial.event_summary import EventFinancialSummaryReport
 from app.modules.reports.financial.flat_payment_report import FlatPaymentReport
@@ -67,12 +68,12 @@ def _parse_optional_datetime(value: str | None) -> datetime | None:
 
 @router.get("/event-summary")
 def event_summary(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="EVENT_FINANCIAL_SUMMARY",
         log_message="Failed to authorize event financial summary report",
@@ -99,13 +100,13 @@ def event_summary(
 
 @router.get("/event-summary/export")
 def export_event_financial_summary(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="EVENT_FINANCIAL_SUMMARY",
         log_message="Failed to authorize event financial summary export",
@@ -174,12 +175,12 @@ def export_event_financial_summary(
 
 @router.get("/flat-payments")
 def flat_payment_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="FLAT_PAYMENTS",
         log_message="Failed to authorize flat payments report",
@@ -206,13 +207,13 @@ def flat_payment_report(
 
 @router.get("/flat-payments/export")
 def export_flat_payment_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="FLAT_PAYMENTS",
         log_message="Failed to authorize flat payments export",
@@ -282,12 +283,12 @@ def export_flat_payment_report(
 
 @router.get("/block-payments")
 def block_payment_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="BLOCK_PAYMENTS",
         log_message="Failed to authorize block payments report",
@@ -314,13 +315,13 @@ def block_payment_report(
 
 @router.get("/block-payments/export")
 def export_block_payment_report(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="BLOCK_PAYMENTS",
         log_message="Failed to authorize block payments export",
@@ -391,15 +392,15 @@ def export_block_payment_report(
 
 @router.get("/sponsor-contributions/export")
 def export_sponsor_contributions(
-    phone: str | None = Query(default=None),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="SPONSOR_CONTRIBUTIONS",
         log_message="Failed to authorize sponsor contributions export",
@@ -465,15 +466,15 @@ def export_sponsor_contributions(
 
 @router.get("/contribution-refunds/export")
 def export_contribution_refunds(
-    phone: str = Query(...),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="CONTRIBUTION_REFUNDS",
         log_message="Failed to authorize contribution refunds export",
@@ -543,14 +544,14 @@ def export_contribution_refunds(
 
 @router.get("/balance-continuity/export")
 def export_balance_continuity(
-    phone: str = Query(...),
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="BALANCE_CONTINUITY",
         log_message="Failed to authorize balance continuity export",
@@ -617,15 +618,15 @@ def export_balance_continuity(
 
 @router.get("/member-refunds/export")
 def export_member_refunds(
-    phone: str = Query(...),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="MEMBER_REFUNDS",
         log_message="Failed to authorize member refunds export",
@@ -700,15 +701,15 @@ def export_member_refunds(
 
 @router.get("/ledger/export")
 def export_ledger(
-    phone: str = Query(...),
     event_id: str | None = Query(default=None),
     format: str = Query(default="csv"),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    db: Session = Depends(get_read_db)
+    db: Session = Depends(get_read_db),
+    principal: AuthenticatedPrincipal = Depends(get_authenticated_principal),
 ):
     member, error_response = authorize_committee_member_report(
-        phone=phone,
+        principal=principal,
         db=db,
         report_code="LEDGER",
         log_message="Failed to authorize ledger export",
