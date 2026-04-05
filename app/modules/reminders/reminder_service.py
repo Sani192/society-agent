@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from app.db.models import Event, Payment, Flat, PaymentReminder
+from app.db.models import Event, Payment, PaymentReminder
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit
 
 logger = logging.getLogger(__name__)
@@ -47,9 +47,7 @@ class ReminderService:
 
         pending_payments = (
             db.query(Payment)
-            .join(Flat)
             .filter(
-                Flat.society_id == authoritative_society_id,
                 Payment.event_id == event_id,
                 Payment.expected_amount > Payment.paid_amount
             )
@@ -88,7 +86,6 @@ class ReminderService:
                 continue
 
             reminder_values = {
-                "society_id": authoritative_society_id,
                 "event_id": event_id,
                 "flat_id": payment.flat_id,
                 "pending_amount": payment.expected_amount - payment.paid_amount,
@@ -118,7 +115,6 @@ class ReminderService:
             if inserted:
                 generated.append(
                     PaymentReminder(
-                        society_id=authoritative_society_id,
                         event_id=event_id,
                         flat_id=payment.flat_id,
                         pending_amount=payment.expected_amount - payment.paid_amount,

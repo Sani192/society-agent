@@ -10,6 +10,7 @@ from tests.utils import QueryMock
 def _build_db(*, contribution=None, refunded_total=0):
     db = MagicMock()
     db.query.side_effect = [
+        QueryMock(first_result=SimpleNamespace(id="event-1", society_id="soc-1")),
         QueryMock(first_result=contribution),
         QueryMock(scalar_result=refunded_total),
     ]
@@ -17,7 +18,7 @@ def _build_db(*, contribution=None, refunded_total=0):
 
 
 def test_contribution_refund_remaining_amount_not_negative():
-    contribution = SimpleNamespace(id="contrib-1", amount=100, society_id="soc-1")
+    contribution = SimpleNamespace(id="contrib-1", amount=100)
     db = _build_db(contribution=contribution, refunded_total=150)
 
     with pytest.raises(Exception, match="Remaining refundable amount: ₹0"):
@@ -32,7 +33,7 @@ def test_contribution_refund_remaining_amount_not_negative():
 
 
 def test_contribution_refund_denies_when_workflow_blocks(monkeypatch):
-    contribution = SimpleNamespace(id="contrib-1", amount=500, society_id="soc-1")
+    contribution = SimpleNamespace(id="contrib-1", amount=500)
     db = _build_db(contribution=contribution, refunded_total=100)
 
     monkeypatch.setattr(
@@ -56,7 +57,7 @@ def test_contribution_refund_denies_when_workflow_blocks(monkeypatch):
 
 
 def test_contribution_refund_requires_override_reason(monkeypatch):
-    contribution = SimpleNamespace(id="contrib-1", amount=500, society_id="soc-1")
+    contribution = SimpleNamespace(id="contrib-1", amount=500)
     db = _build_db(contribution=contribution, refunded_total=100)
 
     monkeypatch.setattr(
@@ -80,7 +81,7 @@ def test_contribution_refund_requires_override_reason(monkeypatch):
 
 
 def test_contribution_refund_applies_override_and_audit(monkeypatch):
-    contribution = SimpleNamespace(id="contrib-1", amount=500, society_id="soc-1")
+    contribution = SimpleNamespace(id="contrib-1", amount=500)
     db = _build_db(contribution=contribution, refunded_total=100)
 
     monkeypatch.setattr(

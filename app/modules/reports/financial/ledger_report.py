@@ -19,6 +19,7 @@ from app.db.models import (
     EventContribution,
     ContributionRefund,
     SocietyBalance,
+    Event,
     Flat,
     CommitteeMember
 )
@@ -43,9 +44,10 @@ class LedgerReport:
 
         opening = (
             db.query(SocietyBalance.opening_balance)
+            .join(Event, SocietyBalance.event_id == Event.id)
             .filter(
                 SocietyBalance.event_id == event_id,
-                SocietyBalance.society_id == society_id
+                Event.society_id == society_id
             )
             .scalar()
         ) or 0

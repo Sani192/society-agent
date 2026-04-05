@@ -12,7 +12,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from app.db.models import EventFoodPass, Flat
+from app.db.models import Event, EventFoodPass, Flat
 from app.utils.logging_helpers import build_log_context, log_service_call
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,21 @@ class EventParticipationReport:
     @log_service_call(logger, "EventParticipationReport.generate")
     def generate(db: Session, *, event_id, society_id):
         context = build_log_context(event_id=event_id, society_id=society_id)
+        event_exists = (
+            db.query(Event.id)
+            .filter(
+                Event.id == event_id,
+                Event.society_id == society_id,
+            )
+            .first()
+        )
+        if not event_exists:
+            logger.info(
+                "Workflow decision: event does not belong to society | context=%s",
+                context,
+            )
+            return {"participating": [], "not_participating": []}
+
         flats = (
             db.query(Flat.flat_number)
             .filter(
@@ -49,7 +64,11 @@ class EventParticipationReport:
                     EventFoodPass.is_participating.is_(True)
                 )
             )
-            .filter(Flat.society_id == society_id)
+            .join(Event, Event.id == EventFoodPass.event_id)
+            .filter(
+                Event.society_id == society_id,
+                Flat.society_id == Event.society_id,
+            )
             .order_by(Flat.flat_number)
             .all()
         )

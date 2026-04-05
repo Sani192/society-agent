@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
 from app.db.models import (
+    Event,
     Flat,
     Payment,
     EventFoodPass,
@@ -62,8 +63,11 @@ class PendingPaymentReport:
                     Refund.status == "refunded"
                 )
             )
+            .join(Event, Event.id == EventFoodPass.event_id)
             .filter(
-                Flat.society_id == society_id,
+                Event.id == event_id,
+                Event.society_id == society_id,
+                Flat.society_id == Event.society_id,
                 EventFoodPass.total_amount > 0
             )
             .group_by(

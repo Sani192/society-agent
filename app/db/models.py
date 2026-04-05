@@ -457,10 +457,14 @@ class Refund(Base):
 
 class PaymentRequest(Base):
     __tablename__ = "payment_requests"
+    __table_args__ = (
+        UniqueConstraint("event_id", "request_code", name="uq_payment_requests_event_request_code"),
+        Index("ix_payment_requests_event_flat", "event_id", "flat_id"),
+        Index("ix_payment_requests_event_status", "event_id", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
     flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
     request_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -488,10 +492,14 @@ class PaymentRequest(Base):
 
 class RefundRequest(Base):
     __tablename__ = "refund_requests"
+    __table_args__ = (
+        UniqueConstraint("event_id", "request_code", name="uq_refund_requests_event_request_code"),
+        Index("ix_refund_requests_event_flat", "event_id", "flat_id"),
+        Index("ix_refund_requests_event_status", "event_id", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
     flat_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
     request_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -520,13 +528,13 @@ class RefundRequest(Base):
 class EventContribution(Base):
     __tablename__ = "event_contributions"
     __table_args__ = (
+        UniqueConstraint("event_id", "contribution_code", name="uq_event_contributions_event_code"),
         Index("ix_event_contributions_event_flat", "event_id", "flat_id"),
         Index("ix_event_contributions_event_created_at", "event_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
-    society_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
     contribution_code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     # example: SP-001
 
@@ -580,8 +588,7 @@ class SocietyBalance(Base):
     __tablename__ = "society_balance"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True)
 
     opening_balance = Column(Integer, nullable=False)
     closing_balance = Column(Integer, nullable=False)
@@ -692,12 +699,13 @@ class PaymentReminder(Base):
             "reminder_date",
             name="uq_payment_reminders_event_flat_date",
         ),
+        Index("ix_payment_reminders_event_date", "event_id", "reminder_date"),
+        Index("ix_payment_reminders_event_flat", "event_id", "flat_id"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
-    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     flat_id = Column(UUID(as_uuid=True), ForeignKey("flats.id"), nullable=False)
 
     pending_amount = Column(Integer, nullable=False)

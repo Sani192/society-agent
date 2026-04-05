@@ -47,7 +47,7 @@ def test_refund_request_rejects_flat_from_other_society():
         )
 
 
-def test_contribution_uses_authoritative_event_society(monkeypatch):
+def test_contribution_persists_without_denormalized_society_id(monkeypatch):
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=SimpleNamespace(id="event-1", society_id="soc-1")),
@@ -73,10 +73,11 @@ def test_contribution_uses_authoritative_event_society(monkeypatch):
         for call in db.add.call_args_list
         if isinstance(call.args[0], EventContribution)
     )
-    assert contribution.society_id == "soc-1"
+    assert contribution.event_id == "event-1"
+    assert not hasattr(contribution, "society_id")
 
 
-def test_reminder_uses_authoritative_event_society_for_writes():
+def test_reminder_persists_without_denormalized_society_id():
     db = MagicMock()
     db.get_bind.return_value = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
     db.execute.return_value = SimpleNamespace(rowcount=1)
@@ -91,4 +92,5 @@ def test_reminder_uses_authoritative_event_society_for_writes():
         event_id="event-1",
     )
 
-    assert generated[0].society_id == "soc-1"
+    assert generated[0].event_id == "event-1"
+    assert not hasattr(generated[0], "society_id")

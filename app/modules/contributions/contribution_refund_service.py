@@ -9,7 +9,7 @@ Created on Fri Feb  6 18:29:55 2026
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.db.models import ContributionRefund, EventContribution, AuditLog
+from app.db.models import ContributionRefund, EventContribution, Event, AuditLog
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_service_call
 
@@ -36,6 +36,10 @@ class ContributionRefundService:
             contribution_code,
             context
         )
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Invalid event")
+
         contribution = (
             db.query(EventContribution)
             .filter(
@@ -114,7 +118,7 @@ class ContributionRefundService:
         if is_override:
             WorkflowEngine.apply_override(
                 db=db,
-                society_id=contribution.society_id,
+                society_id=event.society_id,
                 event_id=event_id,
                 entity_type="contribution_refund",
                 entity_id=refund.id,
@@ -125,7 +129,7 @@ class ContributionRefundService:
             logger.info("Applied workflow override | reason=%s context=%s", override_reason, context)
 
         db.add(AuditLog(
-            society_id=contribution.society_id,
+            society_id=event.society_id,
             entity_type="contribution_refund",
             entity_id=refund.id,
             action="REFUND_CONTRIBUTION",
