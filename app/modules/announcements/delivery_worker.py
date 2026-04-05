@@ -118,7 +118,7 @@ def _send_delivery(db, delivery: AnnouncementDelivery) -> tuple[str, str | None]
 
     recipient_id = resolve_provider_recipient_id(
         db=db,
-        member_identity_id=delivery.member_identity_id,
+        member_identity_id=str(delivery.member_identity_id),
         channel=str(delivery.channel),
     )
 
