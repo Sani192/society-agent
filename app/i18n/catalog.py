@@ -27,8 +27,8 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "event_status": {"title": "Event Status", "description": "View your current event standing"},
                 "payments": {"title": "Payments", "description": "Track balance, history, and refunds"},
                 "language": {"title": "Language", "description": "Change WhatsApp language"},
-                "help": {"title": "Help", "description": "Examples: help, join ABC123 A-101, pay 500"},
-                "menu": {"title": "Main Menu", "description": "Example: menu (opens dashboard again)"},
+                "help": {"title": "Help", "description": "Examples: help, join ABC123 A-101, pay 500, refund 200 water"},
+                "menu": {"title": "Main Menu", "description": "Examples: menu, report options, summary"},
             },
             "society": {
                 "section_title": "Society",
@@ -68,7 +68,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "report_options": "Report Options",
             "invalid_option": "Invalid option. {reason} Use: {command_hints}.",
             "invalid_command": "Invalid command. {reason} Use: {command_hints}.",
-            "near_match_hint": "I recognized similar text '{message_text}', but only listed keywords are supported in {language_name}. Try: {localized_examples}.",
+            "near_match_hint": "I recognized similar text '{message_text}', but only listed keywords are supported in {language_name}. Did you mean: {did_you_mean}? You can also try: {localized_examples}.",
         },
         "report_flow": {
             "row_description": "Category: {category} · PDF",
@@ -313,8 +313,8 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "event_status": {"title": "इवेंट स्थिति", "description": "अपनी वर्तमान इवेंट स्थिति देखें"},
                 "payments": {"title": "भुगतान", "description": "बैलेंस, हिस्ट्री और रिफंड देखें"},
                 "language": {"title": "भाषा", "description": "व्हाट्सऐप भाषा बदलें"},
-                "help": {"title": "मदद", "description": "उदाहरण: मदद, जॉइन ABC123 A-101, भुगतान 500"},
-                "menu": {"title": "मुख्य मेनू", "description": "उदाहरण: मुख्य मेनू (डैशबोर्ड फिर से खुलेगा)"},
+                "help": {"title": "मदद", "description": "उदाहरण: मदद, जॉइन ABC123 A-101, भुगतान 500, रिफंड 200 पानी"},
+                "menu": {"title": "मुख्य मेनू", "description": "उदाहरण: मुख्य मेनू, रिपोर्ट विकल्प, सारांश"},
             },
             "society": {
                 "section_title": "सोसायटी",
@@ -354,7 +354,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "report_options": "रिपोर्ट विकल्प",
             "invalid_option": "अमान्य विकल्प। {reason} उपयोग करें: {command_hints}.",
             "invalid_command": "अमान्य कमांड। {reason} उपयोग करें: {command_hints}.",
-            "near_match_hint": "आपका संदेश '{message_text}' मिलता-जुलता है, लेकिन {language_name} में केवल सूचीबद्ध कीवर्ड समर्थित हैं। यह भेजें: {localized_examples}.",
+            "near_match_hint": "आपका संदेश '{message_text}' मिलता-जुलता है, लेकिन {language_name} में केवल सूचीबद्ध कीवर्ड समर्थित हैं। क्या आपका मतलब था: {did_you_mean}? यह भी भेज सकते हैं: {localized_examples}.",
         },
         "report_flow": {
             "row_description": "श्रेणी: {category} · PDF",
@@ -494,8 +494,8 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "event_status": {"title": "ઇવેન્ટ સ્થિતિ", "description": "તમારી હાલની ઇવેન્ટ સ્થિતિ જુઓ"},
                 "payments": {"title": "ચુકવણી", "description": "બેલેન્સ, ઇતિહાસ અને રિફંડ જુઓ"},
                 "language": {"title": "ભાષા", "description": "વોટ્સએપ ભાષા બદલો"},
-                "help": {"title": "મદદ", "description": "ઉદાહરણ: મદદ, જોડાઓ ABC123 A-101, ચુકવણી 500"},
-                "menu": {"title": "મુખ્ય મેનુ", "description": "ઉદાહરણ: મુખ્ય મેનુ (ડેશબોર્ડ ફરીથી ખુલશે)"},
+                "help": {"title": "મદદ", "description": "ઉદાહરણ: મદદ, જોડાઓ ABC123 A-101, ચુકવણી 500, રિફંડ 200 પાણી"},
+                "menu": {"title": "મુખ્ય મેનુ", "description": "ઉદાહરણ: મુખ્ય મેનુ, રિપોર્ટ વિકલ્પો, સારાંશ"},
             },
             "society": {
                 "section_title": "સોસાયટી",
@@ -535,7 +535,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "report_options": "રિપોર્ટ વિકલ્પો",
             "invalid_option": "અમાન્ય વિકલ્પ. {reason} ઉપયોગ કરો: {command_hints}.",
             "invalid_command": "અમાન્ય કમાન્ડ. {reason} ઉપયોગ કરો: {command_hints}.",
-            "near_match_hint": "તમારો સંદેશ '{message_text}' મળતો આવે છે, પણ {language_name} માં ફક્ત યાદીબદ્ધ કીવર્ડ્સ સમર્થિત છે. આ અજમાવો: {localized_examples}.",
+            "near_match_hint": "તમારો સંદેશ '{message_text}' મળતો આવે છે, પણ {language_name} માં ફક્ત યાદીબદ્ધ કીવર્ડ્સ સમર્થિત છે. શું તમારો અર્થ: {did_you_mean}? આ પણ અજમાવો: {localized_examples}.",
         },
         "report_flow": {
             "row_description": "શ્રેણી: {category} · PDF",

@@ -2,6 +2,7 @@ import re
 from difflib import SequenceMatcher
 
 from app.utils.logger import logger
+from app.utils.operational_metrics import increment_counter
 from app.modules.users.language_service import DEFAULT_LANGUAGE, normalize_language_code
 from app.channels.whatsapp.intents import INTENTS, INTENT_KEYWORDS_BY_LANGUAGE
 from app.i18n.catalog import translate
@@ -109,18 +110,30 @@ def localized_near_match_feedback(message: str, *, language: str | None = None) 
 
     words = _normalized_words(msg)
     best_ratio = 0.0
+    scored_candidates: list[tuple[float, str]] = []
     for candidate in candidates:
         ratio = SequenceMatcher(None, msg, candidate).ratio()
+        candidate_best = ratio
         if ratio > best_ratio:
             best_ratio = ratio
 
         for word in words:
             token_ratio = SequenceMatcher(None, word, candidate).ratio()
+            if token_ratio > candidate_best:
+                candidate_best = token_ratio
             if token_ratio > best_ratio:
                 best_ratio = token_ratio
+        scored_candidates.append((candidate_best, candidate))
 
     if best_ratio < 0.72:
         return None
+
+    suggestions: list[str] = []
+    for _score, candidate in sorted(scored_candidates, key=lambda item: item[0], reverse=True):
+        if candidate not in suggestions:
+            suggestions.append(candidate)
+        if len(suggestions) >= 3:
+            break
 
     examples = ", ".join(
         [
@@ -130,12 +143,14 @@ def localized_near_match_feedback(message: str, *, language: str | None = None) 
             _localized_keywords_for_intent("HELP", effective_language)[0],
         ]
     )
+    did_you_mean = ", ".join(suggestions) if suggestions else examples
     language_name = _LANGUAGE_NAMES.get(effective_language, _LANGUAGE_NAMES[DEFAULT_LANGUAGE])
     return translate(
         "response_templates.near_match_hint",
         effective_language,
         message_text=msg,
         language_name=language_name,
+        did_you_mean=did_you_mean,
         localized_examples=examples,
     )
 
@@ -152,14 +167,20 @@ def detect_intent(
     intent_map = intents or INTENTS
     effective_language = _get_effective_language(language)
     disallowed_prefix_starters = _get_disallowed_prefix_starters(effective_language)
+    increment_counter("intent.detect.total")
+    increment_counter(f"intent.detect.total.{effective_language}")
     logger.info("Detecting intent", extra={"message_text": msg})
 
     if msg.isdigit() and allow_numeric_export_selection:
+        increment_counter("intent.detect.matched")
+        increment_counter(f"intent.detect.matched.{effective_language}")
         logger.info("Intent detected by numeric conversational export selection", extra={"intent": "EXPORT_SELECTION"})
         return "EXPORT_SELECTION"
 
     if msg.startswith("export "):
         if len(tokens) > 1 and tokens[1].isdigit() and allow_numeric_export_selection:
+            increment_counter("intent.detect.matched")
+            increment_counter(f"intent.detect.matched.{effective_language}")
             logger.info("Intent detected by conversational export selection", extra={"intent": "EXPORT_SELECTION"})
             return "EXPORT_SELECTION"
         logger.info("Export prefix found but no numeric selection")
@@ -171,10 +192,14 @@ def detect_intent(
         and tokens[1].isdigit()
         and allow_numeric_export_selection
     ):
+        increment_counter("intent.detect.matched")
+        increment_counter(f"intent.detect.matched.{effective_language}")
         logger.info("Intent detected by conversational event selection", extra={"intent": "EXPORT_SELECTION"})
         return "EXPORT_SELECTION"
 
     if msg.startswith("export::"):
+        increment_counter("intent.detect.matched")
+        increment_counter(f"intent.detect.matched.{effective_language}")
         logger.info(
             "Intent detected by interactive export selection",
             extra={"intent": "EXPORT_SELECTION"},
@@ -183,6 +208,10 @@ def detect_intent(
 
     for intent, keyword in _iter_intent_keywords(intent_map, language=effective_language):
         if msg == keyword:
+            increment_counter("intent.detect.matched")
+            increment_counter(f"intent.detect.matched.{effective_language}")
+            increment_counter(f"intent.detect.intent.{intent}")
+            increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
             logger.info("Intent detected by exact match", extra={"intent": intent})
             return intent
 
@@ -193,13 +222,23 @@ def detect_intent(
                 keyword,
                 disallowed_prefix_starters=disallowed_prefix_starters,
             ):
+                increment_counter("intent.detect.matched")
+                increment_counter(f"intent.detect.matched.{effective_language}")
+                increment_counter(f"intent.detect.intent.{intent}")
+                increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
                 logger.info("Intent detected by controlled prefix", extra={"intent": intent})
                 return intent
             continue
 
         if msg.startswith(keyword + " "):
+            increment_counter("intent.detect.matched")
+            increment_counter(f"intent.detect.matched.{effective_language}")
+            increment_counter(f"intent.detect.intent.{intent}")
+            increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
             logger.info("Intent detected by startswith", extra={"intent": intent})
             return intent
 
+    increment_counter("intent.detect.unmatched")
+    increment_counter(f"intent.detect.unmatched.{effective_language}")
     logger.info("No intent detected")
     return None

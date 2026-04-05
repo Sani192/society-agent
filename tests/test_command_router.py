@@ -1,5 +1,6 @@
 from app.channels.whatsapp.response_templates import EXPORT_COMMAND_EXAMPLES
 from app.commands.router import detect_intent, localized_near_match_feedback
+from app.utils.operational_metrics import get_counter, reset_counters
 
 
 def test_detect_intent_legacy_export_not_supported():
@@ -134,6 +135,10 @@ def test_detect_intent_localized_high_frequency_keywords_supported():
     assert detect_intent("रिफंड अनुरोध", language="hi") == "REFUND_REQUESTS"
     assert detect_intent("ચુકવણી મંજૂર કરો RQ123", language="gu") == "APPROVE_PAYMENT"
     assert detect_intent("मुख्य मेनू", language="hi") == "MENU"
+    assert detect_intent("समिति सदस्य", language="hi") == "LIST_COMMITTEE_MEMBERS"
+    assert detect_intent("સમિતિ સભ્ય ઉમેરો Amit|+91 9999900000|secretary", language="gu") == "ADD_COMMITTEE_MEMBER"
+    assert detect_intent("इवेंट शुरू करें", language="hi") == "START_EVENT"
+    assert detect_intent("ફૂડ કાઉન્ટર ખોલો", language="gu") == "OPEN_FOOD_COUNTER"
 
 
 def test_localized_near_match_feedback_uses_localized_hint():
@@ -141,8 +146,25 @@ def test_localized_near_match_feedback_uses_localized_hint():
     assert hint_hi is not None
     assert "हिंदी" in hint_hi
     assert "जॉइन" in hint_hi
+    assert "क्या आपका मतलब था" in hint_hi
 
     hint_gu = localized_near_match_feedback("મેનૂ", language="gu")
     assert hint_gu is not None
     assert "ગુજરાતી" in hint_gu
     assert "જોડાઓ" in hint_gu
+    assert "શું તમારો અર્થ" in hint_gu
+
+
+def test_detect_intent_records_telemetry_by_language():
+    reset_counters()
+
+    assert detect_intent("ભુગતાન 500", language="gu") is None
+    assert detect_intent("ચુકવણી 500", language="gu") == "PAY"
+
+    assert get_counter("intent.detect.total") == 2
+    assert get_counter("intent.detect.total.gu") == 2
+    assert get_counter("intent.detect.matched") == 1
+    assert get_counter("intent.detect.matched.gu") == 1
+    assert get_counter("intent.detect.unmatched") == 1
+    assert get_counter("intent.detect.unmatched.gu") == 1
+    assert get_counter("intent.detect.intent.PAY.gu") == 1
