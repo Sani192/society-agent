@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import json
+import heapq
 from typing import cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, status
+import requests  # type: ignore[import-untyped]
 from sqlalchemy.exc import IntegrityError
 
 from app.api.contracts import (
@@ -32,9 +34,16 @@ from app.channels.telegram.client import get_telegram_client
 from app.config import settings
 from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
 from app.db.session import SessionLocal
+from app.utils.channel_audit_service import AuditTransport
 from app.utils.logger import logger
+from app.utils.operational_metrics import increment_counter
 
 router = APIRouter()
+
+MAX_RETRY_ATTEMPTS = 3
+RETRY_BASE_SECONDS = 2
+MAX_RETRY_BACKOFF_SECONDS = 60
+_RETRY_QUEUE: list[tuple[float, str, dict, int]] = []
 
 
 def _verify_webhook_secret(secret: str | None) -> None:
@@ -117,12 +126,15 @@ def _claim_idempotency_key(*, channel: str, message_id: str | None, update_id: s
 
 
 def _mark_envelope_status(*, envelope_id: str, status: str) -> None:
+    if envelope_id.startswith("transient-"):
+        return
+    processed_at = datetime.now(timezone.utc) if status in {"processed", "failed", "ignored"} else None
     db = SessionLocal()
     try:
         db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).update(
             {
                 InboundWebhookEnvelope.status: status,
-                InboundWebhookEnvelope.processed_at: datetime.now(timezone.utc),
+                InboundWebhookEnvelope.processed_at: processed_at,
             },
             synchronize_session=False,
         )
@@ -186,7 +198,48 @@ def _build_webhook_received_event(*, payload_hash: str, payload: dict) -> Normal
     )
 
 
-def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_idempotency: bool = True) -> None:
+def _is_recoverable_exception(exc: Exception) -> bool:
+    return isinstance(exc, (requests.RequestException, TimeoutError, ConnectionError))
+
+
+def _push_dead_letter(*, trace_id: str, correlation_id: str | None, message, payload_dict: dict, exc: Exception) -> None:
+    AuditTransport(channel="telegram").persist_dead_letter(
+        trace_id=trace_id,
+        correlation_id=correlation_id,
+        recipient=str(message.metadata.get("chat_id") or message.sender_id),
+        outbound_payload_metadata={
+            "envelope_payload": payload_dict,
+            "message_metadata": dict(message.metadata),
+            "sender_id": message.sender_id,
+        },
+        exc=exc,
+    )
+
+
+def _schedule_retry(*, envelope_id: str, payload_dict: dict, attempt: int) -> None:
+    backoff_seconds = min(RETRY_BASE_SECONDS * (2 ** max(attempt - 1, 0)), MAX_RETRY_BACKOFF_SECONDS)
+    run_after = datetime.now(timezone.utc).timestamp() + float(backoff_seconds)
+    heapq.heappush(_RETRY_QUEUE, (run_after, envelope_id, payload_dict, attempt))
+    increment_counter("telegram.webhook.retries_scheduled")
+
+
+def process_telegram_retry_queue() -> int:
+    processed = 0
+    now_ts = datetime.now(timezone.utc).timestamp()
+    while _RETRY_QUEUE and _RETRY_QUEUE[0][0] <= now_ts:
+        _, envelope_id, payload_dict, attempt = heapq.heappop(_RETRY_QUEUE)
+        process_telegram_envelope(
+            envelope_id=envelope_id,
+            payload_dict=payload_dict,
+            enforce_idempotency=False,
+            retry_attempt=attempt,
+        )
+        processed += 1
+    return processed
+
+
+def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_idempotency: bool = True, retry_attempt: int = 0) -> None:
+    _mark_envelope_status(envelope_id=envelope_id, status="processing")
     inbound_messages = parse_webhook_payload(payload_dict)
     if not inbound_messages:
         logger.info("Telegram webhook received with no inbound messages")
@@ -194,6 +247,8 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
         return
 
     client = get_telegram_client()
+    had_nonrecoverable_failure = False
+    had_recoverable_failure = False
     for message in inbound_messages:
         trace_id = str(uuid4())
         correlation_id = message.metadata.get("update_id") or message.metadata.get("message_id")
@@ -239,6 +294,24 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
             )
         except Exception as exc:
             logger.exception("Telegram message processing failed")
+            recoverable = _is_recoverable_exception(exc)
+            if recoverable and retry_attempt < MAX_RETRY_ATTEMPTS:
+                had_recoverable_failure = True
+                _schedule_retry(
+                    envelope_id=envelope_id,
+                    payload_dict=payload_dict,
+                    attempt=retry_attempt + 1,
+                )
+            else:
+                had_nonrecoverable_failure = True
+                increment_counter("telegram.webhook.failed_processing")
+                _push_dead_letter(
+                    trace_id=trace_id,
+                    correlation_id=correlation_id_str,
+                    message=message,
+                    payload_dict=payload_dict,
+                    exc=exc,
+                )
             terminal_event = _build_exception_event(
                 trace_id=trace_id,
                 correlation_id=correlation_id_str,
@@ -255,7 +328,12 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
                 )
             persist_audit_events([terminal_event])
 
-    _mark_envelope_status(envelope_id=envelope_id, status="processed")
+    if had_nonrecoverable_failure:
+        _mark_envelope_status(envelope_id=envelope_id, status="failed")
+    elif had_recoverable_failure:
+        _mark_envelope_status(envelope_id=envelope_id, status="queued")
+    else:
+        _mark_envelope_status(envelope_id=envelope_id, status="processed")
 
 
 @router.post(
