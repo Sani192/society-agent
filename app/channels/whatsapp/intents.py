@@ -20,25 +20,25 @@ INTENT_KEYWORDS_BY_LANGUAGE = {
     "REMOVE_COMMITTEE_MEMBER": {"en": ["remove committee member"], "hi": [], "gu": []},
     "CHANGE_COMMITTEE_ROLE": {"en": ["change committee role"], "hi": [], "gu": []},
     # approvals (specific before generic)
-    "APPROVE_PAYMENT": {"en": ["approve payment"], "hi": [], "gu": []},
-    "APPROVE_REFUND": {"en": ["approve refund"], "hi": [], "gu": []},
-    "APPROVE": {"en": ["approve user"], "hi": [], "gu": []},
+    "APPROVE_PAYMENT": {"en": ["approve payment"], "hi": ["भुगतान स्वीकृत करें"], "gu": ["ચુકવણી મંજૂર કરો"]},
+    "APPROVE_REFUND": {"en": ["approve refund"], "hi": ["रिफंड स्वीकृत करें"], "gu": ["રિફંડ મંજૂર કરો"]},
+    "APPROVE": {"en": ["approve user"], "hi": ["उपयोगकर्ता स्वीकृत करें"], "gu": ["વપરાશકર્તા મંજૂર કરો"]},
     # join
-    "JOIN_STATUS": {"en": ["join status"], "hi": [], "gu": []},
-    "JOIN": {"en": ["join"], "hi": [], "gu": []},
+    "JOIN_STATUS": {"en": ["join status"], "hi": ["जॉइन स्थिति"], "gu": ["જોડાવાની સ્થિતિ"]},
+    "JOIN": {"en": ["join"], "hi": ["जॉइन"], "gu": ["જોડાઓ"]},
     # channel identity onboarding
     "LINK_MEMBER": {"en": ["link member"], "hi": [], "gu": []},
     "VERIFY_PHONE": {"en": ["verify phone"], "hi": [], "gu": []},
     # reports (specific phrases first)
-    "BLOCK_REPORT": {"en": ["block report"], "hi": [], "gu": []},
-    "PARTICIPATION_REPORT": {"en": ["participation report"], "hi": [], "gu": []},
-    "PENDING_PAYMENTS": {"en": ["pending payments"], "hi": [], "gu": []},
-    "PAYMENT_REQUESTS": {"en": ["payment requests"], "hi": [], "gu": []},
-    "REFUND_REQUESTS": {"en": ["refund requests"], "hi": [], "gu": []},
+    "BLOCK_REPORT": {"en": ["block report"], "hi": ["ब्लॉक रिपोर्ट"], "gu": ["બ્લોક રિપોર્ટ"]},
+    "PARTICIPATION_REPORT": {"en": ["participation report"], "hi": ["भागीदारी रिपोर्ट"], "gu": ["ભાગીદારી રિપોર્ટ"]},
+    "PENDING_PAYMENTS": {"en": ["pending payments"], "hi": ["लंबित भुगतान"], "gu": ["બાકી ચુકવણીઓ"]},
+    "PAYMENT_REQUESTS": {"en": ["payment requests"], "hi": ["भुगतान अनुरोध"], "gu": ["ચુકવણી વિનંતીઓ"]},
+    "REFUND_REQUESTS": {"en": ["refund requests"], "hi": ["रिफंड अनुरोध"], "gu": ["રિફંડ વિનંતીઓ"]},
     "REPORT_OPTIONS": {"en": ["report options"], "hi": ["रिपोर्ट विकल्प"], "gu": ["રિપોર્ટ વિકલ્પો"]},
     "SUMMARY": {"en": ["summary"], "hi": ["सारांश"], "gu": ["સારાંશ"]},
     # actions
-    "ADD_PASS": {"en": ["add pass"], "hi": [], "gu": []},
+    "ADD_PASS": {"en": ["add pass"], "hi": ["पास जोड़ें"], "gu": ["પાસ ઉમેરો"]},
     "ADD_EXPENSE": {"en": ["expense"], "hi": [], "gu": []},
     "ADD_EVENT": {"en": ["add event"], "hi": [], "gu": []},
     "ANNOUNCE_EVENT": {"en": ["announce event"], "hi": [], "gu": []},
@@ -60,7 +60,7 @@ INTENT_KEYWORDS_BY_LANGUAGE = {
     "REFUND": {"en": ["refund"], "hi": ["रिफंड", "वापसी"], "gu": ["રિફંડ", "પરત"]},
     "PAY": {"en": ["pay"], "hi": ["पे", "भुगतान"], "gu": ["ચુકવો", "ચુકવણી"]},
     # onboarding admin
-    "PENDING_USERS": {"en": ["pending users"], "hi": [], "gu": []},
+    "PENDING_USERS": {"en": ["pending users"], "hi": ["लंबित उपयोगकर्ता"], "gu": ["બાકી વપરાશકર્તાઓ"]},
     # ========= PERSONAL (read-only, very specific) =========
     "MY_PASS": {"en": ["my pass"], "hi": [], "gu": []},
     "MY_TOKENS": {"en": ["my tokens"], "hi": [], "gu": []},
@@ -69,7 +69,7 @@ INTENT_KEYWORDS_BY_LANGUAGE = {
     "MY_PAYMENTS": {"en": ["my payments"], "hi": [], "gu": []},
     "MY_BALANCE": {"en": ["my balance"], "hi": [], "gu": []},
     "MY_STATUS": {"en": ["my status"], "hi": [], "gu": []},
-    "MENU": {"en": ["menu"], "hi": ["मेनू"], "gu": ["મેનુ"]},
+    "MENU": {"en": ["menu"], "hi": ["मेनू", "मुख्य मेनू"], "gu": ["મેનુ", "મુખ્ય મેનુ"]},
     # ========= HELP (last, lowest risk) =========
     "HELP": {"en": ["help"], "hi": ["मदद"], "gu": ["મદદ"]},
 }

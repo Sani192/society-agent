@@ -11,7 +11,7 @@ from app.handlers.shared.committee import handle_committee_intent
 from app.handlers.shared.common import get_latest_event_for_society, resolve_sender_society_id
 from app.handlers.shared.onboarding import handle_onboarding_intent
 from app.handlers.shared.public import handle_public_intent
-from app.commands.router import detect_intent
+from app.commands.router import detect_intent, localized_near_match_feedback
 from app.db.session import SessionLocal
 from app.db.models import Event, MemberIdentity
 from app.modules.users.language_service import resolve_sender_language
@@ -388,7 +388,7 @@ def handle_inbound_message(
                 )
             return _invalid_command_reply(
                 message=message,
-                reason="Try a listed menu command.",
+                reason=localized_near_match_feedback(message.text, language=lang) or "Try a listed menu command.",
                 is_committee=bool(member),
                 lang=lang,
             )

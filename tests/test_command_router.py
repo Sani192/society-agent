@@ -1,5 +1,5 @@
 from app.channels.whatsapp.response_templates import EXPORT_COMMAND_EXAMPLES
-from app.commands.router import detect_intent
+from app.commands.router import detect_intent, localized_near_match_feedback
 
 
 def test_detect_intent_legacy_export_not_supported():
@@ -124,3 +124,25 @@ def test_detect_intent_localized_gujarati_commands_map_to_same_intents():
 def test_detect_intent_localized_high_risk_gating_blocks_sentence_starters():
     assert detect_intent("भुगतान कृपया इसको करें", language="hi") is None
     assert detect_intent("ચુકવો કૃપા કરીને આ ઇન્વોઇસ", language="gu") is None
+
+
+def test_detect_intent_localized_high_frequency_keywords_supported():
+    assert detect_intent("जॉइन स्थिति", language="hi") == "JOIN_STATUS"
+    assert detect_intent("जॉइन ABC123 A-101", language="hi") == "JOIN"
+    assert detect_intent("પાસ ઉમેરો veg 2", language="gu") == "ADD_PASS"
+    assert detect_intent("ચુકવણી વિનંતીઓ", language="gu") == "PAYMENT_REQUESTS"
+    assert detect_intent("रिफंड अनुरोध", language="hi") == "REFUND_REQUESTS"
+    assert detect_intent("ચુકવણી મંજૂર કરો RQ123", language="gu") == "APPROVE_PAYMENT"
+    assert detect_intent("मुख्य मेनू", language="hi") == "MENU"
+
+
+def test_localized_near_match_feedback_uses_localized_hint():
+    hint_hi = localized_near_match_feedback("मेनु", language="hi")
+    assert hint_hi is not None
+    assert "हिंदी" in hint_hi
+    assert "जॉइन" in hint_hi
+
+    hint_gu = localized_near_match_feedback("મેનૂ", language="gu")
+    assert hint_gu is not None
+    assert "ગુજરાતી" in hint_gu
+    assert "જોડાઓ" in hint_gu
