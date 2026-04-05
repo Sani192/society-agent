@@ -23,6 +23,7 @@ from app.modules.payments.payment_service import PaymentService
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
 from app.utils.time import utc_now
+from app.utils.currency import format_currency
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ class PaymentRequestService:
             reason=(
                 f"OVERRIDE: {override_reason}"
                 if is_override
-                else f"Request {request.request_code} for ₹{amount} by mapping {requested_by_mapping_id}"
+                else f"Request {request.request_code} for {format_currency(amount)} by mapping {requested_by_mapping_id}"
             ),
             performed_by=None
         ))
@@ -280,7 +281,7 @@ class PaymentRequestService:
             action="APPROVE_PAYMENT_REQUEST",
             reason=(
                 "Approved "
-                f"{request.request_code} for ₹{request.amount} "
+                f"{request.request_code} for {format_currency(request.amount)} "
                 f"requested by mapping {request.requested_by_mapping_id}"
             ),
             performed_by=performed_by
@@ -314,7 +315,7 @@ class PaymentRequestService:
         request.status = "rejected"
 
         reason = (
-            f"Rejected {request.request_code} for ₹{request.amount} "
+            f"Rejected {request.request_code} for {format_currency(request.amount)} "
             f"requested by mapping {request.requested_by_mapping_id}"
         )
         if rejection_reason:

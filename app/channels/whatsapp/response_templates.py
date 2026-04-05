@@ -17,6 +17,7 @@ from functools import partial
 from typing import Optional, Protocol
 
 from app.i18n.catalog import translate
+from app.utils.currency import format_currency as format_configured_currency
 from app.utils.response import error, info, success, warning
 
 DEFAULT_DATETIME_FORMAT = "%d %b %Y %H:%M"
@@ -39,19 +40,7 @@ def format_heading(title: str, emoji: Optional[str] = None) -> str:
 
 
 def format_currency(amount) -> str:
-    if amount is None:
-        amount_value = 0
-    else:
-        amount_value = amount
-
-    try:
-        numeric = float(amount_value)
-    except (TypeError, ValueError):
-        return f"₹{amount_value}"
-
-    if numeric.is_integer():
-        return f"₹{int(numeric):,}"
-    return f"₹{numeric:,.2f}"
+    return format_configured_currency(amount)
 
 
 def format_datetime(value, fmt: str = DEFAULT_DATETIME_FORMAT, *, lang: str | None = None, translator: Translator | None = None) -> str:

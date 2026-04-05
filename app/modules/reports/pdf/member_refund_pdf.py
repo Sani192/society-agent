@@ -14,7 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 
 from app.i18n.catalog import translate
 from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
-from app.modules.reports.pdf.formatting import format_report_rows
+from app.modules.reports.pdf.formatting import currency_label, format_currency, format_report_rows
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
 
@@ -52,7 +52,7 @@ def generate_member_refund_pdf(
     pdf.report_meta(elements, {
         translate("report_exports.meta.event", lang): event_name,
         translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
-        translate("report_exports.meta.currency", lang): "INR (₹)"
+        translate("report_exports.meta.currency", lang): currency_label()
     })
     
     # Table
