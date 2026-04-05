@@ -109,19 +109,15 @@ def localized_near_match_feedback(message: str, *, language: str | None = None) 
 
     words = _normalized_words(msg)
     best_ratio = 0.0
-    best_candidate = ""
-
     for candidate in candidates:
         ratio = SequenceMatcher(None, msg, candidate).ratio()
         if ratio > best_ratio:
             best_ratio = ratio
-            best_candidate = candidate
 
         for word in words:
             token_ratio = SequenceMatcher(None, word, candidate).ratio()
             if token_ratio > best_ratio:
                 best_ratio = token_ratio
-                best_candidate = candidate
 
     if best_ratio < 0.72:
         return None
