@@ -14,7 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 
 from app.i18n.catalog import translate
 from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
-from app.modules.reports.pdf.formatting import currency_label, format_currency, format_report_rows
+from app.modules.reports.pdf.formatting import currency_label, format_report_rows
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
 
