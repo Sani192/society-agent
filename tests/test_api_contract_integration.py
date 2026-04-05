@@ -51,6 +51,9 @@ def test_health_endpoint_response_shape():
 
 def test_whatsapp_verify_success_validation_and_auth(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_ENABLED", True)
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_APP_SECRET", "secret")
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_ACCESS_TOKEN", "token")
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_PHONE_NUMBER_ID", "phone-id")
     monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_VERIFY_TOKEN", "verify-token")
 
     with pytest.raises(ValidationError):
@@ -75,6 +78,8 @@ def test_whatsapp_verify_success_validation_and_auth(monkeypatch):
 def test_whatsapp_webhook_event_success_auth_and_retry(monkeypatch):
     monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_ENABLED", True)
     monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_APP_SECRET", "secret")
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_ACCESS_TOKEN", "token")
+    monkeypatch.setattr("app.api.whatsapp.webhook.settings.WHATSAPP_PHONE_NUMBER_ID", "phone-id")
     monkeypatch.setattr("app.api.whatsapp.webhook.parse_webhook_payload", lambda payload: [])
 
     body = b'{"object":"whatsapp_business_account","entry":[]}'

@@ -13,6 +13,14 @@ class HealthResponse(BaseModel):
     message: str
 
 
+class WhatsAppReadinessResponse(BaseModel):
+    status: Literal["ok", "degraded", "disabled"]
+    channel: Literal["whatsapp"]
+    enabled: bool
+    missing_fields: list[str] = Field(default_factory=list)
+    message: str
+
+
 class WebhookStatusResponse(BaseModel):
     status: Literal["ok", "ignored"]
 

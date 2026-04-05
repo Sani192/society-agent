@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import heapq
-from typing import cast
+from typing import NoReturn, cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -41,6 +41,10 @@ from app.channels.whatsapp.constants import (
     WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE,
 )
 from app.channels.whatsapp.report_flow import handle_report_flow
+from app.channels.whatsapp.config_validation import (
+    validate_whatsapp_runtime_config,
+    validate_whatsapp_verification_config,
+)
 from app.channels.whatsapp.session_flows import handle_session_flow
 from app.channels.whatsapp.ui_router import (
     WHATSAPP_LIST_MAX_ROWS,
@@ -99,15 +103,43 @@ def _ensure_channel_enabled() -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="WhatsApp channel is disabled",
         )
+    validation = validate_whatsapp_runtime_config()
+    if not validation.complete:
+        _raise_config_unavailable(context="message processing", missing_fields=validation.missing_fields)
+
+
+def _raise_config_unavailable(*, context: str, missing_fields: tuple[str, ...]) -> NoReturn:
+    increment_counter("whatsapp.webhook.config_failure")
+    logger.error(
+        "WhatsApp configuration is incomplete",
+        extra={
+            "event": "whatsapp_config_validation_failure",
+            "context": context,
+            "missing_fields": list(missing_fields),
+        },
+    )
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=(
+            "WhatsApp channel configuration is incomplete for "
+            f"{context}. Set: {', '.join(missing_fields)}"
+        ),
+    )
+
+
+def _ensure_verification_config_ready() -> None:
+    validation = validate_whatsapp_verification_config()
+    if not validation.complete:
+        _raise_config_unavailable(context="webhook verification", missing_fields=validation.missing_fields)
 
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     logger.info("Verifying WhatsApp webhook signature")
-    if not settings.WHATSAPP_APP_SECRET:
-        logger.error("WhatsApp app secret not configured")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="WhatsApp app secret not configured",
+    app_secret = settings.WHATSAPP_APP_SECRET
+    if not app_secret:
+        _raise_config_unavailable(
+            context="signature verification",
+            missing_fields=("WHATSAPP_APP_SECRET",),
         )
     if not signature_header:
         logger.warning("WhatsApp webhook signature header missing")
@@ -116,7 +148,7 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
             detail="Missing signature header",
         )
     expected_hash = hmac.new(
-        settings.WHATSAPP_APP_SECRET.encode("utf-8"),
+        app_secret.encode("utf-8"),
         msg=raw_body,
         digestmod=hashlib.sha256,
     ).hexdigest()
@@ -264,11 +296,7 @@ def whatsapp_webhook_verify(
 ):
     _ensure_channel_enabled()
     logger.info("Received WhatsApp webhook verification request")
-    if not settings.WHATSAPP_VERIFY_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="WhatsApp verify token not configured",
-        )
+    _ensure_verification_config_ready()
     if (
         hub_mode == WHATSAPP_WEBHOOK_VERIFY_MODE_SUBSCRIBE
         and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN

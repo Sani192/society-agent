@@ -95,6 +95,47 @@
         ],
         "title": "WebhookStatusResponse",
         "type": "object"
+      },
+      "WhatsAppReadinessResponse": {
+        "properties": {
+          "channel": {
+            "const": "whatsapp",
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "channel",
+          "enabled",
+          "message"
+        ],
+        "title": "WhatsAppReadinessResponse",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -126,6 +167,24 @@
           }
         },
         "summary": "Health Check"
+      }
+    },
+    "/health/readiness/whatsapp": {
+      "get": {
+        "operationId": "whatsapp_readiness_check_health_readiness_whatsapp_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Whatsapp Readiness Check"
       }
     },
     "/reports/admin/announcements/export": {
