@@ -11,7 +11,6 @@ from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, status
 import requests  # type: ignore[import-untyped]
-from sqlalchemy.exc import IntegrityError
 
 from app.api.contracts import (
     ErrorResponse,
@@ -23,7 +22,16 @@ from app.channels.core.handler import handle_inbound_message
 from app.channels.core.audit_events import (
     NormalizedAuditEvent,
     persist_audit_events,
-    summarize_exception_stack,
+)
+from app.channels.core.types import InboundMessage
+from app.channels.core.webhook_runtime import (
+    WebhookRuntimeStrategy,
+    build_exception_event,
+    build_processing_completed_event,
+    claim_idempotency_key,
+    hash_payload,
+    mark_envelope_status,
+    persist_inbound_envelope,
 )
 from app.channels.telegram.adapter import (
     parse_webhook_events,
@@ -32,7 +40,6 @@ from app.channels.telegram.adapter import (
 )
 from app.channels.telegram.client import get_telegram_client
 from app.config import settings
-from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
 from app.db.session import SessionLocal
 from app.utils.channel_audit_service import AuditTransport
 from app.utils.logger import logger
@@ -44,6 +51,37 @@ MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_SECONDS = 2
 MAX_RETRY_BACKOFF_SECONDS = 60
 _RETRY_QUEUE: list[tuple[float, str, dict, int]] = []
+
+
+class _TelegramRuntimeStrategy(WebhookRuntimeStrategy):
+    channel = "telegram"
+
+    def get_message_id(self, message: InboundMessage) -> str | None:
+        value = message.metadata.get("message_id")
+        return str(value) if value is not None else None
+
+    def get_update_id(self, message: InboundMessage) -> str | None:
+        value = message.metadata.get("update_id")
+        return str(value) if value is not None else None
+
+    def get_chat_id_or_phone(self, message: InboundMessage) -> str | None:
+        chat_id = message.metadata.get("chat_id")
+        if chat_id is not None:
+            return str(chat_id)
+        return str(message.sender_id)
+
+    def get_external_user_id(self, message: InboundMessage) -> str | None:
+        return str(message.sender_id)
+
+    def get_idempotency_key(self, *, message_id: str | None, update_id: str | None) -> str | None:
+        if update_id:
+            return f"update:{update_id}"
+        if message_id:
+            return f"message:{message_id}"
+        return None
+
+
+_RUNTIME_STRATEGY = _TelegramRuntimeStrategy()
 
 
 def _verify_webhook_secret(secret: str | None) -> None:
@@ -68,116 +106,54 @@ def _ensure_channel_enabled() -> None:
 
 
 def _hash_payload(raw_body: bytes) -> str:
-    import hashlib
-
-    return hashlib.sha256(raw_body).hexdigest()
+    return hash_payload(raw_body)
 
 
 def _persist_inbound_envelope(*, payload_hash: str, payload: dict) -> str:
-    db = SessionLocal()
-    try:
-        envelope = InboundWebhookEnvelope(
-            channel="telegram",
-            payload_json=payload,
-            payload_hash=payload_hash,
-            status="queued",
-        )
-        db.add(envelope)
-        db.commit()
-        db.refresh(envelope)
-        return str(envelope.id)
-    except Exception:
-        getattr(db, "rollback", lambda: None)()
-        logger.warning("Failed to persist Telegram envelope; continuing without envelope persistence")
-        return f"transient-{uuid4()}"
-    finally:
-        db.close()
+    return persist_inbound_envelope(
+        channel="telegram",
+        payload_hash=payload_hash,
+        payload=payload,
+        session_factory=SessionLocal,
+    )
 
 
 def _claim_idempotency_key(*, channel: str, message_id: str | None, update_id: str | None) -> bool:
-    if update_id:
-        key = f"update:{update_id}"
-    elif message_id:
-        key = f"message:{message_id}"
-    else:
-        return True
-
-    db = SessionLocal()
-    try:
-        db.add(
-            WebhookIdempotencyKey(
-                channel=channel,
-                provider_message_id=message_id,
-                provider_update_id=update_id,
-                idempotency_key=key,
-            )
-        )
-        db.commit()
-        return True
-    except IntegrityError:
-        getattr(db, "rollback", lambda: None)()
-        return False
-    except Exception:
-        getattr(db, "rollback", lambda: None)()
-        logger.warning("Idempotency store unavailable; proceeding without dedupe", extra={"channel": channel})
-        return True
-    finally:
-        db.close()
+    message = InboundMessage(
+        channel=channel,
+        sender_id="system",
+        display_name="system",
+        text="",
+        metadata={"message_id": message_id, "update_id": update_id},
+    )
+    return claim_idempotency_key(
+        strategy=_RUNTIME_STRATEGY,
+        message=message,
+        session_factory=SessionLocal,
+    )
 
 
 def _mark_envelope_status(*, envelope_id: str, status: str) -> None:
-    if envelope_id.startswith("transient-"):
-        return
-    processed_at = datetime.now(timezone.utc) if status in {"processed", "failed", "ignored"} else None
-    db = SessionLocal()
-    try:
-        db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).update(
-            {
-                InboundWebhookEnvelope.status: status,
-                InboundWebhookEnvelope.processed_at: processed_at,
-            },
-            synchronize_session=False,
-        )
-        db.commit()
-    except Exception:
-        getattr(db, "rollback", lambda: None)()
-    finally:
-        db.close()
+    mark_envelope_status(envelope_id=envelope_id, status=status, session_factory=SessionLocal)
 
 
 def _build_processing_completed_event(*, trace_id: str, correlation_id: str | None, message, status: str = "completed") -> NormalizedAuditEvent:
-    return NormalizedAuditEvent(
-        channel="telegram",
-        direction="system",
-        event_type="processing_completed",
-        provider_message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
-        provider_update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
-        chat_id_or_phone=str(message.metadata.get("chat_id") or message.sender_id),
-        external_user_id=str(message.sender_id),
-        payload_json={"trace_id": trace_id, "correlation_id": correlation_id, "status": status},
-        occurred_at=datetime.now(timezone.utc),
+    return build_processing_completed_event(
+        strategy=_RUNTIME_STRATEGY,
+        trace_id=trace_id,
+        correlation_id=correlation_id,
+        message=message,
+        status=status,
     )
 
 
 def _build_exception_event(*, trace_id: str, correlation_id: str | None, message, exc: Exception) -> NormalizedAuditEvent:
-    return NormalizedAuditEvent(
-        channel="telegram",
-        direction="system",
-        event_type="exception",
-        provider_message_id=(str(message.metadata.get("message_id")) if message.metadata.get("message_id") is not None else None),
-        provider_update_id=(str(message.metadata.get("update_id")) if message.metadata.get("update_id") is not None else None),
-        chat_id_or_phone=str(message.metadata.get("chat_id") or message.sender_id),
-        external_user_id=str(message.sender_id),
-        provider_error_code=type(exc).__name__,
-        provider_error_message=str(exc),
-        payload_json={
-            "trace_id": trace_id,
-            "correlation_id": correlation_id,
-            "exception_class": type(exc).__name__,
-            "exception_message": str(exc),
-            "stack_summary": summarize_exception_stack(exc),
-        },
-        occurred_at=datetime.now(timezone.utc),
+    return build_exception_event(
+        strategy=_RUNTIME_STRATEGY,
+        trace_id=trace_id,
+        correlation_id=correlation_id,
+        message=message,
+        exc=exc,
     )
 
 
