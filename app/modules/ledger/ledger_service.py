@@ -109,7 +109,6 @@ class LedgerService:
             logger.info("Updated existing balance record | context=%s", context)
         else:
             balance = SocietyBalance(
-                society_id=event.society_id,
                 event_id=event_id,
                 opening_balance=opening_balance,
                 closing_balance=closing_balance

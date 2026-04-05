@@ -28,6 +28,12 @@ logger = logging.getLogger(__name__)
 
 
 class RefundRequestService:
+    @staticmethod
+    def _get_event_society_id(db: Session, event_id):
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Invalid event")
+        return event.society_id
 
     @staticmethod
     def request_refund(
@@ -131,7 +137,8 @@ class RefundRequestService:
 
         count = (
             db.query(RefundRequest)
-            .filter(RefundRequest.society_id == event.society_id)
+            .join(Event, RefundRequest.event_id == Event.id)
+            .filter(Event.society_id == event.society_id)
             .count()
         )
         request_code = f"REF-{count + 1:03d}"
@@ -142,7 +149,6 @@ class RefundRequestService:
 
         request = RefundRequest(
             event_id=event_id,
-            society_id=event.society_id,
             flat_id=flat_id,
             request_code=request_code,
             amount=amount,
@@ -246,7 +252,7 @@ class RefundRequestService:
         context = build_log_context(
             event_id=request.event_id,
             flat_id=request.flat_id,
-            society_id=request.society_id,
+            society_id=RefundRequestService._get_event_society_id(db, request.event_id),
             performed_by=performed_by,
             request_code=request.request_code
         )
@@ -270,7 +276,7 @@ class RefundRequestService:
         request.approved_at = utc_now()
 
         db.add(AuditLog(
-            society_id=request.society_id,
+            society_id=RefundRequestService._get_event_society_id(db, request.event_id),
             entity_type="refund_request",
             entity_id=request.id,
             action="APPROVE_REFUND_REQUEST",
@@ -317,7 +323,7 @@ class RefundRequestService:
             reason = f"{reason} | {rejection_reason}"
 
         db.add(AuditLog(
-            society_id=request.society_id,
+            society_id=RefundRequestService._get_event_society_id(db, request.event_id),
             entity_type="refund_request",
             entity_id=request.id,
             action="REJECT_REFUND_REQUEST",
