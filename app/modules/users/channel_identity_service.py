@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import secrets
 import string
 from datetime import datetime, timedelta, timezone
 
@@ -25,7 +25,7 @@ def _normalize_phone(phone: str | None) -> str | None:
 
 def _generate_code(length: int = LINK_CODE_LENGTH) -> str:
     alphabet = string.ascii_uppercase + string.digits
-    return "".join(random.choice(alphabet) for _ in range(length))
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def resolve_committee_member_by_identity(
