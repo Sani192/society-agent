@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -19,15 +20,22 @@ class DummyClient:
 
 
 def _delivery(*, metadata_json, message_text="Announcement", rendered_payload=None):
-    member_identity = SimpleNamespace(metadata_json=metadata_json)
+    member_identity = SimpleNamespace(id=uuid4(), metadata_json=metadata_json, whatsapp_user_id="919999000000")
     announcement = SimpleNamespace(message_text=message_text, type="announcement")
     return SimpleNamespace(
         status="pending",
         channel="whatsapp",
-        recipient_id="919999000000",
+        member_identity_id=member_identity.id,
         announcement=announcement,
         member_identity=member_identity,
         rendered_payload=rendered_payload,
+    )
+
+def _db_with_identity(member_identity):
+    return SimpleNamespace(
+        query=lambda *_args, **_kwargs: SimpleNamespace(
+            filter=lambda *_args, **_kwargs: SimpleNamespace(one_or_none=lambda: member_identity)
+        )
     )
 
 
@@ -56,7 +64,7 @@ def test_send_delivery_uses_template_inside_policy_window(monkeypatch):
         rendered_payload=_general_payload(),
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "sent_template"
     assert reason is None
@@ -82,7 +90,7 @@ def test_send_delivery_routes_to_template_outside_window(monkeypatch):
         rendered_payload=_general_payload(),
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "sent_template"
     assert reason is None
@@ -104,7 +112,7 @@ def test_send_delivery_resolves_locale_from_app_language_when_template_locale_mi
         rendered_payload=payload,
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "sent_template"
     assert reason is None
@@ -126,7 +134,7 @@ def test_send_delivery_falls_back_to_english_when_payload_language_invalid(monke
         },
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "sent_template"
     assert reason is None
@@ -146,7 +154,7 @@ def test_send_delivery_falls_back_to_english_when_locale_and_app_language_missin
         },
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "sent_template"
     assert reason is None
@@ -169,7 +177,7 @@ def test_send_delivery_fails_when_rendered_payload_missing(monkeypatch):
         }
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "failed_template_required"
     assert reason is not None
@@ -187,7 +195,7 @@ def test_send_delivery_raises_on_empty_placeholders(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="empty template placeholders"):
-        delivery_worker._send_delivery(delivery)
+        delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
 
 def test_send_delivery_skips_when_no_opt_in(monkeypatch):
@@ -204,7 +212,7 @@ def test_send_delivery_skips_when_no_opt_in(monkeypatch):
         }
     )
 
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    outcome, reason = delivery_worker._send_delivery(_db_with_identity(delivery.member_identity), delivery)
 
     assert outcome == "skipped_no_opt_in"
     assert reason is not None
