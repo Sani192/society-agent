@@ -34,6 +34,7 @@ def test_dashboard_sections_are_localized_in_hindi():
     assert my_account_sections[2]["rows"][0]["title"] == "भाषा"
     assert society_sections[0]["rows"][0]["title"] == "सोसायटी से जुड़ें"
     assert finance_sections[0]["rows"][0]["title"] == "भुगतान करें"
+    assert "उदाहरण: मदद" in my_account_sections[2]["rows"][1]["description"]
 
 
 def test_dashboard_builders_accept_custom_translator_callable():
@@ -80,6 +81,7 @@ def test_reports_ui_and_templates_are_localized_in_gujarati():
     assert intro == "નિકાસ કરવા માટે રિપોર્ટ પસંદ કરો. મૂળભૂત PDF છે."
     assert "રિપોર્ટ ઇવેન્ટ અને નિકાસ વિકલ્પ પસંદ કરો." in formatted
     assert "*શ્રેણી*: financial" in formatted
+    assert translate("dashboard.my_account.menu.description", "gu").startswith("ઉદાહરણ: મુખ્ય મેનુ")
 
 
 def test_invalid_command_response_uses_localized_default_ctas():

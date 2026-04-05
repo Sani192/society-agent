@@ -1,8 +1,10 @@
 import re
+from difflib import SequenceMatcher
 
 from app.utils.logger import logger
 from app.modules.users.language_service import DEFAULT_LANGUAGE, normalize_language_code
 from app.channels.whatsapp.intents import INTENTS, INTENT_KEYWORDS_BY_LANGUAGE
+from app.i18n.catalog import translate
 
 
 HIGH_RISK_GENERIC_INTENTS = {"PAY", "REFUND", "SUMMARY", "HELP"}
@@ -17,6 +19,25 @@ _DISALLOWED_PREFIX_STARTERS_BY_LANGUAGE = {
         "કૃપા", "કૃપા કરીને", "શું", "તમે", "તમારું", "હું", "મને", "મારું", "અમે", "અમને", "અમારું",
     },
 }
+_LANGUAGE_NAMES = {"en": "English", "hi": "हिंदी", "gu": "ગુજરાતી"}
+_NEAR_MATCH_INTENTS = (
+    "JOIN",
+    "JOIN_STATUS",
+    "PAY",
+    "REFUND",
+    "ADD_PASS",
+    "MENU",
+    "HELP",
+    "REPORT_OPTIONS",
+    "SUMMARY",
+    "APPROVE_PAYMENT",
+    "APPROVE_REFUND",
+    "APPROVE",
+    "LIST_COMMITTEE_MEMBERS",
+    "ADD_COMMITTEE_MEMBER",
+    "REMOVE_COMMITTEE_MEMBER",
+    "CHANGE_COMMITTEE_ROLE",
+)
 
 
 def _get_effective_language(language: str | None) -> str:
@@ -67,6 +88,60 @@ def _iter_intent_keywords(intent_map: dict[str, str], *, language: str):
                 yield intent, keyword
             continue
         yield intent, fallback_keyword.strip().lower()
+
+
+def _normalized_words(message: str) -> list[str]:
+    return [token for token in re.split(r"\s+", message.strip().lower()) if token]
+
+
+def localized_near_match_feedback(message: str, *, language: str | None = None) -> str | None:
+    effective_language = _get_effective_language(language)
+    msg = message.strip().lower()
+    if not msg or len(msg) < 3:
+        return None
+
+    candidates: list[str] = []
+    for intent in _NEAR_MATCH_INTENTS:
+        candidates.extend(_localized_keywords_for_intent(intent, effective_language))
+    candidates = [candidate for candidate in candidates if candidate]
+    if not candidates:
+        return None
+
+    words = _normalized_words(msg)
+    best_ratio = 0.0
+    best_candidate = ""
+
+    for candidate in candidates:
+        ratio = SequenceMatcher(None, msg, candidate).ratio()
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_candidate = candidate
+
+        for word in words:
+            token_ratio = SequenceMatcher(None, word, candidate).ratio()
+            if token_ratio > best_ratio:
+                best_ratio = token_ratio
+                best_candidate = candidate
+
+    if best_ratio < 0.72:
+        return None
+
+    examples = ", ".join(
+        [
+            _localized_keywords_for_intent("JOIN", effective_language)[0],
+            _localized_keywords_for_intent("PAY", effective_language)[0],
+            _localized_keywords_for_intent("REFUND", effective_language)[0],
+            _localized_keywords_for_intent("HELP", effective_language)[0],
+        ]
+    )
+    language_name = _LANGUAGE_NAMES.get(effective_language, _LANGUAGE_NAMES[DEFAULT_LANGUAGE])
+    return translate(
+        "response_templates.near_match_hint",
+        effective_language,
+        message_text=msg,
+        language_name=language_name,
+        localized_examples=examples,
+    )
 
 
 def detect_intent(
