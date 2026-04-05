@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import heapq
-from typing import cast
+from typing import NoReturn, cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -108,7 +108,7 @@ def _ensure_channel_enabled() -> None:
         _raise_config_unavailable(context="message processing", missing_fields=validation.missing_fields)
 
 
-def _raise_config_unavailable(*, context: str, missing_fields: tuple[str, ...]) -> None:
+def _raise_config_unavailable(*, context: str, missing_fields: tuple[str, ...]) -> NoReturn:
     increment_counter("whatsapp.webhook.config_failure")
     logger.error(
         "WhatsApp configuration is incomplete",
@@ -135,7 +135,8 @@ def _ensure_verification_config_ready() -> None:
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     logger.info("Verifying WhatsApp webhook signature")
-    if not settings.WHATSAPP_APP_SECRET:
+    app_secret = settings.WHATSAPP_APP_SECRET
+    if not app_secret:
         _raise_config_unavailable(
             context="signature verification",
             missing_fields=("WHATSAPP_APP_SECRET",),
@@ -147,7 +148,7 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
             detail="Missing signature header",
         )
     expected_hash = hmac.new(
-        settings.WHATSAPP_APP_SECRET.encode("utf-8"),
+        app_secret.encode("utf-8"),
         msg=raw_body,
         digestmod=hashlib.sha256,
     ).hexdigest()
