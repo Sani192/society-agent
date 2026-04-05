@@ -17,7 +17,8 @@ from app.db.session import SessionLocal
 from app.db.models import Society
 from app.utils.logger import logger
 from app.config import settings
-
+from app.channels.whatsapp.config_validation import validate_whatsapp_runtime_config
+from app.utils.operational_metrics import increment_counter
 
 from app.api.contracts import API_SCHEMA_VERSION
 from app.api.health import router as health_router
@@ -36,6 +37,21 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     # Startup sanity checks
+    if settings.WHATSAPP_ENABLED:
+        validation = validate_whatsapp_runtime_config()
+        if validation.complete:
+            logger.info("WhatsApp startup config validation passed")
+        else:
+            increment_counter("whatsapp.config.validation_failure")
+            logger.error(
+                "WhatsApp startup config validation failed",
+                extra={
+                    "event": "whatsapp_config_validation_failure",
+                    "context": "startup",
+                    "missing_fields": list(validation.missing_fields),
+                },
+            )
+
     db = SessionLocal()
     try:
         society = db.query(Society).first()
