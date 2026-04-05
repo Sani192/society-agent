@@ -5,7 +5,7 @@ from fastapi import HTTPException
 
 from app.api.health import whatsapp_readiness_check
 from app.api.whatsapp.webhook import whatsapp_webhook_event, whatsapp_webhook_verify
-from app.utils.operational_metrics import get_counter, reset_counters
+from app.utils.operational_metrics import get_counter, increment_counter, reset_counters
 
 
 class StubRequest:
@@ -35,7 +35,36 @@ def test_whatsapp_readiness_reports_degraded_when_config_incomplete(monkeypatch)
     assert response.status == "degraded"
     assert response.enabled is True
     assert response.channel == "whatsapp"
+    assert response.components["outbound_config"] == "degraded"
     assert response.missing_fields == ["WHATSAPP_APP_SECRET", "WHATSAPP_ACCESS_TOKEN"]
+    assert response.alerts["failed_sends"] == "ok"
+    assert response.alerts["retries_scheduled"] == "ok"
+    assert response.alerts["dlq_growth"] == "ok"
+
+
+def test_whatsapp_readiness_runs_connectivity_check_when_enabled(monkeypatch):
+    monkeypatch.setattr("app.api.health.settings.WHATSAPP_ENABLED", True)
+    monkeypatch.setattr("app.api.health.settings.WHATSAPP_READINESS_MODE", "connectivity")
+    monkeypatch.setattr("app.channels.whatsapp.config_validation.settings.WHATSAPP_APP_SECRET", "secret")
+    monkeypatch.setattr("app.channels.whatsapp.config_validation.settings.WHATSAPP_ACCESS_TOKEN", "token")
+    monkeypatch.setattr("app.channels.whatsapp.config_validation.settings.WHATSAPP_PHONE_NUMBER_ID", "phone-id")
+    monkeypatch.setattr("app.channels.whatsapp.config_validation.settings.WHATSAPP_VERIFY_TOKEN", "verify")
+    monkeypatch.setattr("app.api.health.settings.WHATSAPP_ALERT_FAILED_SENDS_THRESHOLD", 1)
+
+    class StubClient:
+        def check_connectivity(self, *, timeout_seconds: int):
+            assert timeout_seconds >= 1
+            return False, "Provider connectivity check failed: Timeout"
+
+    monkeypatch.setattr("app.api.health.get_whatsapp_client", lambda: StubClient())
+    increment_counter("whatsapp.outbound.failed_sends")
+
+    response = whatsapp_readiness_check()
+
+    assert response.status == "degraded"
+    assert response.components["webhook_auth"] == "ok"
+    assert response.components["outbound_config"] == "degraded"
+    assert response.alerts["failed_sends"].startswith("alert:")
 
 
 def test_whatsapp_webhook_event_returns_503_with_actionable_detail_when_config_incomplete(monkeypatch):

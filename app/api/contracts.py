@@ -17,6 +17,8 @@ class WhatsAppReadinessResponse(BaseModel):
     status: Literal["ok", "degraded", "disabled"]
     channel: Literal["whatsapp"]
     enabled: bool
+    components: dict[str, str] = Field(default_factory=dict)
+    alerts: dict[str, str] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
     message: str
 

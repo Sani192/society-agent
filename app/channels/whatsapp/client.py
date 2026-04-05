@@ -108,6 +108,25 @@ class WhatsAppClient:
     def _audit(self) -> AuditTransport:
         return self.audit_transport or AuditTransport(channel="whatsapp")
 
+    def check_connectivity(self, *, timeout_seconds: int = WHATSAPP_REQUEST_TIMEOUT_SECONDS) -> tuple[bool, str]:
+        url = f"{self.graph_base_url}/{self.api_version}/{self.phone_number_id}"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params={"fields": "id"},
+                timeout=max(int(timeout_seconds), 1),
+            )
+            _raise_for_whatsapp_response(response, operation="check_connectivity")
+            payload = _extract_response_payload(response, context={"operation": "check_connectivity"})
+            if str(payload.get("id") or "").strip() != str(self.phone_number_id).strip():
+                return False, "Provider connectivity check returned mismatched phone number id"
+            return True, "Provider connectivity check passed"
+        except requests.RequestException as exc:
+            logger.warning("WhatsApp provider connectivity check failed", extra={"error_class": type(exc).__name__})
+            return False, f"Provider connectivity check failed: {type(exc).__name__}"
+
     @staticmethod
     def _provider_message_id_from_payload(payload: dict) -> str | None:
         messages = payload.get("messages") if isinstance(payload, dict) else None

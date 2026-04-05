@@ -19,6 +19,7 @@ from app.db.models import ChannelDeadLetter
 from app.db.session import SessionLocal
 from app.utils.channel_response_parser import parse_provider_error_from_exception
 from app.utils.logger import logger
+from app.utils.operational_metrics import increment_counter
 
 
 class AuditTransport:
@@ -58,6 +59,7 @@ class AuditTransport:
                 )
             )
             db.commit()
+            increment_counter(f"{self.channel}.dlq.growth")
         except Exception:
             db.rollback()
             logger.exception(
@@ -138,6 +140,7 @@ class AuditTransport:
         outbound_payload_metadata: dict[str, Any] | None = None,
     ) -> None:
         parsed_error = parse_provider_error_from_exception(channel=self.channel, exc=exc)
+        increment_counter(f"{self.channel}.outbound.failed_sends")
         self._persist_event(
             self._build_event(
                 event_type="exception",
@@ -168,4 +171,3 @@ class AuditTransport:
             provider_error_code=parsed_error.get("provider_error_code"),
             provider_error_message=parsed_error.get("provider_error_message"),
         )
-

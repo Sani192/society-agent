@@ -98,10 +98,24 @@
       },
       "WhatsAppReadinessResponse": {
         "properties": {
+          "alerts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Alerts",
+            "type": "object"
+          },
           "channel": {
             "const": "whatsapp",
             "title": "Channel",
             "type": "string"
+          },
+          "components": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "object"
           },
           "enabled": {
             "title": "Enabled",
