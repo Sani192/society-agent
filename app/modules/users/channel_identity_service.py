@@ -229,7 +229,6 @@ def request_phone_link_challenge(
         channel_type=channel_type,
         external_user_id=str(sender_id),
         username=username,
-        phone_number=normalized_phone,
         otp_hash=_otp_hash(otp=otp, salt=salt),
         otp_salt=salt,
         expires_at=now + timedelta(minutes=ttl_minutes),
@@ -277,11 +276,13 @@ def verify_phone_link_challenge(
     now = datetime.now(timezone.utc)
     challenge = (
         db.query(CommitteeMemberPhoneLinkChallenge)
+        .join(CommitteeMember, CommitteeMember.id == CommitteeMemberPhoneLinkChallenge.committee_member_id)
         .filter(
             CommitteeMemberPhoneLinkChallenge.committee_member_id == member.id,
             CommitteeMemberPhoneLinkChallenge.channel_type == channel_type,
             CommitteeMemberPhoneLinkChallenge.external_user_id == str(sender_id),
-            CommitteeMemberPhoneLinkChallenge.phone_number == normalized_phone,
+            CommitteeMember.phone_number == normalized_phone,
+            CommitteeMember.is_active.is_(True),
         )
         .order_by(CommitteeMemberPhoneLinkChallenge.created_at.desc())
         .first()
