@@ -4,6 +4,8 @@ from app.api import telegram as telegram_api
 import app.api.whatsapp.webhook as whatsapp_webhook_api
 from app.channels.core.types import InboundMessage
 
+pytestmark = [pytest.mark.integration, pytest.mark.endpoint]
+
 
 @pytest.mark.parametrize(
     ("channel_module", "inbound_message", "payload_dict"),
