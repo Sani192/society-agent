@@ -8,6 +8,8 @@ Created on Sun Jan 11 06:31:26 2026
 
 # app/api/health.py
 
+from typing import Literal
+
 from fastapi import APIRouter
 
 from app.api.contracts import HealthResponse, WhatsAppReadinessResponse
@@ -103,7 +105,7 @@ def whatsapp_readiness_check() -> WhatsAppReadinessResponse:
     else:
         alerts["dlq_growth"] = "ok"
 
-    status = "ok"
+    status: Literal["ok", "degraded", "disabled"] = "ok"
     if missing or degraded_reasons or any(value != "ok" for value in alerts.values()):
         status = "degraded"
     message = "WhatsApp channel is ready"
