@@ -49,12 +49,12 @@ def test_telegram_link_member_flow_short_circuits(monkeypatch):
     assert response == "✅ Telegram account linked successfully."
 
 
-def test_telegram_verify_phone_flow_short_circuits(monkeypatch):
+def test_telegram_verify_phone_flow_requests_challenge(monkeypatch):
     db = MagicMock()
 
     monkeypatch.setattr(
-        "app.channels.core.handler.link_member_by_phone",
-        lambda **kwargs: object(),
+        "app.channels.core.handler.request_phone_link_challenge",
+        lambda **kwargs: {"status": "issued"},
     )
 
     message = InboundMessage(
@@ -62,6 +62,38 @@ def test_telegram_verify_phone_flow_short_circuits(monkeypatch):
         sender_id="999",
         display_name="Jane",
         text="verify phone 9999000011",
+        metadata={"username": "janed"},
+    )
+
+    response = handle_inbound_message(
+        message,
+        session_factory=lambda: db,
+        committee_member_resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+            Exception("unauthorized")
+        ),
+        latest_event_getter=lambda db, society_id: None,
+        intent_detector=lambda text, **kwargs: "VERIFY_PHONE",
+        onboarding_intent_handler=lambda **kwargs: None,
+        committee_intent_handler=lambda **kwargs: None,
+        public_intent_handler=lambda **kwargs: None,
+    )
+
+    assert response == "ℹ️ OTP challenge issued. Reply with: verify phone <number> <otp>"
+
+
+def test_telegram_verify_phone_flow_validates_challenge(monkeypatch):
+    db = MagicMock()
+
+    monkeypatch.setattr(
+        "app.channels.core.handler.verify_phone_link_challenge",
+        lambda **kwargs: {"status": "verified", "member": object()},
+    )
+
+    message = InboundMessage(
+        channel="telegram",
+        sender_id="999",
+        display_name="Jane",
+        text="verify phone 9999000011 112233",
         metadata={"username": "janed"},
     )
 

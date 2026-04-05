@@ -3,18 +3,24 @@ from __future__ import annotations
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
+import hashlib
 
 import re
 
 from app.db.models import (
+    AuditLog,
     CommitteeMember,
     CommitteeMemberChannelIdentity,
     CommitteeMemberLinkCode,
+    CommitteeMemberPhoneLinkChallenge,
 )
 
 
 LINK_CODE_LENGTH = 6
 LINK_CODE_TTL_MINUTES = 15
+PHONE_LINK_OTP_LENGTH = 6
+PHONE_LINK_OTP_TTL_MINUTES = 5
+PHONE_LINK_MAX_ATTEMPTS = 5
 
 
 def _normalize_phone(phone: str | None) -> str | None:
@@ -26,6 +32,39 @@ def _normalize_phone(phone: str | None) -> str | None:
 def _generate_code(length: int = LINK_CODE_LENGTH) -> str:
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _generate_otp(length: int = PHONE_LINK_OTP_LENGTH) -> str:
+    alphabet = string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _otp_hash(*, otp: str, salt: str) -> str:
+    return hashlib.sha256(f"{salt}:{otp}".encode("utf-8")).hexdigest()
+
+
+def _log_phone_link_audit(
+    db,
+    *,
+    member: CommitteeMember | None,
+    action: str,
+    reason: str,
+    metadata: dict | None = None,
+):
+    if not member:
+        return
+
+    db.add(
+        AuditLog(
+            society_id=member.society_id,
+            entity_type="committee_member_channel_identity",
+            entity_id=member.id,
+            action=action,
+            reason=reason[:255],
+            metadata_json=metadata,
+            performed_by=member.id,
+        )
+    )
 
 
 def resolve_committee_member_by_identity(
@@ -140,9 +179,24 @@ def link_member_by_phone(
     phone_number: str,
     username: str | None = None,
 ):
+    # Deprecated: direct phone-based linking is no longer permitted.
+    # Use request_phone_link_challenge + verify_phone_link_challenge instead.
+    return None
+
+
+def request_phone_link_challenge(
+    *,
+    db,
+    channel_type: str,
+    sender_id: str,
+    phone_number: str,
+    username: str | None = None,
+    ttl_minutes: int = PHONE_LINK_OTP_TTL_MINUTES,
+    max_attempts: int = PHONE_LINK_MAX_ATTEMPTS,
+):
     normalized_phone = _normalize_phone(phone_number)
     if not normalized_phone:
-        return None
+        return {"status": "invalid_phone"}
 
     member = (
         db.query(CommitteeMember)
@@ -150,18 +204,162 @@ def link_member_by_phone(
         .first()
     )
     if not member:
-        return None
+        return {"status": "member_not_found"}
 
-    existing = (
+    now = datetime.now(timezone.utc)
+    otp = _generate_otp()
+    salt = secrets.token_hex(16)
+
+    active_challenges = (
+        db.query(CommitteeMemberPhoneLinkChallenge)
+        .filter(
+            CommitteeMemberPhoneLinkChallenge.committee_member_id == member.id,
+            CommitteeMemberPhoneLinkChallenge.channel_type == channel_type,
+            CommitteeMemberPhoneLinkChallenge.external_user_id == str(sender_id),
+            CommitteeMemberPhoneLinkChallenge.consumed_at.is_(None),
+            CommitteeMemberPhoneLinkChallenge.expires_at >= now,
+        )
+        .all()
+    )
+    for active in active_challenges:
+        active.consumed_at = now
+
+    challenge = CommitteeMemberPhoneLinkChallenge(
+        committee_member_id=member.id,
+        channel_type=channel_type,
+        external_user_id=str(sender_id),
+        username=username,
+        phone_number=normalized_phone,
+        otp_hash=_otp_hash(otp=otp, salt=salt),
+        otp_salt=salt,
+        expires_at=now + timedelta(minutes=ttl_minutes),
+        max_attempts=max_attempts,
+    )
+    db.add(challenge)
+    db.flush()
+    _log_phone_link_audit(
+        db,
+        member=member,
+        action="LINK_CHALLENGE_REQUESTED",
+        reason="channel_link_phone_challenge_requested",
+        metadata={
+            "channel_type": channel_type,
+            "sender_id": str(sender_id),
+            "challenge_id": str(challenge.id),
+        },
+    )
+    db.commit()
+    db.refresh(challenge)
+    return {"status": "issued", "challenge_id": challenge.id, "otp": otp}
+
+
+def verify_phone_link_challenge(
+    *,
+    db,
+    channel_type: str,
+    sender_id: str,
+    phone_number: str,
+    otp: str,
+    username: str | None = None,
+):
+    normalized_phone = _normalize_phone(phone_number)
+    if not normalized_phone or not otp:
+        return {"status": "invalid_input"}
+
+    member = (
+        db.query(CommitteeMember)
+        .filter(CommitteeMember.phone_number == normalized_phone, CommitteeMember.is_active.is_(True))
+        .first()
+    )
+    if not member:
+        return {"status": "member_not_found"}
+
+    now = datetime.now(timezone.utc)
+    challenge = (
+        db.query(CommitteeMemberPhoneLinkChallenge)
+        .filter(
+            CommitteeMemberPhoneLinkChallenge.committee_member_id == member.id,
+            CommitteeMemberPhoneLinkChallenge.channel_type == channel_type,
+            CommitteeMemberPhoneLinkChallenge.external_user_id == str(sender_id),
+            CommitteeMemberPhoneLinkChallenge.phone_number == normalized_phone,
+        )
+        .order_by(CommitteeMemberPhoneLinkChallenge.created_at.desc())
+        .first()
+    )
+    if not challenge:
+        _log_phone_link_audit(
+            db,
+            member=member,
+            action="LINK_CHALLENGE_FAILED",
+            reason="challenge_missing",
+            metadata={"channel_type": channel_type, "sender_id": str(sender_id)},
+        )
+        db.commit()
+        return {"status": "challenge_missing"}
+
+    if challenge.verified_at is not None or challenge.consumed_at is not None:
+        _log_phone_link_audit(
+            db,
+            member=member,
+            action="LINK_CHALLENGE_FAILED",
+            reason="challenge_replayed",
+            metadata={"challenge_id": str(challenge.id)},
+        )
+        db.commit()
+        return {"status": "challenge_replayed"}
+
+    if challenge.expires_at < now:
+        challenge.consumed_at = now
+        _log_phone_link_audit(
+            db,
+            member=member,
+            action="LINK_CHALLENGE_FAILED",
+            reason="challenge_expired",
+            metadata={"challenge_id": str(challenge.id)},
+        )
+        db.commit()
+        return {"status": "challenge_expired"}
+
+    if challenge.attempts_used >= challenge.max_attempts:
+        challenge.consumed_at = now
+        _log_phone_link_audit(
+            db,
+            member=member,
+            action="LINK_CHALLENGE_FAILED",
+            reason="challenge_attempt_limit",
+            metadata={"challenge_id": str(challenge.id)},
+        )
+        db.commit()
+        return {"status": "challenge_attempt_limit"}
+
+    if not secrets.compare_digest(challenge.otp_hash, _otp_hash(otp=otp.strip(), salt=challenge.otp_salt)):
+        challenge.attempts_used = int(challenge.attempts_used or 0) + 1
+        challenge.last_attempt_at = now
+        if challenge.attempts_used >= challenge.max_attempts:
+            challenge.consumed_at = now
+        _log_phone_link_audit(
+            db,
+            member=member,
+            action="LINK_CHALLENGE_FAILED",
+            reason="challenge_invalid_otp",
+            metadata={
+                "challenge_id": str(challenge.id),
+                "attempts_used": challenge.attempts_used,
+                "max_attempts": challenge.max_attempts,
+            },
+        )
+        db.commit()
+        return {"status": "invalid_otp", "attempts_used": challenge.attempts_used, "max_attempts": challenge.max_attempts}
+
+    identity = (
         db.query(CommitteeMemberChannelIdentity)
         .filter(
-            CommitteeMemberChannelIdentity.committee_member_id == member.id,
             CommitteeMemberChannelIdentity.channel_type == channel_type,
             CommitteeMemberChannelIdentity.external_user_id == str(sender_id),
         )
         .first()
     )
-    if not existing:
+    if not identity:
         db.add(
             CommitteeMemberChannelIdentity(
                 committee_member_id=member.id,
@@ -171,5 +369,16 @@ def link_member_by_phone(
                 is_verified=True,
             )
         )
-        db.commit()
-    return member
+
+    challenge.verified_at = now
+    challenge.consumed_at = now
+    challenge.last_attempt_at = now
+    _log_phone_link_audit(
+        db,
+        member=member,
+        action="LINK_CHALLENGE_VERIFIED",
+        reason="channel_link_phone_challenge_verified",
+        metadata={"challenge_id": str(challenge.id), "channel_type": channel_type},
+    )
+    db.commit()
+    return {"status": "verified", "member": member}
