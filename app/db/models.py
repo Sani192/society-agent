@@ -248,6 +248,42 @@ class CommitteeMemberLinkCode(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     committee_member = relationship("CommitteeMember", backref="link_codes")
+
+
+class CommitteeMemberPhoneLinkChallenge(Base):
+    __tablename__ = "committee_member_phone_link_challenges"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    committee_member_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("committee_members.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    channel_type = Column(String(50), nullable=False, index=True)
+    external_user_id = Column(String(255), nullable=False, index=True)
+    username = Column(String(255), nullable=True)
+
+    phone_number = Column(String(20), nullable=False, index=True)
+    otp_hash = Column(String(64), nullable=False)
+    otp_salt = Column(String(64), nullable=False)
+
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    attempts_used = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=5)
+    last_attempt_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("channel_type IN ('whatsapp', 'telegram')", name="ck_member_phone_challenge_channel"),
+    )
+
+    committee_member = relationship("CommitteeMember", backref="phone_link_challenges")
     
     
 class Flat(Base):

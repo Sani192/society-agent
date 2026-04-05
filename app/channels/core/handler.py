@@ -17,7 +17,8 @@ from app.db.models import Event, MemberIdentity
 from app.modules.users.language_service import resolve_sender_language
 from app.modules.users.channel_identity_service import (
     link_member_by_code,
-    link_member_by_phone,
+    request_phone_link_challenge,
+    verify_phone_link_challenge,
 )
 from app.utils.guards import ensure_committee_member
 from app.permissions.command_policy import get_event_state, get_intent_state_warning
@@ -171,14 +172,28 @@ def _attempt_telegram_member_link(
             return info_response(translate("telegram.verify_phone.usage", lang))
 
         phone = parts[2]
-        linked_member = link_member_by_phone(
+        if len(parts) == 3:
+            challenge_result = request_phone_link_challenge(
+                db=db,
+                channel_type="telegram",
+                sender_id=message.sender_id,
+                phone_number=phone,
+                username=message.metadata.get("username"),
+            )
+            if challenge_result.get("status") != "issued":
+                return error_response(translate("telegram.verify_phone.failed", lang))
+            return info_response(translate("telegram.verify_phone.challenge_sent", lang))
+
+        otp = parts[3]
+        verification_result = verify_phone_link_challenge(
             db=db,
             channel_type="telegram",
             sender_id=message.sender_id,
             phone_number=phone,
+            otp=otp,
             username=message.metadata.get("username"),
         )
-        if not linked_member:
+        if verification_result.get("status") != "verified":
             return error_response(translate("telegram.verify_phone.failed", lang))
         return success_response(translate("telegram.verify_phone.success", lang))
 
@@ -367,7 +382,7 @@ def handle_inbound_message(
             if message.channel == "telegram" and not member:
                 return _invalid_command_reply(
                     message=message,
-                    reason="If you're a committee member, use 'link member <code>' or 'verify phone <number>' to onboard Telegram.",
+                    reason="If you're a committee member, use 'link member <code>' or 'verify phone <number>' to request an OTP challenge, then 'verify phone <number> <otp>'.",
                     is_committee=False,
                     lang=lang,
                 )

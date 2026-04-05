@@ -222,6 +222,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             },
             "verify_phone": {
                 "usage": "Use: verify phone <number>",
+                "challenge_sent": "OTP challenge issued. Reply with: verify phone <number> <otp>",
                 "failed": "Phone verification failed. Contact committee.",
                 "success": "Phone verified. Telegram account linked.",
             },
@@ -401,6 +402,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             },
             "verify_phone": {
                 "usage": "Use: verify phone <number>",
+                "challenge_sent": "OTP challenge issued. Reply with: verify phone <number> <otp>",
                 "failed": "Phone verification failed. Contact committee.",
                 "success": "Phone verified. Telegram account linked.",
             },
@@ -580,6 +582,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             },
             "verify_phone": {
                 "usage": "Use: verify phone <number>",
+                "challenge_sent": "OTP challenge issued. Reply with: verify phone <number> <otp>",
                 "failed": "Phone verification failed. Contact committee.",
                 "success": "Phone verified. Telegram account linked.",
             },
