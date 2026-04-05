@@ -3,20 +3,40 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, Protocol
+from typing import Any, Protocol, cast
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
-from app.channels.core.audit_events import NormalizedAuditEvent, summarize_exception_stack
+from app.channels.core.audit_events import ChannelName, NormalizedAuditEvent, summarize_exception_stack
 from app.channels.core.types import InboundMessage
 from app.db.models import InboundWebhookEnvelope, WebhookIdempotencyKey
 from app.db.session import SessionLocal
 from app.utils.logger import logger
 
 
+class SessionLike(Protocol):
+    def add(self, instance: object) -> None:
+        ...
+
+    def commit(self) -> None:
+        ...
+
+    def rollback(self) -> None:
+        ...
+
+    def refresh(self, instance: object) -> None:
+        ...
+
+    def query(self, *entities: object):
+        ...
+
+    def close(self) -> None:
+        ...
+
+
 class WebhookRuntimeStrategy(Protocol):
-    channel: str
+    channel: ChannelName
 
     def get_message_id(self, message: InboundMessage) -> str | None:
         ...
@@ -36,7 +56,7 @@ class WebhookRuntimeStrategy(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class DefaultWebhookRuntimeStrategy:
-    channel: str
+    channel: ChannelName
 
     def get_message_id(self, message: InboundMessage) -> str | None:
         value = message.metadata.get("message_id")
@@ -73,9 +93,9 @@ def persist_inbound_envelope(
     channel: str,
     payload_hash: str,
     payload: dict,
-    session_factory: Callable[[], object] = SessionLocal,
+    session_factory: Any = SessionLocal,
 ) -> str:
-    db = session_factory()
+    db = cast(SessionLike, session_factory())
     try:
         envelope = InboundWebhookEnvelope(
             channel=channel,
@@ -99,12 +119,12 @@ def mark_envelope_status(
     *,
     envelope_id: str,
     status: str,
-    session_factory: Callable[[], object] = SessionLocal,
+    session_factory: Any = SessionLocal,
 ) -> None:
     if envelope_id.startswith("transient-"):
         return
     processed_at = datetime.now(timezone.utc) if status in {"processed", "failed", "ignored"} else None
-    db = session_factory()
+    db = cast(SessionLike, session_factory())
     try:
         db.query(InboundWebhookEnvelope).filter(InboundWebhookEnvelope.id == envelope_id).update(
             {
@@ -124,7 +144,7 @@ def claim_idempotency_key(
     *,
     strategy: WebhookRuntimeStrategy,
     message: InboundMessage,
-    session_factory: Callable[[], object] = SessionLocal,
+    session_factory: Any = SessionLocal,
 ) -> bool:
     message_id = strategy.get_message_id(message)
     update_id = strategy.get_update_id(message)
@@ -132,7 +152,7 @@ def claim_idempotency_key(
     if not key:
         return True
 
-    db = session_factory()
+    db = cast(SessionLike, session_factory())
     try:
         db.add(
             WebhookIdempotencyKey(
