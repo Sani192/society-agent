@@ -18,8 +18,6 @@ from app.utils.audit_logger import log_announcement_creation
 class AnnouncementRecipient(TypedDict, total=False):
     member_identity_id: UUID
     channel: str
-    recipient_id: str
-    whatsapp_user_id: str
     receiver_name: str
     event_name: str
     preferred_language: str
@@ -124,7 +122,7 @@ class AnnouncementService:
         queued_recipients = [
             recipient
             for recipient in recipients
-            if recipient.get("recipient_id") or recipient.get("whatsapp_user_id")
+            if recipient.get("member_identity_id")
         ]
 
         announcement = Announcement(
@@ -143,10 +141,6 @@ class AnnouncementService:
         db.flush()
 
         for recipient in queued_recipients:
-            recipient_id = recipient.get("recipient_id") or recipient.get("whatsapp_user_id")
-            if not recipient_id:
-                continue
-
             channel = str(recipient.get("channel", "whatsapp"))
             rendered_payload: RenderedTemplatePayload | None = None
             if channel == "whatsapp":
@@ -163,7 +157,6 @@ class AnnouncementService:
                     announcement_id=announcement.id,
                     member_identity_id=recipient["member_identity_id"],
                     channel=channel,
-                    recipient_id=str(recipient_id),
                     rendered_payload=rendered_payload,
                     status="pending",
                     attempts=0,

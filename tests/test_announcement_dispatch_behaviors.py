@@ -86,12 +86,14 @@ def _delivery(status="pending"):
         sent_at=None,
         attempts=0,
         channel="whatsapp",
-        recipient_id="919999000000",
         rendered_payload={
             "template_name": "society_announcement_general",
             "body_parameters": ["Resident", "Notice"],
         },
-        member_identity=SimpleNamespace(metadata_json={"channel_state": {"whatsapp": {"opt_in": True}}}),
+        member_identity=SimpleNamespace(
+            metadata_json={"channel_state": {"whatsapp": {"opt_in": True}}},
+            whatsapp_user_id="919999000000",
+        ),
         announcement=SimpleNamespace(
             id=announcement_id,
             society_id=uuid4(),
@@ -129,7 +131,7 @@ def test_rate_limit_retry_uses_retry_after(monkeypatch):
 
     state = {"attempt": 0}
 
-    def _send(d):
+    def _send(_db, d):
         state["attempt"] += 1
         if state["attempt"] == 1:
             raise WhatsAppRetryableError("retry", response=_DummyResponse(), retry_after_seconds=1.75)
@@ -155,7 +157,12 @@ def test_policy_gating_outside_24h_uses_template(monkeypatch):
     monkeypatch.setattr(delivery_worker, "get_whatsapp_client", lambda: _Client())
 
     delivery = _delivery()
-    outcome, reason = delivery_worker._send_delivery(delivery)
+    db = SimpleNamespace(
+        query=lambda *_args, **_kwargs: SimpleNamespace(
+            filter=lambda *_args, **_kwargs: SimpleNamespace(one_or_none=lambda: delivery.member_identity)
+        )
+    )
+    outcome, reason = delivery_worker._send_delivery(db, delivery)
 
     assert outcome == "sent_template"
     assert reason is None
@@ -168,7 +175,11 @@ def test_dispatch_is_idempotent_for_already_sent_delivery(monkeypatch):
     db = _FakeDB([delivery])
     monkeypatch.setattr(delivery_worker, "SessionLocal", lambda: db)
     monkeypatch.setattr(delivery_worker, "_claim_pending_deliveries", lambda *_args, **_kwargs: [delivery])
-    monkeypatch.setattr(delivery_worker, "_send_delivery", lambda d: (_ for _ in ()).throw(AssertionError("must not send")))
+    monkeypatch.setattr(
+        delivery_worker,
+        "_send_delivery",
+        lambda _db, d: (_ for _ in ()).throw(AssertionError("must not send")),
+    )
 
     processed = delivery_worker.run_pending_announcement_deliveries(batch_size=1)
 
@@ -188,7 +199,7 @@ def test_concurrent_workers_claim_unique_deliveries(monkeypatch):
             item.status = "processing"
         return batch
 
-    def _send(d):
+    def _send(_db, d):
         with queue_lock:
             sends.append((d.announcement_id, d.member_identity_id, d.channel))
         return "sent_template", None

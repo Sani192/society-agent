@@ -18,6 +18,7 @@ from app.channels.whatsapp.client import WhatsAppRetryableError, get_whatsapp_cl
 from app.config import settings
 from app.db.models import Announcement, AnnouncementDelivery
 from app.db.session import SessionLocal
+from app.modules.announcements.recipient_resolver import resolve_provider_recipient_id
 from app.modules.announcements.service import AnnouncementService
 from app.modules.users.language_service import normalize_language_code
 from app.utils.logger import logger
@@ -90,7 +91,7 @@ def _resolve_policy_outcome(delivery: AnnouncementDelivery) -> tuple[str, str | 
     return "sent_template", None
 
 
-def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
+def _send_delivery(db, delivery: AnnouncementDelivery) -> tuple[str, str | None]:
     if delivery.status == "sent":
         return "sent_template", None
     if delivery.channel != "whatsapp":
@@ -115,9 +116,15 @@ def _send_delivery(delivery: AnnouncementDelivery) -> tuple[str, str | None]:
 
     template_locale_code = _resolve_template_locale_code(payload)
 
+    recipient_id = resolve_provider_recipient_id(
+        db=db,
+        member_identity_id=delivery.member_identity_id,
+        channel=str(delivery.channel),
+    )
+
     client = get_whatsapp_client()
     client.send_template_message(
-        to_phone=str(delivery.recipient_id),
+        to_phone=recipient_id,
         template_name=template_name,
         body_parameters=body_parameters,
         language_code=template_locale_code,
@@ -248,7 +255,7 @@ def process_announcement_delivery(announcement_id: str, member_identity_id: str,
         db.commit()
 
         try:
-            policy_outcome, reason = _send_delivery(delivery)
+            policy_outcome, reason = _send_delivery(db, delivery)
             delivery.attempts += 1
             delivery.processing_started_at = None
 
@@ -296,7 +303,7 @@ def _process_delivery_instance(delivery, *, db, send_interval_seconds: float = 0
         return "already_sent"
 
     try:
-        policy_outcome, reason = _send_delivery(delivery)
+        policy_outcome, reason = _send_delivery(db, delivery)
         delivery.attempts += 1
         delivery.processing_started_at = None
 

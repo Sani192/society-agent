@@ -792,7 +792,6 @@ class AnnouncementDelivery(Base):
     )
     channel = Column(String(50), primary_key=True)
 
-    recipient_id = Column(String(255), nullable=False)
     rendered_payload = Column(JSONB, nullable=True)
     status = Column(String(50), nullable=False, default="pending")
     attempts = Column(Integer, nullable=False, default=0)

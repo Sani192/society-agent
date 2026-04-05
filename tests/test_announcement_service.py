@@ -99,7 +99,6 @@ def test_create_announcement_persists_rendered_payload(db_session):
             {
                 "member_identity_id": member_identity_id,
                 "channel": "whatsapp",
-                "recipient_id": "919999000000",
                 "receiver_name": "Asha",
                 "preferred_language": "en",
             }
