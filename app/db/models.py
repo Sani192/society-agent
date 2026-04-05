@@ -265,7 +265,6 @@ class CommitteeMemberPhoneLinkChallenge(Base):
     external_user_id = Column(String(255), nullable=False, index=True)
     username = Column(String(255), nullable=True)
 
-    phone_number = Column(String(20), nullable=False, index=True)
     otp_hash = Column(String(64), nullable=False)
     otp_salt = Column(String(64), nullable=False)
 
@@ -281,6 +280,12 @@ class CommitteeMemberPhoneLinkChallenge(Base):
 
     __table_args__ = (
         CheckConstraint("channel_type IN ('whatsapp', 'telegram')", name="ck_member_phone_challenge_channel"),
+        Index(
+            "ix_member_phone_challenges_member_lifecycle",
+            "committee_member_id",
+            "expires_at",
+            "consumed_at",
+        ),
     )
 
     committee_member = relationship("CommitteeMember", backref="phone_link_challenges")

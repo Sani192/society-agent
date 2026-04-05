@@ -4,19 +4,29 @@ from uuid import uuid4
 
 from app.modules.users.channel_identity_service import (
     _otp_hash,
+    request_phone_link_challenge,
     verify_phone_link_challenge,
 )
 
 
 class _QueryStub:
-    def __init__(self, *, first_result=None):
+    def __init__(self, *, first_result=None, all_result=None):
         self._first_result = first_result
+        self._all_result = all_result or []
+        self.joined_models = []
 
     def filter(self, *args, **kwargs):
         return self
 
+    def join(self, model, *args, **kwargs):
+        self.joined_models.append(model.__name__)
+        return self
+
     def order_by(self, *args, **kwargs):
         return self
+
+    def all(self):
+        return self._all_result
 
     def first(self):
         return self._first_result
@@ -29,19 +39,32 @@ class _DBStub:
         self._identity = identity
         self.added = []
         self.commits = 0
+        self.flushes = 0
+        self.refreshes = 0
+        self.queries = []
 
     def query(self, model):
         model_name = model.__name__
+        query = None
         if model_name == "CommitteeMember":
-            return _QueryStub(first_result=self._member)
-        if model_name == "CommitteeMemberPhoneLinkChallenge":
-            return _QueryStub(first_result=self._challenge)
-        if model_name == "CommitteeMemberChannelIdentity":
-            return _QueryStub(first_result=self._identity)
-        raise AssertionError(f"unexpected model query: {model_name}")
+            query = _QueryStub(first_result=self._member)
+        elif model_name == "CommitteeMemberPhoneLinkChallenge":
+            query = _QueryStub(first_result=self._challenge, all_result=[])
+        elif model_name == "CommitteeMemberChannelIdentity":
+            query = _QueryStub(first_result=self._identity)
+        else:
+            raise AssertionError(f"unexpected model query: {model_name}")
+        self.queries.append((model_name, query))
+        return query
 
     def add(self, obj):
         self.added.append(obj)
+
+    def flush(self):
+        self.flushes += 1
+
+    def refresh(self, _obj):
+        self.refreshes += 1
 
     def commit(self):
         self.commits += 1
@@ -64,7 +87,6 @@ def _build_challenge(*, member, otp="112233", attempts_used=0, max_attempts=3):
         committee_member_id=member.id,
         channel_type="telegram",
         external_user_id="sender-1",
-        phone_number=member.phone_number,
         otp_hash=_otp_hash(otp=otp, salt=salt),
         otp_salt=salt,
         created_at=now,
@@ -95,6 +117,8 @@ def test_verify_phone_link_challenge_locks_after_max_attempts():
     assert challenge.attempts_used == 3
     assert challenge.consumed_at is not None
     assert db.commits == 1
+    challenge_query = [query for model_name, query in db.queries if model_name == "CommitteeMemberPhoneLinkChallenge"][0]
+    assert "CommitteeMember" in challenge_query.joined_models
 
 
 def test_verify_phone_link_challenge_rejects_replay_after_success():
@@ -121,3 +145,21 @@ def test_verify_phone_link_challenge_rejects_replay_after_success():
 
     assert first["status"] == "verified"
     assert second["status"] == "challenge_replayed"
+
+
+def test_request_phone_link_challenge_does_not_store_denormalized_phone():
+    member = _build_member()
+    db = _DBStub(member=member, challenge=None, identity=None)
+
+    result = request_phone_link_challenge(
+        db=db,
+        channel_type="telegram",
+        sender_id="sender-1",
+        phone_number=member.phone_number,
+        username="janed",
+    )
+
+    created_challenges = [obj for obj in db.added if obj.__class__.__name__ == "CommitteeMemberPhoneLinkChallenge"]
+    assert result["status"] == "issued"
+    assert len(created_challenges) == 1
+    assert not hasattr(created_challenges[0], "phone_number")
