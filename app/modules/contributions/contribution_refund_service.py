@@ -12,6 +12,7 @@ from sqlalchemy import func
 from app.db.models import ContributionRefund, EventContribution, Event, AuditLog
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.currency import format_currency
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class ContributionRefundService:
             remaining = max(0, contribution.amount - total_refunded)
             raise Exception(
                 f"Refund exceeds contribution amount. "
-                f"Remaining refundable amount: ₹{remaining}"
+                f"Remaining refundable amount: {format_currency(remaining)}"
             )
         logger.info(
             "Refund amount validated | total_refunded=%s context=%s",

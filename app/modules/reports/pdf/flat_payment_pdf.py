@@ -14,6 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 
 from app.i18n.catalog import translate
 from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
+from app.modules.reports.pdf.formatting import currency_label, format_currency
 from app.modules.reports.pdf.table import build_table
 from app.utils.time import utc_now
 
@@ -54,7 +55,7 @@ def generate_flat_payment_pdf(
     pdf.report_meta(elements, {
         translate("report_exports.meta.event", lang): event_name,
         translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y %H:%M"),
-        translate("report_exports.meta.currency", lang): "INR (₹)"
+        translate("report_exports.meta.currency", lang): currency_label()
     })
 
     # Table
@@ -75,10 +76,10 @@ def generate_flat_payment_pdf(
     elements.append(Spacer(1, 18))
     elements.append(
         pdf.summary_box(translate("report_exports.labels.summary.payment_summary", lang), [
-            [translate("report_exports.labels.summary.total_expected", lang), f"₹ {total_expected:,}"],
-            [translate("report_exports.labels.summary.total_paid", lang), f"₹ {total_paid:,}"],
-            [translate("report_exports.labels.summary.total_refunded", lang), f"₹ {total_refunded:,}"],
-            [translate("report_exports.labels.summary.total_pending", lang), f"₹ {total_pending:,}"],
+            [translate("report_exports.labels.summary.total_expected", lang), format_currency(total_expected)],
+            [translate("report_exports.labels.summary.total_paid", lang), format_currency(total_paid)],
+            [translate("report_exports.labels.summary.total_refunded", lang), format_currency(total_refunded)],
+            [translate("report_exports.labels.summary.total_pending", lang), format_currency(total_pending)],
         ])
     )
 

@@ -90,6 +90,7 @@ class Settings:
     APP_ENV_NORMALIZED: Final[str] = APP_ENV.strip().lower()
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
     CURRENCY = os.getenv("CURRENCY_SYMBOL", "₹")
+    CURRENCY_CODE = os.getenv("CURRENCY_CODE", "INR")
 
     DEFAULT_SOCIETY_NAME = os.getenv("DEFAULT_SOCIETY_NAME")
     WHATSAPP_ENABLED = _env_flag("WHATSAPP_ENABLED", "true")

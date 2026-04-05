@@ -14,6 +14,7 @@ from reportlab.lib.pagesizes import A4
 
 from app.i18n.catalog import translate
 from app.modules.reports.pdf.base import BasePDF, get_pdf_render_language
+from app.modules.reports.pdf.formatting import currency_label, format_currency
 from app.utils.time import utc_now
 
 
@@ -49,14 +50,15 @@ def generate_public_event_summary_pdf(
     pdf.report_meta(elements, {
         translate("report_exports.meta.generated_on", lang): utc_now().strftime("%d %b %Y"),
         translate("report_exports.meta.scope", lang): translate("report_exports.labels.scopes.public_read_only", lang),
+        translate("report_exports.meta.currency", lang): currency_label(),
     })
 
     elements.append(
         pdf.summary_box(translate("report_exports.labels.summary.event_snapshot", lang), [
             [translate("report_exports.labels.summary.participants", lang), summary["participants"]],
-            [translate("report_exports.labels.summary.total_income", lang), f"₹ {summary['income']:,}"],
-            [translate("report_exports.labels.summary.total_expenses", lang), f"₹ {summary['expenses']:,}"],
-            [translate("report_exports.labels.summary.closing_balance", lang), f"₹ {summary['closing_balance']:,}"],
+            [translate("report_exports.labels.summary.total_income", lang), format_currency(summary["income"])],
+            [translate("report_exports.labels.summary.total_expenses", lang), format_currency(summary["expenses"])],
+            [translate("report_exports.labels.summary.closing_balance", lang), format_currency(summary["closing_balance"])],
         ])
     )
 

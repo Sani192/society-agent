@@ -8,6 +8,8 @@ Created on Fri Feb 07 12:00:00 2026
 
 from typing import Iterable
 
+from app.utils.currency import format_currency as format_configured_currency, get_currency_label
+
 CURRENCY_TOKENS = (
     "amount",
     "paid",
@@ -27,7 +29,11 @@ def format_currency(value):
         return "-"
     if isinstance(value, str):
         return value
-    return f"₹ {value:,}"
+    return format_configured_currency(value)
+
+
+def currency_label() -> str:
+    return get_currency_label()
 
 
 def format_report_rows(headers: list, rows: Iterable[list]):
