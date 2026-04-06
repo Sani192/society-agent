@@ -21,6 +21,10 @@ def allow_workflow_actions(monkeypatch):
     )
 
 
+def _committee_member(role: str = "committee_member"):
+    return SimpleNamespace(id="member-1", society_id="soc-1", is_active=True, role=role)
+
+
 
 def test_generate_tokens_for_event_creates_one_token_per_plate(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
@@ -29,6 +33,7 @@ def test_generate_tokens_for_event_creates_one_token_per_plate(monkeypatch):
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(scalar_result=0),
         QueryMock(all_result=passes),
     ]
@@ -82,6 +87,7 @@ def test_generate_tokens_for_event_rejects_regeneration():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(scalar_result=2),
     ]
 
@@ -98,6 +104,7 @@ def test_open_food_counter_marks_counter_open():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=None),
     ]
 
@@ -122,6 +129,7 @@ def test_verify_and_serve_token_rejects_used_token():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
         QueryMock(first_result=token),
     ]
@@ -188,6 +196,7 @@ def test_serve_by_flat_lookup_picks_first_unserved(monkeypatch):
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
         QueryMock(first_result=token),
     ]
@@ -218,6 +227,7 @@ def test_serve_by_flat_lookup_rejects_if_no_token():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
         QueryMock(first_result=None),
         QueryMock(scalar_result=0),
@@ -240,6 +250,7 @@ def test_serve_by_flat_lookup_allows_no_token_fallback_with_remaining_entitlemen
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
         QueryMock(first_result=None),
         QueryMock(scalar_result=3),
@@ -265,6 +276,7 @@ def test_serve_by_flat_lookup_rejects_no_token_when_no_remaining_entitlement():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
         QueryMock(first_result=None),
         QueryMock(scalar_result=2),
@@ -287,6 +299,7 @@ def test_serve_by_flat_lookup_rejects_when_counter_closed():
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
     ]
 
@@ -341,7 +354,10 @@ def test_committee_flat_status_rejects_flat_number_from_other_society():
 def test_generate_tokens_for_event_blocks_when_workflow_denied(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
     db = MagicMock()
-    db.query.side_effect = [QueryMock(first_result=event)]
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
+    ]
 
     monkeypatch.setattr(
         "app.modules.events.food_collection_service.WorkflowEngine.check_action",
@@ -363,6 +379,7 @@ def test_serve_by_flat_lookup_allows_with_workflow_override(monkeypatch):
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
         QueryMock(first_result=token),
     ]

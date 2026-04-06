@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:33:10 2026
 # app/whatsapp/handlers/committee_handler.py
 
 from datetime import datetime, timedelta
+import re
 
 from sqlalchemy import func
 
@@ -144,7 +145,10 @@ def _parse_token_after_prefix(message: str, *, prefix: str) -> str | None:
     payload = raw[len(prefix):].strip()
     if not payload:
         return None
-    return payload.split()[0].strip().upper()
+    candidate = payload.split()[0].strip().upper()
+    if not re.fullmatch(r"[A-Z2-9]{6,20}", candidate):
+        return None
+    return candidate
 
 
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"

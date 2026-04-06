@@ -10,11 +10,13 @@ from tests.utils import QueryMock
 def test_record_payment_creates_payment(monkeypatch):
     event = SimpleNamespace(society_id="soc-1")
     flat = SimpleNamespace(id="flat-1", society_id="soc-1")
+    committee_member = SimpleNamespace(id="member-1", society_id="soc-1", is_active=True, role="treasurer")
     food_pass = SimpleNamespace(total_amount=300)
     db = MagicMock()
     db.query.side_effect = [
         QueryMock(first_result=event),
         QueryMock(first_result=flat),
+        QueryMock(first_result=committee_member),
         QueryMock(first_result=food_pass),
         QueryMock(first_result=None)
     ]

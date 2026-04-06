@@ -12,6 +12,7 @@ import re
 from datetime import datetime
 
 from app.utils.logger import logger
+from app.utils.logging_helpers import mask_phone
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
@@ -76,7 +77,7 @@ def parse_target_phone(message: str):
     logger.info("Parsing target phone from WhatsApp message")
     match = re.search(r"\bphone\s+(\+?\d{10,15})\b", message, re.IGNORECASE)
     phone = match.group(1).strip() if match else None
-    logger.info("Parsed target phone", extra={"phone": phone})
+    logger.info("Parsed target phone", extra={"phone_masked": mask_phone(phone)})
     return phone
 
 

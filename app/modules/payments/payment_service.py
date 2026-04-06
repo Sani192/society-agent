@@ -19,6 +19,7 @@ from app.db.models import (
     AuditLog
 )
 from app.workflows.engine import WorkflowEngine
+from app.modules.security.access_control import require_committee_action
 from app.utils.logging_helpers import build_log_context, log_service_call
 from app.utils.time import utc_now
 
@@ -59,6 +60,12 @@ class PaymentService:
             raise Exception("Invalid event or flat")
         if flat.society_id != event.society_id:
             raise Exception("Flat does not belong to the event society")
+        require_committee_action(
+            db,
+            society_id=event.society_id,
+            performed_by=performed_by,
+            action="PAY",
+        )
         logger.info("Validated event and flat | context=%s", context)
 
         decision = WorkflowEngine.check_action(

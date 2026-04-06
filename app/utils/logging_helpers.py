@@ -29,6 +29,15 @@ def build_log_context(**kwargs: Any) -> Dict[str, Any]:
     }
 
 
+def mask_phone(value: str | None) -> str | None:
+    if not value:
+        return None
+    digits = "".join(ch for ch in str(value) if ch.isdigit())
+    if len(digits) < 4:
+        return "***"
+    return f"{'*' * max(len(digits) - 4, 2)}{digits[-4:]}"
+
+
 def log_entry(logger: logging.Logger, action: str, context: Dict[str, Any]) -> None:
     logger.info("Entering %s | context=%s", action, context)
 

@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.models import PendingUser, Flat, AuditLog
+from app.modules.security.access_control import require_committee_roles
 from app.modules.users.user_flat_service import UserFlatService
 from app.utils.logging_helpers import build_log_context, log_service_call
 
@@ -22,6 +23,12 @@ class AdminApprovalService:
     @staticmethod
     @log_service_call(logger, "AdminApprovalService.approve_user")
     def approve_user(db: Session, *, society_id, request_code, performed_by):
+        require_committee_roles(
+            db,
+            society_id=society_id,
+            performed_by=performed_by,
+            allowed_roles={"chairman", "secretary", "committee_member"},
+        )
         context = build_log_context(society_id=society_id, performed_by=performed_by)
         logger.info("Approving onboarding request | request_code=%s context=%s", request_code, context)
         pending = (
