@@ -123,6 +123,12 @@ class Settings:
     }
 
     REPORTS_API_AUTH_SECRET = os.getenv("REPORTS_API_AUTH_SECRET")
+    REPORTS_API_AUTH_AUDIENCE = os.getenv("REPORTS_API_AUTH_AUDIENCE")
+    REPORTS_API_AUTH_MAX_TTL_SECONDS = _env_int("REPORTS_API_AUTH_MAX_TTL_SECONDS", 3600)
+    REPORTS_API_AUTH_MAX_IAT_FUTURE_SKEW_SECONDS = _env_int(
+        "REPORTS_API_AUTH_MAX_IAT_FUTURE_SKEW_SECONDS",
+        300,
+    )
 
     # Declared explicitly for static type-checkers; values are populated from env.
     WHATSAPP_VERIFY_TOKEN: str | None

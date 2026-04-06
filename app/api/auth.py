@@ -66,14 +66,49 @@ def _verify_and_decode_principal_token(token: str) -> dict:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token payload")
 
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
     exp = payload.get("exp")
-    if exp is not None:
-        try:
-            exp_dt = datetime.fromtimestamp(int(exp), tz=timezone.utc)
-        except (TypeError, ValueError, OSError) as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token expiry") from exc
-        if exp_dt <= datetime.now(timezone.utc):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token expired")
+    if exp is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token missing expiry")
+
+    try:
+        exp_ts = int(exp)
+        exp_dt = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
+    except (TypeError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token expiry") from exc
+    if exp_dt <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token expired")
+
+    iat = payload.get("iat")
+    if iat is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token missing issued-at")
+    try:
+        iat_ts = int(iat)
+        datetime.fromtimestamp(iat_ts, tz=timezone.utc)
+    except (TypeError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token issued-at") from exc
+
+    max_iat_future_skew = max(
+        0,
+        int(getattr(settings, "REPORTS_API_AUTH_MAX_IAT_FUTURE_SKEW_SECONDS", 300)),
+    )
+    if iat_ts > (now_ts + max_iat_future_skew):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Auth token issued-at is in the future",
+        )
+
+    max_ttl_seconds = max(1, int(getattr(settings, "REPORTS_API_AUTH_MAX_TTL_SECONDS", 3600)))
+    if exp_ts - iat_ts > max_ttl_seconds:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Auth token expiry exceeds max TTL",
+        )
+
+    expected_aud = getattr(settings, "REPORTS_API_AUTH_AUDIENCE", None)
+    if expected_aud and payload.get("aud") != expected_aud:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token audience")
 
     return payload
 
@@ -111,9 +146,23 @@ def get_authenticated_principal(
     )
 
 
-def build_reports_auth_token(*, payload: dict, signing_secret: str) -> str:
+def build_reports_auth_token(
+    *,
+    payload: dict,
+    signing_secret: str,
+    ttl_seconds: int = 900,
+    audience: str | None = None,
+    include_standard_claims: bool = True,
+) -> str:
     """Test/helper utility for generating backend-signed report auth tokens."""
-    payload_encoded = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    normalized_payload = dict(payload)
+    if include_standard_claims:
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        normalized_payload.setdefault("iat", now_ts)
+        normalized_payload.setdefault("exp", now_ts + ttl_seconds)
+        if audience is not None:
+            normalized_payload.setdefault("aud", audience)
+    payload_encoded = _b64url_encode(json.dumps(normalized_payload, separators=(",", ":")).encode("utf-8"))
     signature = hmac.new(
         signing_secret.encode("utf-8"),
         payload_encoded.encode("utf-8"),
