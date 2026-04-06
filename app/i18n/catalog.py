@@ -277,6 +277,15 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "No active event found. Please contact committee.",
             },
+            "refund_reason_required": "Refund reason is required.",
+            "override_reason_required": "Override reason is required.",
+            "sponsor_refund_processed": "Sponsor refund processed ({contribution_code}).",
+            "refund_processed_heading": "Refund processed",
+            "flat_number_required": "Flat number is required.",
+            "announcement_body_required": "Announcement body cannot be empty.",
+            "announcement_too_long": "Announcement is too long ({provided_length} chars). Max allowed is {max_length}.",
+            "announcement_accepted": "Announcement accepted for processing. Accepted: {accepted_count}, Skipped: {skipped_count}, Announcement ID: {announcement_id}",
+            "announcement_queued_heading": "Announcement queued",
             "add_expense": {
                 "heading": "Expense added",
                 "added_message": "Expense added: {amount}",
@@ -458,6 +467,15 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "कोई सक्रिय इवेंट नहीं मिला। कृपया समिति से संपर्क करें।",
             },
+            "refund_reason_required": "रिफंड का कारण आवश्यक है।",
+            "override_reason_required": "ओवरराइड कारण आवश्यक है।",
+            "sponsor_refund_processed": "प्रायोजक रिफंड प्रोसेस हुआ ({contribution_code}).",
+            "refund_processed_heading": "रिफंड प्रोसेस हुआ",
+            "flat_number_required": "फ्लैट नंबर आवश्यक है।",
+            "announcement_body_required": "घोषणा संदेश खाली नहीं हो सकता।",
+            "announcement_too_long": "घोषणा बहुत लंबी है ({provided_length} अक्षर)। अधिकतम {max_length} अक्षर मान्य हैं।",
+            "announcement_accepted": "घोषणा प्रोसेसिंग के लिए स्वीकार की गई। स्वीकार: {accepted_count}, छोड़ा गया: {skipped_count}, घोषणा आईडी: {announcement_id}",
+            "announcement_queued_heading": "घोषणा कतारबद्ध",
             "add_expense": {
                 "heading": "खर्च जोड़ा गया",
                 "added_message": "खर्च जोड़ा गया: {amount}",
@@ -639,6 +657,15 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "કોઈ સક્રિય ઇવેન્ટ મળ્યો નથી. કૃપા કરીને સમિતિનો સંપર્ક કરો.",
             },
+            "refund_reason_required": "રિફંડ કારણ જરૂરી છે.",
+            "override_reason_required": "ઓવરરાઇડ કારણ જરૂરી છે.",
+            "sponsor_refund_processed": "સ્પોન્સર રિફંડ પ્રક્રિયા પૂર્ણ ({contribution_code}).",
+            "refund_processed_heading": "રિફંડ પ્રક્રિયા પૂર્ણ",
+            "flat_number_required": "ફ્લેટ નંબર જરૂરી છે.",
+            "announcement_body_required": "જાહેરાત સંદેશ ખાલી ન હોઈ શકે.",
+            "announcement_too_long": "જાહેરાત બહુ લાંબી છે ({provided_length} અક્ષરો). મહત્તમ {max_length} મંજૂર છે.",
+            "announcement_accepted": "જાહેરાત પ્રક્રિયા માટે સ્વીકારાઈ. સ્વીકારેલ: {accepted_count}, છોડેલ: {skipped_count}, જાહેરાત આઈડી: {announcement_id}",
+            "announcement_queued_heading": "જાહેરાત કતારમાં મૂકી",
             "add_expense": {
                 "heading": "ખર્ચ ઉમેરાયો",
                 "added_message": "ખર્ચ ઉમેરાયો: {amount}",

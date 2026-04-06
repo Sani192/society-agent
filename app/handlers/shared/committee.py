@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:33:10 2026
 # app/whatsapp/handlers/committee_handler.py
 
 from datetime import datetime, timedelta
+import re
 
 from sqlalchemy import func
 
@@ -144,7 +145,10 @@ def _parse_token_after_prefix(message: str, *, prefix: str) -> str | None:
     payload = raw[len(prefix):].strip()
     if not payload:
         return None
-    return payload.split()[0].strip().upper()
+    candidate = payload.split()[0].strip().upper()
+    if not re.fullmatch(r"[A-Z2-9]{6,20}", candidate):
+        return None
+    return candidate
 
 
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
@@ -994,7 +998,9 @@ def handle_committee_intent(
 
             if state.step == "reason":
                 if not answer:
-                    return error_response("Refund reason is required.")
+                    return error_response(
+                        translate("committee.refund_reason_required", lang)
+                    )
                 state.data["reason"] = answer
                 try:
                     ContributionRefundService.process_refund(
@@ -1014,14 +1020,20 @@ def handle_committee_intent(
                     return error_response(str(exc))
                 clear_committee_action_session(committee_action_session_key)
                 return success_response(
-                    f"Sponsor refund processed ({state.data['contribution_code']}).",
-                    heading="Refund processed",
+                    translate(
+                        "committee.sponsor_refund_processed",
+                        lang,
+                        contribution_code=state.data["contribution_code"],
+                    ),
+                    heading=translate("committee.refund_processed_heading", lang),
                     emoji="↩️",
                 )
 
             if state.step == "override_reason":
                 if not answer:
-                    return error_response("Override reason is required.")
+                    return error_response(
+                        translate("committee.override_reason_required", lang)
+                    )
                 try:
                     ContributionRefundService.process_refund(
                         db=db,
@@ -1036,25 +1048,38 @@ def handle_committee_intent(
                     return error_response(str(exc))
                 clear_committee_action_session(committee_action_session_key)
                 return success_response(
-                    f"Sponsor refund processed ({state.data['contribution_code']}).",
-                    heading="Refund processed",
+                    translate(
+                        "committee.sponsor_refund_processed",
+                        lang,
+                        contribution_code=state.data["contribution_code"],
+                    ),
+                    heading=translate("committee.refund_processed_heading", lang),
                     emoji="↩️",
                 )
 
         if state.action == "REMIND_FLAT":
             if state.step == "flat_number":
                 if not answer:
-                    return error_response("Flat number is required.")
+                    return error_response(
+                        translate("committee.flat_number_required", lang)
+                    )
                 clear_committee_action_session(committee_action_session_key)
                 return _build_reminder_preview(db=db, event=event, flat_number=answer)
 
         if state.action in ANNOUNCE_INTENTS:
             if state.step == "message_body":
                 if not answer:
-                    return error_response("Announcement body cannot be empty.")
+                    return error_response(
+                        translate("committee.announcement_body_required", lang)
+                    )
                 if len(answer) > ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH:
                     return error_response(
-                        f"Announcement is too long ({len(answer)} chars). Max allowed is {ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH}."
+                        translate(
+                            "committee.announcement_too_long",
+                            lang,
+                            provided_length=len(answer),
+                            max_length=ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH,
+                        )
                     )
                 clear_committee_action_session(committee_action_session_key)
                 try:
@@ -1068,13 +1093,14 @@ def handle_committee_intent(
                 except ValueError as exc:
                     return error_response(str(exc))
                 return success_response(
-                    (
-                        "Announcement accepted for processing. "
-                        f"Accepted: {queue_result.accepted_count}, "
-                        f"Skipped: {queue_result.skipped_count}, "
-                        f"Announcement ID: {queue_result.announcement_id}"
+                    translate(
+                        "committee.announcement_accepted",
+                        lang,
+                        accepted_count=queue_result.accepted_count,
+                        skipped_count=queue_result.skipped_count,
+                        announcement_id=queue_result.announcement_id,
                     ),
-                    heading="Announcement queued",
+                    heading=translate("committee.announcement_queued_heading", lang),
                     emoji="📣",
                 )
 
@@ -2148,8 +2174,12 @@ def handle_committee_intent(
             return error_response(str(exc))
 
         return success_response(
-            f"Sponsor refund processed ({contribution_code}).",
-            heading="Refund processed",
+            translate(
+                "committee.sponsor_refund_processed",
+                lang,
+                contribution_code=contribution_code,
+            ),
+            heading=translate("committee.refund_processed_heading", lang),
             emoji="↩️",
         )
 

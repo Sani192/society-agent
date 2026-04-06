@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import heapq
+from collections import defaultdict, deque
 from typing import NoReturn, cast
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -65,6 +66,45 @@ MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_SECONDS = 2
 MAX_RETRY_BACKOFF_SECONDS = 60
 _RETRY_QUEUE: list[tuple[float, str, dict, int]] = []
+_WEBHOOK_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _client_key(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip() or "unknown"
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None)
+    if host:
+        return str(host)
+    return f"object:{id(request)}"
+
+
+def _enforce_webhook_rate_limit(request: Request) -> None:
+    window_seconds = max(1, int(settings.WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS))
+    max_requests = max(1, int(settings.WHATSAPP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS))
+    key = _client_key(request)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    bucket = _WEBHOOK_RATE_LIMIT_BUCKETS[key]
+    cutoff_ts = now_ts - float(window_seconds)
+    while bucket and bucket[0] <= cutoff_ts:
+        bucket.popleft()
+    if len(bucket) >= max_requests:
+        increment_counter("whatsapp.webhook.rate_limited")
+        logger.warning(
+            "WhatsApp webhook rate limit exceeded",
+            extra={
+                "event": "whatsapp_webhook_rate_limited",
+                "client_key": key[:64],
+                "window_seconds": window_seconds,
+                "max_requests": max_requests,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
+        )
+    bucket.append(now_ts)
 
 
 class _WhatsAppRuntimeStrategy(WebhookRuntimeStrategy):
@@ -455,6 +495,7 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
 )
 async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundTasks = cast(BackgroundTasks, None)) -> dict[str, str]:
     _ensure_channel_enabled()
+    _enforce_webhook_rate_limit(request)
     if hasattr(request, "body"):
         raw_body = await request.body()
     else:

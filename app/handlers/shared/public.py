@@ -41,7 +41,8 @@ def _resolve_member_flat(db, *, phone_number, event):
             society_id=event.society_id
         )
     except Exception as exc:
-        return None, error_response(str(exc))
+        logger.warning("Failed to resolve member flat", exc_info=exc)
+        return None, error_response("Unable to resolve your flat for this event.")
 
     return flat, None
 
@@ -239,6 +240,7 @@ def handle_public_intent(
                     requested_by_mapping_id=_pick_requester_mapping_id(mappings, flat.id)
                 )
             except Exception as exc:
+                logger.warning("Refund request failed", exc_info=exc)
                 return error_response(str(exc))
             return success_response(
                 join_lines([
@@ -276,6 +278,7 @@ def handle_public_intent(
                 override_reason="Via WhatsApp"
             )
         except Exception as exc:
+            logger.warning("Refund processing failed", exc_info=exc)
             return error_response(str(exc))
 
         return success_response(

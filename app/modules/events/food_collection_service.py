@@ -9,12 +9,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, Event, EventFoodCounter, EventFoodPass, EventFoodToken, Flat
+from app.modules.security.access_control import require_committee_roles
 from app.utils.time import utc_now
 from app.workflows.engine import WorkflowEngine
 
 TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 SERVE_METHODS = {"QR_SCAN", "MANUAL_TOKEN", "FLAT_LOOKUP"}
 NO_TOKEN_FALLBACK_METHOD = "FLAT_LOOKUP_NO_TOKEN"
+_FOOD_OPERATION_ALLOWED_ROLES = {"chairman", "secretary", "treasurer", "committee_member"}
 
 
 class FoodCollectionService:
@@ -92,6 +94,14 @@ class FoodCollectionService:
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+        require_committee_roles(
+            db,
+            society_id=event.society_id,
+            performed_by=performed_by,
+            allowed_roles=_FOOD_OPERATION_ALLOWED_ROLES,
+        )
+        if token_length < 6:
+            raise Exception("Token length must be at least 6 characters")
 
         FoodCollectionService._ensure_workflow_action_allowed(
             db=db,
@@ -176,6 +186,12 @@ class FoodCollectionService:
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+        require_committee_roles(
+            db,
+            society_id=event.society_id,
+            performed_by=performed_by,
+            allowed_roles=_FOOD_OPERATION_ALLOWED_ROLES,
+        )
 
         FoodCollectionService._ensure_workflow_action_allowed(
             db=db,
@@ -254,6 +270,12 @@ class FoodCollectionService:
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+        require_committee_roles(
+            db,
+            society_id=event.society_id,
+            performed_by=performed_by,
+            allowed_roles=_FOOD_OPERATION_ALLOWED_ROLES,
+        )
 
         FoodCollectionService._ensure_workflow_action_allowed(
             db=db,
@@ -292,7 +314,7 @@ class FoodCollectionService:
                     entity_type="food_collection",
                     entity_id=event_id,
                     action="REJECT_FOOD_TOKEN",
-                    reason=f"Token not found: {(token_code or '').strip().upper()}",
+                    reason="Token not found",
                     performed_by=performed_by,
                 )
             )
@@ -336,6 +358,12 @@ class FoodCollectionService:
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
+        require_committee_roles(
+            db,
+            society_id=event.society_id,
+            performed_by=performed_by,
+            allowed_roles=_FOOD_OPERATION_ALLOWED_ROLES,
+        )
 
         FoodCollectionService._ensure_workflow_action_allowed(
             db=db,

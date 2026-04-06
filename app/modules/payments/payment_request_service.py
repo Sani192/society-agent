@@ -20,6 +20,7 @@ from app.db.models import (
     UserFlatMapping
 )
 from app.modules.payments.payment_service import PaymentService
+from app.modules.security.access_control import require_committee_action
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
 from app.utils.time import utc_now
@@ -148,6 +149,10 @@ class PaymentRequestService:
         mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
         if not mapping:
             raise Exception("Invalid requester mapping")
+        if mapping.society_id != event.society_id or not mapping.is_active:
+            raise Exception("Requester mapping is not active for this society")
+        if mapping.flat_id != flat_id:
+            raise Exception("Requester is not authorized for the selected flat")
 
         request = PaymentRequest(
             event_id=event_id,
@@ -248,10 +253,17 @@ class PaymentRequestService:
         request,
         performed_by
     ):
+        event_society_id = PaymentRequestService._get_event_society_id(db, request.event_id)
+        require_committee_action(
+            db,
+            society_id=event_society_id,
+            performed_by=performed_by,
+            action="PAY",
+        )
         context = build_log_context(
             event_id=request.event_id,
             flat_id=request.flat_id,
-            society_id=PaymentRequestService._get_event_society_id(db, request.event_id),
+            society_id=event_society_id,
             performed_by=performed_by,
             request_code=request.request_code
         )
@@ -275,7 +287,7 @@ class PaymentRequestService:
         request.approved_at = utc_now()
 
         db.add(AuditLog(
-            society_id=PaymentRequestService._get_event_society_id(db, request.event_id),
+            society_id=event_society_id,
             entity_type="payment_request",
             entity_id=request.id,
             action="APPROVE_PAYMENT_REQUEST",
@@ -312,6 +324,13 @@ class PaymentRequestService:
         performed_by,
         rejection_reason=None
     ):
+        event_society_id = PaymentRequestService._get_event_society_id(db, request.event_id)
+        require_committee_action(
+            db,
+            society_id=event_society_id,
+            performed_by=performed_by,
+            action="PAY",
+        )
         request.status = "rejected"
 
         reason = (
@@ -322,7 +341,7 @@ class PaymentRequestService:
             reason = f"{reason} | {rejection_reason}"
 
         db.add(AuditLog(
-            society_id=PaymentRequestService._get_event_society_id(db, request.event_id),
+            society_id=event_society_id,
             entity_type="payment_request",
             entity_id=request.id,
             action="REJECT_PAYMENT_REQUEST",

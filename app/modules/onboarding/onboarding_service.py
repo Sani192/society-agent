@@ -15,6 +15,7 @@ from app.modules.users.member_identity_service import MemberIdentityService
 from app.modules.users.user_flat_service import UserFlatService
 from app.utils.identity import normalize_identifier
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.logging_helpers import mask_phone
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class OnboardingService:
         identity = MemberIdentityService.resolve_or_create(db, user_identifier=normalized_identifier)
         logger.info(
             "Starting onboarding | user=%s flat_number=%s context=%s",
-            normalized_identifier,
+            mask_phone(normalized_identifier),
             flat_number,
             context
         )

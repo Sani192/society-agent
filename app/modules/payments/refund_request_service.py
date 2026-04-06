@@ -20,6 +20,7 @@ from app.db.models import (
     UserFlatMapping
 )
 from app.modules.payments.refund_service import RefundService
+from app.modules.security.access_control import require_committee_action
 from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
 from app.utils.time import utc_now
@@ -147,6 +148,10 @@ class RefundRequestService:
         mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
         if not mapping:
             raise Exception("Invalid requester mapping")
+        if mapping.society_id != event.society_id or not mapping.is_active:
+            raise Exception("Requester mapping is not active for this society")
+        if mapping.flat_id != flat_id:
+            raise Exception("Requester is not authorized for the selected flat")
 
         request = RefundRequest(
             event_id=event_id,
@@ -250,10 +255,17 @@ class RefundRequestService:
         request,
         performed_by
     ):
+        event_society_id = RefundRequestService._get_event_society_id(db, request.event_id)
+        require_committee_action(
+            db,
+            society_id=event_society_id,
+            performed_by=performed_by,
+            action="REFUND",
+        )
         context = build_log_context(
             event_id=request.event_id,
             flat_id=request.flat_id,
-            society_id=RefundRequestService._get_event_society_id(db, request.event_id),
+            society_id=event_society_id,
             performed_by=performed_by,
             request_code=request.request_code
         )
@@ -277,7 +289,7 @@ class RefundRequestService:
         request.approved_at = utc_now()
 
         db.add(AuditLog(
-            society_id=RefundRequestService._get_event_society_id(db, request.event_id),
+            society_id=event_society_id,
             entity_type="refund_request",
             entity_id=request.id,
             action="APPROVE_REFUND_REQUEST",
@@ -314,6 +326,13 @@ class RefundRequestService:
         performed_by,
         rejection_reason=None
     ):
+        event_society_id = RefundRequestService._get_event_society_id(db, request.event_id)
+        require_committee_action(
+            db,
+            society_id=event_society_id,
+            performed_by=performed_by,
+            action="REFUND",
+        )
         request.status = "rejected"
 
         reason = (
@@ -324,7 +343,7 @@ class RefundRequestService:
             reason = f"{reason} | {rejection_reason}"
 
         db.add(AuditLog(
-            society_id=RefundRequestService._get_event_society_id(db, request.event_id),
+            society_id=event_society_id,
             entity_type="refund_request",
             entity_id=request.id,
             action="REJECT_REFUND_REQUEST",
