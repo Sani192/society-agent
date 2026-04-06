@@ -998,7 +998,9 @@ def handle_committee_intent(
 
             if state.step == "reason":
                 if not answer:
-                    return error_response("Refund reason is required.")
+                    return error_response(
+                        translate("committee.refund_reason_required", lang)
+                    )
                 state.data["reason"] = answer
                 try:
                     ContributionRefundService.process_refund(
@@ -1018,14 +1020,20 @@ def handle_committee_intent(
                     return error_response(str(exc))
                 clear_committee_action_session(committee_action_session_key)
                 return success_response(
-                    f"Sponsor refund processed ({state.data['contribution_code']}).",
-                    heading="Refund processed",
+                    translate(
+                        "committee.sponsor_refund_processed",
+                        lang,
+                        contribution_code=state.data["contribution_code"],
+                    ),
+                    heading=translate("committee.refund_processed_heading", lang),
                     emoji="↩️",
                 )
 
             if state.step == "override_reason":
                 if not answer:
-                    return error_response("Override reason is required.")
+                    return error_response(
+                        translate("committee.override_reason_required", lang)
+                    )
                 try:
                     ContributionRefundService.process_refund(
                         db=db,
@@ -1040,8 +1048,12 @@ def handle_committee_intent(
                     return error_response(str(exc))
                 clear_committee_action_session(committee_action_session_key)
                 return success_response(
-                    f"Sponsor refund processed ({state.data['contribution_code']}).",
-                    heading="Refund processed",
+                    translate(
+                        "committee.sponsor_refund_processed",
+                        lang,
+                        contribution_code=state.data["contribution_code"],
+                    ),
+                    heading=translate("committee.refund_processed_heading", lang),
                     emoji="↩️",
                 )
 
@@ -2152,8 +2164,12 @@ def handle_committee_intent(
             return error_response(str(exc))
 
         return success_response(
-            f"Sponsor refund processed ({contribution_code}).",
-            heading="Refund processed",
+            translate(
+                "committee.sponsor_refund_processed",
+                lang,
+                contribution_code=contribution_code,
+            ),
+            heading=translate("committee.refund_processed_heading", lang),
             emoji="↩️",
         )
 

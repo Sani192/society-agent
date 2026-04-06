@@ -277,6 +277,10 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "No active event found. Please contact committee.",
             },
+            "refund_reason_required": "Refund reason is required.",
+            "override_reason_required": "Override reason is required.",
+            "sponsor_refund_processed": "Sponsor refund processed ({contribution_code}).",
+            "refund_processed_heading": "Refund processed",
             "add_expense": {
                 "heading": "Expense added",
                 "added_message": "Expense added: {amount}",
@@ -458,6 +462,10 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "कोई सक्रिय इवेंट नहीं मिला। कृपया समिति से संपर्क करें।",
             },
+            "refund_reason_required": "रिफंड का कारण आवश्यक है।",
+            "override_reason_required": "ओवरराइड कारण आवश्यक है।",
+            "sponsor_refund_processed": "प्रायोजक रिफंड प्रोसेस हुआ ({contribution_code}).",
+            "refund_processed_heading": "रिफंड प्रोसेस हुआ",
             "add_expense": {
                 "heading": "खर्च जोड़ा गया",
                 "added_message": "खर्च जोड़ा गया: {amount}",
@@ -639,6 +647,10 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "કોઈ સક્રિય ઇવેન્ટ મળ્યો નથી. કૃપા કરીને સમિતિનો સંપર્ક કરો.",
             },
+            "refund_reason_required": "રિફંડ કારણ જરૂરી છે.",
+            "override_reason_required": "ઓવરરાઇડ કારણ જરૂરી છે.",
+            "sponsor_refund_processed": "સ્પોન્સર રિફંડ પ્રક્રિયા પૂર્ણ ({contribution_code}).",
+            "refund_processed_heading": "રિફંડ પ્રક્રિયા પૂર્ણ",
             "add_expense": {
                 "heading": "ખર્ચ ઉમેરાયો",
                 "added_message": "ખર્ચ ઉમેરાયો: {amount}",
