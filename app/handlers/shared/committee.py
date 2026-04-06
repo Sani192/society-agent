@@ -1060,17 +1060,26 @@ def handle_committee_intent(
         if state.action == "REMIND_FLAT":
             if state.step == "flat_number":
                 if not answer:
-                    return error_response("Flat number is required.")
+                    return error_response(
+                        translate("committee.flat_number_required", lang)
+                    )
                 clear_committee_action_session(committee_action_session_key)
                 return _build_reminder_preview(db=db, event=event, flat_number=answer)
 
         if state.action in ANNOUNCE_INTENTS:
             if state.step == "message_body":
                 if not answer:
-                    return error_response("Announcement body cannot be empty.")
+                    return error_response(
+                        translate("committee.announcement_body_required", lang)
+                    )
                 if len(answer) > ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH:
                     return error_response(
-                        f"Announcement is too long ({len(answer)} chars). Max allowed is {ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH}."
+                        translate(
+                            "committee.announcement_too_long",
+                            lang,
+                            provided_length=len(answer),
+                            max_length=ANNOUNCE_MAX_WHATSAPP_TEXT_LENGTH,
+                        )
                     )
                 clear_committee_action_session(committee_action_session_key)
                 try:
@@ -1084,13 +1093,14 @@ def handle_committee_intent(
                 except ValueError as exc:
                     return error_response(str(exc))
                 return success_response(
-                    (
-                        "Announcement accepted for processing. "
-                        f"Accepted: {queue_result.accepted_count}, "
-                        f"Skipped: {queue_result.skipped_count}, "
-                        f"Announcement ID: {queue_result.announcement_id}"
+                    translate(
+                        "committee.announcement_accepted",
+                        lang,
+                        accepted_count=queue_result.accepted_count,
+                        skipped_count=queue_result.skipped_count,
+                        announcement_id=queue_result.announcement_id,
                     ),
-                    heading="Announcement queued",
+                    heading=translate("committee.announcement_queued_heading", lang),
                     emoji="📣",
                 )
 
