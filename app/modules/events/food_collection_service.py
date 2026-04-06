@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import random
+import secrets
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
@@ -55,12 +55,29 @@ class FoodCollectionService:
         )
 
     @staticmethod
-    def _build_token_code(*, existing_codes: set[str], length: int = 6) -> str:
-        while True:
-            token = "".join(random.choice(TOKEN_ALPHABET) for _ in range(length))
+    def _build_token_code(
+        *,
+        existing_codes: set[str],
+        length: int = 6,
+        max_attempts: int | None = None,
+    ) -> str:
+        token_space = len(TOKEN_ALPHABET) ** length
+        if len(existing_codes) >= token_space:
+            raise Exception("Token space exhausted; cannot generate unique token")
+
+        if max_attempts is None:
+            remaining_capacity = token_space - len(existing_codes)
+            max_attempts = min(10_000, max(64, remaining_capacity * 2))
+
+        attempts = 0
+        while attempts < max_attempts:
+            attempts += 1
+            token = "".join(secrets.choice(TOKEN_ALPHABET) for _ in range(length))
             if token not in existing_codes:
                 existing_codes.add(token)
                 return token
+
+        raise Exception("Unable to generate unique token after maximum attempts")
 
     @staticmethod
     def generate_tokens_for_event(

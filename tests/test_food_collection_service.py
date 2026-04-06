@@ -40,10 +40,41 @@ def test_generate_tokens_for_event_creates_one_token_per_plate(monkeypatch):
     )
 
     assert len(tokens) == 4
+    assert len({row.token_code for row in tokens}) == 4
     assert all(len(row.token_code) == 6 for row in tokens)
     assert all(ch in TOKEN_ALPHABET for row in tokens for ch in row.token_code)
     assert {row.food_type for row in tokens} == {"veg", "jain", "kids"}
     db.commit.assert_called_once()
+
+
+def test_build_token_code_retries_on_collision_and_stays_format_compliant(monkeypatch):
+    generated_chars = iter(list("AAAAAA") + list("BBBBBB"))
+    monkeypatch.setattr(
+        "app.modules.events.food_collection_service.secrets.choice",
+        lambda _alphabet: next(generated_chars),
+    )
+
+    existing_codes = {"AAAAAA"}
+    token = FoodCollectionService._build_token_code(existing_codes=existing_codes, length=6)
+
+    assert token == "BBBBBB"
+    assert token in existing_codes
+    assert len(token) == 6
+    assert set(token) <= set(TOKEN_ALPHABET)
+
+
+def test_build_token_code_raises_when_collision_pressure_hits_max_attempts(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.events.food_collection_service.secrets.choice",
+        lambda _alphabet: "A",
+    )
+
+    with pytest.raises(Exception, match="maximum attempts"):
+        FoodCollectionService._build_token_code(
+            existing_codes={"AAAAAA"},
+            length=6,
+            max_attempts=3,
+        )
 
 
 def test_generate_tokens_for_event_rejects_regeneration():
