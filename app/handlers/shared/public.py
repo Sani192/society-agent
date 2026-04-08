@@ -47,9 +47,6 @@ def _resolve_member_flat(db, *, phone_number, event):
 
     return flat, None
 
-
-
-
 def _resolve_requester_mappings(db, *, phone_number, event):
     return ensure_member_of_society(
         phone_number=phone_number,
@@ -207,7 +204,8 @@ def handle_public_intent(
             amount=amount,
             payment_mode="upi",
             performed_by=member.id,
-            override_reason="Via WhatsApp"
+            override_reason="Via WhatsApp",
+            require_approved_request_context=True,
         )
         return success_response(
             translate("public.pay.payment_received", lang, amount=format_currency(amount))
@@ -282,7 +280,8 @@ def handle_public_intent(
                 amount=amount,
                 performed_by=member.id,
                 reason=reason,
-                override_reason="Via WhatsApp"
+                override_reason="Via WhatsApp",
+                require_approved_request_context=True,
             )
         except Exception as exc:
             logger.warning(
