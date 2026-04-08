@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 from datetime import datetime, timezone
 
 from app.channels.core import audit_events
@@ -24,8 +27,28 @@ def test_encrypted_raw_pii_mode_stores_ciphertext_and_redacted_payload(monkeypat
     assert row.message_text_raw == "[REDACTED]"
     assert row.payload_json == {"token": "[REDACTED]", "safe": "ok"}
     assert row.message_text_raw_encrypted
+    assert row.message_text_raw_encrypted.startswith("v2:")
     assert row.payload_json_encrypted
     assert decrypt_from_audit_store(row.message_text_raw_encrypted) == "my phone is 9999991234"
+
+
+def test_decrypt_from_audit_store_supports_legacy_ciphertext(monkeypatch):
+    monkeypatch.setattr(settings, "AUDIT_ENCRYPTION_KEY", "unit-test-key")
+
+    key = hashlib.sha256("unit-test-key".encode("utf-8")).digest()
+    nonce = b"0123456789abcdef"
+    plaintext = b"legacy-payload"
+    stream = bytearray()
+    counter = 0
+    while len(stream) < len(plaintext):
+        block = hashlib.sha256(key + nonce + counter.to_bytes(4, "big")).digest()
+        stream.extend(block)
+        counter += 1
+    ciphertext = bytes(a ^ b for a, b in zip(plaintext, stream[: len(plaintext)]))
+    signature = hmac.new(key, nonce + ciphertext, digestmod=hashlib.sha256).digest()
+    legacy_blob = base64.urlsafe_b64encode(nonce + signature + ciphertext).decode("utf-8")
+
+    assert decrypt_from_audit_store(legacy_blob) == "legacy-payload"
 
 
 def test_persist_audit_events_builds_hash_chain(monkeypatch):
