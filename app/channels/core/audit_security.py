@@ -8,8 +8,9 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 from typing import Any
+
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.config import settings
 
@@ -32,6 +33,9 @@ SENSITIVE_KEYS = {
 
 class AuditCryptoError(Exception):
     pass
+
+
+_CIPHERTEXT_V2_PREFIX = "v2:"
 
 
 def _mask_text(value: str) -> str:
@@ -75,6 +79,12 @@ def _encryption_key_bytes() -> bytes:
     return hashlib.sha256(key.encode("utf-8")).digest()
 
 
+def _fernet_for_audit() -> Fernet:
+    key = _encryption_key_bytes()
+    fernet_key = base64.urlsafe_b64encode(key)
+    return Fernet(fernet_key)
+
+
 def _xor_keystream(data: bytes, key: bytes, nonce: bytes) -> bytes:
     output = bytearray()
     counter = 0
@@ -88,18 +98,11 @@ def _xor_keystream(data: bytes, key: bytes, nonce: bytes) -> bytes:
 def encrypt_for_audit_store(value: str | None) -> str | None:
     if value is None:
         return None
-    key = _encryption_key_bytes()
-    nonce = os.urandom(16)
-    plaintext = value.encode("utf-8")
-    ciphertext = _xor_keystream(plaintext, key, nonce)
-    signature = hmac.new(key, nonce + ciphertext, digestmod=hashlib.sha256).digest()
-    blob = nonce + signature + ciphertext
-    return base64.urlsafe_b64encode(blob).decode("utf-8")
+    token = _fernet_for_audit().encrypt(value.encode("utf-8")).decode("utf-8")
+    return f"{_CIPHERTEXT_V2_PREFIX}{token}"
 
 
-def decrypt_from_audit_store(value: str | None) -> str | None:
-    if not value:
-        return None
+def _decrypt_legacy_ciphertext(value: str) -> str:
     key = _encryption_key_bytes()
     blob = base64.urlsafe_b64decode(value.encode("utf-8"))
     nonce = blob[:16]
@@ -110,6 +113,18 @@ def decrypt_from_audit_store(value: str | None) -> str | None:
         raise AuditCryptoError("Audit payload signature validation failed")
     plaintext = _xor_keystream(ciphertext, key, nonce)
     return plaintext.decode("utf-8")
+
+
+def decrypt_from_audit_store(value: str | None) -> str | None:
+    if not value:
+        return None
+    if value.startswith(_CIPHERTEXT_V2_PREFIX):
+        token = value[len(_CIPHERTEXT_V2_PREFIX) :]
+        try:
+            return _fernet_for_audit().decrypt(token.encode("utf-8")).decode("utf-8")
+        except InvalidToken as exc:
+            raise AuditCryptoError("Audit payload decryption failed") from exc
+    return _decrypt_legacy_ciphertext(value)
 
 
 def dump_json(payload: dict[str, Any] | None) -> str | None:
