@@ -175,7 +175,7 @@ def handle_public_intent(
             return success_response(
                 join_lines([
                     translate("public.pay.request_sent", lang),
-                    f"Request ID: *{request.request_code}*"
+                    translate("public.common.request_id_line", lang, request_id=request.request_code)
                 ]),
                 heading=translate("public.pay.request_submitted_heading", lang),
                 emoji="⏳"
@@ -250,7 +250,7 @@ def handle_public_intent(
             return success_response(
                 join_lines([
                     translate("public.refund.request_sent", lang),
-                    f"Request ID: *{request.request_code}*"
+                    translate("public.common.request_id_line", lang, request_id=request.request_code)
                 ]),
                 heading=translate("public.refund.request_submitted_heading", lang),
                 emoji="⏳"
@@ -297,7 +297,7 @@ def handle_public_intent(
 
     if intent == "MY_PASS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat = resolve_flat(
             db,
@@ -313,8 +313,8 @@ def handle_public_intent(
 
         if not food_pass:
             return success_response(
-                "You have not taken a food pass for this event.",
-                heading="Food pass",
+                translate("public.my_pass.no_pass", lang),
+                heading=translate("public.my_pass.no_pass_heading", lang),
                 emoji="🎫"
             )
 
@@ -341,14 +341,14 @@ def handle_public_intent(
                 f"Remaining: {summary['remaining']}",
             ])
             if summary.get("fallback_served"):
-                lines.append(f"Fallback served (no-token): {summary['fallback_served']}")
-            lines.append("Send *my tokens* to view token list.")
+                lines.append(translate("public.my_pass.fallback_served", lang, count=summary["fallback_served"]))
+            lines.append(translate("public.my_pass.view_tokens_hint", lang))
 
-        return success_response(join_lines(lines), heading="Your Food Pass", emoji="🎫")
+        return success_response(join_lines(lines), heading=translate("public.my_pass.heading", lang), emoji="🎫")
 
     if intent == "MY_TOKENS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat = resolve_flat(
             db,
@@ -362,8 +362,8 @@ def handle_public_intent(
         )
         if not summary["tokens"]:
             return success_response(
-                "Tokens are not generated yet. Please wait for committee update.",
-                heading="Your tokens",
+                translate("public.my_tokens.not_generated", lang),
+                heading=translate("public.my_tokens.heading", lang),
                 emoji="🎟️",
             )
 
@@ -384,19 +384,19 @@ def handle_public_intent(
             f"Remaining: {summary['remaining']}",
             *( [f"Fallback served (no-token): {summary['fallback_served']}"] if summary.get('fallback_served') else []),
             "",
-            "Tokens:",
+            translate("public.my_tokens.tokens_label", lang),
             *token_lines,
         ]
 
         return success_response(
             join_lines(summary_lines),
-            heading="Your tokens",
+            heading=translate("public.my_tokens.heading", lang),
             emoji="🎟️",
         )
 
     if intent == "MY_PAYMENT_REQUESTS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat, error_reply = _resolve_member_flat(
             db,
@@ -414,12 +414,12 @@ def handle_public_intent(
 
         if not requests:
             return success_response(
-                "No payment requests found.",
-                heading="Your Payment Requests",
+                translate("public.payment_requests.none", lang),
+                heading=translate("public.payment_requests.heading", lang),
                 emoji="📥"
             )
 
-        lines = [format_heading("Your Payment Requests", "📥")]
+        lines = [format_heading(translate("public.payment_requests.heading", lang), "📥")]
         for request, flat in requests:
             lines.append(
                 f"{request.request_code} | {flat.flat_number} | "
@@ -431,7 +431,7 @@ def handle_public_intent(
 
     if intent == "MY_REFUND_REQUESTS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat, error_reply = _resolve_member_flat(
             db,
@@ -449,12 +449,12 @@ def handle_public_intent(
 
         if not requests:
             return success_response(
-                "No refund requests found.",
-                heading="Your Refund Requests",
+                translate("public.refund_requests.none", lang),
+                heading=translate("public.refund_requests.heading", lang),
                 emoji="📤"
             )
 
-        lines = [format_heading("Your Refund Requests", "📤")]
+        lines = [format_heading(translate("public.refund_requests.heading", lang), "📤")]
         for request, flat in requests:
             lines.append(
                 f"{request.request_code} | {flat.flat_number} | "
@@ -466,7 +466,7 @@ def handle_public_intent(
 
     if intent == "MY_PAYMENTS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat, error_reply = _resolve_member_flat(
             db,
@@ -508,14 +508,17 @@ def handle_public_intent(
         )
 
         header = join_lines([
-            format_heading("Payment Summary", "💰"),
-            f"Paid: {format_currency(summary['paid'])}",
-            f"Refunded: {format_currency(summary['refunded'])}",
-            f"Net Paid: {format_currency(summary['net_paid'])}",
-            (
-                f"Status: {payment_status} "
-                f"({format_currency(payment_paid)} of {format_currency(payment_expected)})"
-            )
+            format_heading(translate("public.my_payments.summary_heading", lang), "💰"),
+            translate("public.my_payments.paid_line", lang, amount=format_currency(summary["paid"])),
+            translate("public.my_payments.refunded_line", lang, amount=format_currency(summary["refunded"])),
+            translate("public.my_payments.net_paid_line", lang, amount=format_currency(summary["net_paid"])),
+            translate(
+                "public.my_payments.status_line",
+                lang,
+                status=payment_status,
+                paid=format_currency(payment_paid),
+                expected=format_currency(payment_expected),
+            ),
         ])
 
         if not requests:
@@ -523,11 +526,11 @@ def handle_public_intent(
                 join_lines([
                     header,
                     "",
-                    "No payment requests found for this event."
+                    translate("public.my_payments.none_for_event", lang),
                 ])
             )
 
-        lines = [header, "", format_heading("Your Payment Requests", "📥")]
+        lines = [header, "", format_heading(translate("public.payment_requests.heading", lang), "📥")]
         for request, flat in requests:
             lines.append(
                 f"{request.request_code} | {flat.flat_number} | "
@@ -539,7 +542,7 @@ def handle_public_intent(
 
     if intent == "MY_BALANCE":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat = resolve_flat(
             db,
@@ -555,17 +558,17 @@ def handle_public_intent(
 
         return success_response(
             join_lines([
-                f"Expected: {format_currency(balance['expected'])}",
-                f"Paid: {format_currency(balance['paid'])}",
-                f"Remaining: {format_currency(balance['balance'])}"
+                translate("public.my_balance.expected_line", lang, amount=format_currency(balance["expected"])),
+                translate("public.my_balance.paid_line", lang, amount=format_currency(balance["paid"])),
+                translate("public.my_balance.remaining_line", lang, amount=format_currency(balance["balance"])),
             ]),
-            heading="Your Balance",
+            heading=translate("public.my_balance.heading", lang),
             emoji="📊"
         )
 
     if intent == "MY_STATUS":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         flat = resolve_flat(
             db,
@@ -579,11 +582,15 @@ def handle_public_intent(
             flat_id=flat.id
         )
 
-        return success_response(f"Event Status: {status}", heading="Status", emoji="📌")
+        return success_response(
+            translate("public.my_status.event_status_line", lang, status=status),
+            heading=translate("public.my_status.heading", lang),
+            emoji="📌"
+        )
 
     if intent == "SUMMARY":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         logger.info("Generating public event summary for event %s", event.id)
         summary = PublicEventSummaryReport.generate(
@@ -601,11 +608,11 @@ def handle_public_intent(
         db.commit()
 
         lines = [
-            format_heading("Event Summary", "📊"),
-            f"Participants: {summary['participants']}",
-            f"Total Income: {format_currency(summary['income'])}",
-            f"Total Expenses: {format_currency(summary['expenses'])}",
-            f"Closing Balance: {format_currency(summary['closing_balance'])}"
+            format_heading(translate("public.summary.heading", lang), "📊"),
+            translate("public.summary.participants_line", lang, count=summary["participants"]),
+            translate("public.summary.total_income_line", lang, amount=format_currency(summary["income"])),
+            translate("public.summary.total_expenses_line", lang, amount=format_currency(summary["expenses"])),
+            translate("public.summary.closing_balance_line", lang, amount=format_currency(summary["closing_balance"])),
         ]
 
         if summary["sponsors"]:
@@ -615,7 +622,7 @@ def handle_public_intent(
 
     if intent == "BLOCK_REPORT":
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("public.common.no_active_event", lang))
 
         logger.info("Generating block contribution report for event %s", event.id)
         report = BlockContributionReport.generate(
@@ -634,12 +641,12 @@ def handle_public_intent(
 
         if not report:
             return success_response(
-                "No block contributions recorded yet.",
-                heading="Block Contribution Report",
+                translate("public.block_report.none", lang),
+                heading=translate("public.block_report.heading", lang),
                 emoji="🏢"
             )
 
-        lines = [format_heading("Block Contribution Report", "🏢")]
+        lines = [format_heading(translate("public.block_report.heading", lang), "🏢")]
         for block, amount in report.items():
             lines.append(f"{block}: {format_currency(amount)}")
 
@@ -648,25 +655,25 @@ def handle_public_intent(
     if intent == "MENU":
         return success_response(
             join_lines([
-                "Main menu:",
-                "• my status",
-                "• my balance",
-                "• my payments",
-                "• my pass",
-                "• help",
+                translate("public.menu.title_line", lang),
+                translate("public.menu.status_line", lang),
+                translate("public.menu.balance_line", lang),
+                translate("public.menu.payments_line", lang),
+                translate("public.menu.pass_line", lang),
+                translate("public.menu.help_line", lang),
             ]),
-            heading="Main Menu",
+            heading=translate("public.menu.heading", lang),
             emoji="📋",
         )
 
     if intent == "HELP":
         return success_response(
             join_lines([
-                "Type *menu*.",
-                "Need onboarding? Try `join <code> <flat>` or `join status`.",
-                "Need support? Contact your committee.",
+                translate("public.help.menu_hint", lang),
+                translate("public.help.onboarding_hint", lang),
+                translate("public.help.support_hint", lang),
             ]),
-            heading="Society Control Panel",
+            heading=translate("public.help.heading", lang),
         )
 
     return None
