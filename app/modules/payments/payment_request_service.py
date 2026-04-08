@@ -253,6 +253,8 @@ class PaymentRequestService:
         request,
         performed_by
     ):
+        if request.status != "requested":
+            raise Exception("Payment request is no longer pending")
         event_society_id = PaymentRequestService._get_event_society_id(db, request.event_id)
         require_committee_action(
             db,

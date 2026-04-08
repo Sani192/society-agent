@@ -52,6 +52,7 @@ class RefundService:
         if amount <= 0:
             raise Exception("Refund amount must be greater than zero")
 
+
         event = db.query(Event).filter(Event.id == event_id).first()
         flat = db.query(Flat).filter(Flat.id == flat_id).first()
 

@@ -13,12 +13,14 @@ from datetime import datetime
 
 from app.utils.logger import logger
 from app.utils.logging_helpers import mask_phone
+from app.utils.validation import sanitize_command_text
 EVENT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
 def parse_amount(message: str):
     logger.info("Parsing amount from WhatsApp message")
-    match = re.search(r"\b(\d+)\b", message)
+    normalized_message = sanitize_command_text(message)
+    match = re.search(r"\b(\d+)\b", normalized_message)
     amount = int(match.group(1)) if match else None
     logger.info("Parsed amount", extra={"amount": amount})
     return amount
@@ -26,6 +28,7 @@ def parse_amount(message: str):
 
 def parse_pass_counts(message: str):
     logger.info("Parsing pass counts from WhatsApp message")
+    normalized_message = sanitize_command_text(message)
     counts = {"veg": 0, "jain": 0, "kids": 0}
 
     token_patterns = {
@@ -35,7 +38,7 @@ def parse_pass_counts(message: str):
     }
 
     for key, token_pattern in token_patterns.items():
-        match = re.search(rf"{token_pattern}\s+(\d+)", message, re.IGNORECASE)
+        match = re.search(rf"{token_pattern}\s+(\d+)", normalized_message, re.IGNORECASE)
         if match:
             counts[key] = int(match.group(1))
 
@@ -43,13 +46,14 @@ def parse_pass_counts(message: str):
     return counts
 
 
-def parse_reason(message: str, *, command_prefixes: tuple[str, ...] = ()):
+def parse_reason(message: str, *, command_prefixes: tuple[str, ...] = ()): 
     logger.info("Parsing reason from WhatsApp message")
-    match = re.search(r"\breason\s+(.*)", message, re.IGNORECASE)
+    normalized_message = sanitize_command_text(message)
+    match = re.search(r"\breason\s+(.*)", normalized_message, re.IGNORECASE)
     reason = match.group(1).strip() if match else None
 
     if not reason:
-        normalized_message = (message or "").strip()
+        normalized_message = sanitize_command_text(message)
         for prefix in command_prefixes:
             normalized_prefix = prefix.strip()
             if not normalized_prefix:
@@ -65,9 +69,10 @@ def parse_reason(message: str, *, command_prefixes: tuple[str, ...] = ()):
 
 def parse_target_flat(message: str):
     logger.info("Parsing target flat from WhatsApp message")
-    match = re.search(r"\bfor\s+([A-Za-z0-9-]+)\b", message, re.IGNORECASE)
+    normalized_message = sanitize_command_text(message)
+    match = re.search(r"\bfor\s+([A-Za-z0-9-]+)\b", normalized_message, re.IGNORECASE)
     if not match:
-        match = re.search(r"\bflat\s+([A-Za-z0-9-]+)\b", message, re.IGNORECASE)
+        match = re.search(r"\bflat\s+([A-Za-z0-9-]+)\b", normalized_message, re.IGNORECASE)
     flat = match.group(1).strip() if match else None
     logger.info("Parsed target flat", extra={"flat": flat})
     return flat
@@ -75,7 +80,8 @@ def parse_target_flat(message: str):
 
 def parse_target_phone(message: str):
     logger.info("Parsing target phone from WhatsApp message")
-    match = re.search(r"\bphone\s+(\+?\d{10,15})\b", message, re.IGNORECASE)
+    normalized_message = sanitize_command_text(message)
+    match = re.search(r"\bphone\s+(\+?\d{10,15})\b", normalized_message, re.IGNORECASE)
     phone = match.group(1).strip() if match else None
     logger.info("Parsed target phone", extra={"phone_masked": mask_phone(phone)})
     return phone

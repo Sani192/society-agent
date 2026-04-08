@@ -67,6 +67,7 @@ RETRY_BASE_SECONDS = 2
 MAX_RETRY_BACKOFF_SECONDS = 60
 _RETRY_QUEUE: list[tuple[float, str, dict, int]] = []
 _WEBHOOK_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+_SENDER_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
 
 
 def _client_key(request: Request) -> str:
@@ -103,6 +104,26 @@ def _enforce_webhook_rate_limit(request: Request) -> None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded",
+        )
+    bucket.append(now_ts)
+
+
+def _enforce_sender_spam_limit(sender_id: str | None) -> None:
+    sender_key = (sender_id or "").strip()
+    if not sender_key:
+        return
+    window_seconds = max(1, int(settings.WHATSAPP_SENDER_SPAM_WINDOW_SECONDS))
+    max_messages = max(1, int(settings.WHATSAPP_SENDER_SPAM_MAX_MESSAGES))
+    now_ts = datetime.now(timezone.utc).timestamp()
+    bucket = _SENDER_RATE_LIMIT_BUCKETS[sender_key]
+    cutoff_ts = now_ts - float(window_seconds)
+    while bucket and bucket[0] <= cutoff_ts:
+        bucket.popleft()
+    if len(bucket) >= max_messages:
+        increment_counter("whatsapp.webhook.sender_rate_limited")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Sender rate limit exceeded",
         )
     bucket.append(now_ts)
 
@@ -496,11 +517,17 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
 async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundTasks = cast(BackgroundTasks, None)) -> dict[str, str]:
     _ensure_channel_enabled()
     _enforce_webhook_rate_limit(request)
+    content_length = request.headers.get("content-length")
+    max_body_bytes = max(1024, int(settings.WHATSAPP_WEBHOOK_MAX_BODY_BYTES))
+    if content_length and content_length.isdigit() and int(content_length) > max_body_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
     if hasattr(request, "body"):
         raw_body = await request.body()
     else:
         payload_for_body = await request.json()
         raw_body = json.dumps(payload_for_body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    if len(raw_body) > max_body_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
     signature = request.headers.get(WHATSAPP_SIGNATURE_HEADER)
     _verify_signature(raw_body, signature)
 
@@ -514,9 +541,12 @@ async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundT
     normalized_events.extend(to_normalized_audit_events(parsed_events))
     persist_audit_events(normalized_events)
 
-    if not parse_webhook_payload(payload_dict):
+    inbound_messages = parse_webhook_payload(payload_dict)
+    if not inbound_messages:
         logger.info("WhatsApp webhook received with no inbound messages")
         return {"status": "ignored"}
+    for inbound in inbound_messages:
+        _enforce_sender_spam_limit(getattr(inbound, "sender_id", None))
 
     envelope_id = _persist_inbound_envelope(payload_hash=payload_hash, payload=payload_dict)
     if background_tasks is not None:
