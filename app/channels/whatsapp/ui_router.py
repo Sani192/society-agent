@@ -40,6 +40,7 @@ from app.channels.whatsapp.ui import (
 from app.utils.guards import ensure_committee_member, ensure_member_of_society, normalize_phone
 from app.permissions.command_policy import get_event_state, is_member_action_visible
 from app.utils.logger import logger
+from app.utils.response import safe_error_message
 from app.utils.time import utc_now
 from app.modules.events.food_collection_service import FoodCollectionService
 from app.channels.whatsapp.finance_action_session import (
@@ -1696,8 +1697,15 @@ def _try_handle_ui_message(*, client, message) -> bool:
                     ),
                 )
                 return True
-        except Exception as exc:
-            client.send_text_message(message.sender_id, _ui_text(lang, "common.error_with_reason", error=exc))
+        except Exception:
+            logger.exception(
+                "Food collection UI flow failed",
+                extra={
+                    "trace_id": message.metadata.get("trace_id"),
+                    "correlation_id": message.metadata.get("correlation_id"),
+                },
+            )
+            client.send_text_message(message.sender_id, safe_error_message(lang=lang))
             return True
         finally:
             db.close()

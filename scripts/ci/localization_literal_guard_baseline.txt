@@ -174,55 +174,55 @@ app/handlers/shared/committee.py:1984:format_heading:Pending Join Requests
 app/handlers/shared/committee.py:2005:warning_response:Action is not allowed.
 app/handlers/shared/committee.py:2008:error_response:No active event found. Please contact committee.
 app/handlers/shared/committee.py:2098:warning_response:Action is not allowed.
-app/handlers/shared/public.py:45:error_response:Unable to resolve your flat for this event.
-app/handlers/shared/public.py:178:success_response:Request ID: *
-app/handlers/shared/public.py:248:success_response:Request ID: *
-app/handlers/shared/public.py:290:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:306:success_response:You have not taken a food pass for this event.
-app/handlers/shared/public.py:307:success_response:Food pass
-app/handlers/shared/public.py:337:success_response:Your Food Pass
-app/handlers/shared/public.py:341:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:355:success_response:Tokens are not generated yet. Please wait for committee update.
-app/handlers/shared/public.py:356:success_response:Your tokens
-app/handlers/shared/public.py:383:success_response:Your tokens
-app/handlers/shared/public.py:389:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:407:success_response:No payment requests found.
-app/handlers/shared/public.py:408:success_response:Your Payment Requests
-app/handlers/shared/public.py:412:format_heading:Your Payment Requests
-app/handlers/shared/public.py:424:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:442:success_response:No refund requests found.
-app/handlers/shared/public.py:443:success_response:Your Refund Requests
-app/handlers/shared/public.py:447:format_heading:Your Refund Requests
-app/handlers/shared/public.py:459:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:501:join_lines:Payment Summary
-app/handlers/shared/public.py:502:join_lines:Paid: 
-app/handlers/shared/public.py:503:join_lines:Refunded: 
-app/handlers/shared/public.py:504:join_lines:Net Paid: 
-app/handlers/shared/public.py:506:join_lines:Status: 
-app/handlers/shared/public.py:516:success_response:No payment requests found for this event.
-app/handlers/shared/public.py:520:format_heading:Your Payment Requests
-app/handlers/shared/public.py:532:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:548:success_response:Expected: 
-app/handlers/shared/public.py:549:success_response:Paid: 
-app/handlers/shared/public.py:550:success_response:Remaining: 
-app/handlers/shared/public.py:552:success_response:Your Balance
-app/handlers/shared/public.py:558:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:572:success_response:Event Status: 
-app/handlers/shared/public.py:572:success_response:Status
-app/handlers/shared/public.py:576:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:594:format_heading:Event Summary
-app/handlers/shared/public.py:608:error_response:No active event found. Please contact committee.
-app/handlers/shared/public.py:627:success_response:No block contributions recorded yet.
-app/handlers/shared/public.py:628:success_response:Block Contribution Report
-app/handlers/shared/public.py:632:format_heading:Block Contribution Report
-app/handlers/shared/public.py:641:success_response:Main menu:
-app/handlers/shared/public.py:642:success_response:• my status
-app/handlers/shared/public.py:643:success_response:• my balance
-app/handlers/shared/public.py:644:success_response:• my payments
-app/handlers/shared/public.py:645:success_response:• my pass
-app/handlers/shared/public.py:646:success_response:• help
-app/handlers/shared/public.py:648:success_response:Main Menu
-app/handlers/shared/public.py:655:success_response:Type *menu*.
-app/handlers/shared/public.py:656:success_response:Need onboarding? Try `join <code> <flat>` or `join status`.
-app/handlers/shared/public.py:657:success_response:Need support? Contact your committee.
-app/handlers/shared/public.py:659:success_response:Society Control Panel
+app/handlers/shared/public.py:46:error_response:Unable to resolve your flat for this event.
+app/handlers/shared/public.py:181:success_response:Request ID: *
+app/handlers/shared/public.py:255:success_response:Request ID: *
+app/handlers/shared/public.py:301:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:317:success_response:You have not taken a food pass for this event.
+app/handlers/shared/public.py:318:success_response:Food pass
+app/handlers/shared/public.py:348:success_response:Your Food Pass
+app/handlers/shared/public.py:352:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:366:success_response:Tokens are not generated yet. Please wait for committee update.
+app/handlers/shared/public.py:367:success_response:Your tokens
+app/handlers/shared/public.py:394:success_response:Your tokens
+app/handlers/shared/public.py:400:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:418:success_response:No payment requests found.
+app/handlers/shared/public.py:419:success_response:Your Payment Requests
+app/handlers/shared/public.py:423:format_heading:Your Payment Requests
+app/handlers/shared/public.py:435:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:453:success_response:No refund requests found.
+app/handlers/shared/public.py:454:success_response:Your Refund Requests
+app/handlers/shared/public.py:458:format_heading:Your Refund Requests
+app/handlers/shared/public.py:470:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:512:join_lines:Payment Summary
+app/handlers/shared/public.py:513:join_lines:Paid: 
+app/handlers/shared/public.py:514:join_lines:Refunded: 
+app/handlers/shared/public.py:515:join_lines:Net Paid: 
+app/handlers/shared/public.py:517:join_lines:Status: 
+app/handlers/shared/public.py:527:success_response:No payment requests found for this event.
+app/handlers/shared/public.py:531:format_heading:Your Payment Requests
+app/handlers/shared/public.py:543:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:559:success_response:Expected: 
+app/handlers/shared/public.py:560:success_response:Paid: 
+app/handlers/shared/public.py:561:success_response:Remaining: 
+app/handlers/shared/public.py:563:success_response:Your Balance
+app/handlers/shared/public.py:569:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:583:success_response:Event Status: 
+app/handlers/shared/public.py:583:success_response:Status
+app/handlers/shared/public.py:587:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:605:format_heading:Event Summary
+app/handlers/shared/public.py:619:error_response:No active event found. Please contact committee.
+app/handlers/shared/public.py:638:success_response:No block contributions recorded yet.
+app/handlers/shared/public.py:639:success_response:Block Contribution Report
+app/handlers/shared/public.py:643:format_heading:Block Contribution Report
+app/handlers/shared/public.py:652:success_response:Main menu:
+app/handlers/shared/public.py:653:success_response:• my status
+app/handlers/shared/public.py:654:success_response:• my balance
+app/handlers/shared/public.py:655:success_response:• my payments
+app/handlers/shared/public.py:656:success_response:• my pass
+app/handlers/shared/public.py:657:success_response:• help
+app/handlers/shared/public.py:659:success_response:Main Menu
+app/handlers/shared/public.py:666:success_response:Type *menu*.
+app/handlers/shared/public.py:667:success_response:Need onboarding? Try `join <code> <flat>` or `join status`.
+app/handlers/shared/public.py:668:success_response:Need support? Contact your committee.
+app/handlers/shared/public.py:670:success_response:Society Control Panel

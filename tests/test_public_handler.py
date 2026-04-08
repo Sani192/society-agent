@@ -252,7 +252,7 @@ def test_public_refund_request_surfaces_error(monkeypatch):
         member=None
     )
 
-    assert response == "❌ Invalid flat number."
+    assert response == "❌ Something went wrong. Please try again later."
 
 
 def test_public_refund_committee_approves_request(monkeypatch):
@@ -325,7 +325,7 @@ def test_public_refund_committee_surfaces_error(monkeypatch):
         member=member
     )
 
-    assert response == "❌ Refund amount exceeds paid amount"
+    assert response == "❌ Something went wrong. Please try again later."
 
 
 def test_public_my_pass_success(monkeypatch):
