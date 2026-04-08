@@ -281,7 +281,9 @@ class PaymentRequestService:
             amount=request.amount,
             payment_mode=request.payment_mode or "upi",
             performed_by=performed_by,
-            override_reason=f"Approved payment request {request.request_code}"
+            override_reason=f"Approved payment request {request.request_code}",
+            require_approved_request_context=True,
+            approved_request_id=request.id,
         )
 
         request.status = "approved"

@@ -16,9 +16,11 @@ from app.db.models import (
     Flat,
     Payment,
     Refund,
-    AuditLog
+    AuditLog,
+    WorkflowState,
 )
 from app.workflows.engine import WorkflowEngine
+from app.workflows.rules import STATE_RULES
 from app.modules.security.access_control import require_committee_action
 from app.utils.logging_helpers import build_log_context, log_service_call
 
@@ -26,6 +28,19 @@ logger = logging.getLogger(__name__)
 
 
 class RefundService:
+
+    @staticmethod
+    def _approval_request_required(db: Session, *, event_id) -> bool:
+        workflow_state = (
+            db.query(WorkflowState)
+            .filter(WorkflowState.event_id == event_id)
+            .first()
+        )
+        if not workflow_state:
+            return False
+
+        allowed_actions = STATE_RULES.get(workflow_state.current_state, set())
+        return "REQUEST_REFUND" in allowed_actions
 
     @staticmethod
     @log_service_call(logger, "RefundService.process_refund")
@@ -37,7 +52,10 @@ class RefundService:
         amount,
         performed_by,
         reason,
-        override_reason=None
+        override_reason=None,
+        require_approved_request_context=False,
+        approved_request_id=None,
+        approved_service_context=None,
     ):
         """
         Process a partial or full refund for a flat.
@@ -51,6 +69,15 @@ class RefundService:
 
         if amount <= 0:
             raise Exception("Refund amount must be greater than zero")
+
+        if require_approved_request_context and RefundService._approval_request_required(
+            db,
+            event_id=event_id,
+        ):
+            if approved_request_id is None and not approved_service_context:
+                raise Exception(
+                    "Direct refund mutation is blocked: approval is required by policy."
+                )
 
 
         event = db.query(Event).filter(Event.id == event_id).first()

@@ -16,9 +16,11 @@ from app.db.models import (
     Flat,
     Payment,
     EventFoodPass,
-    AuditLog
+    AuditLog,
+    WorkflowState,
 )
 from app.workflows.engine import WorkflowEngine
+from app.workflows.rules import STATE_RULES
 from app.modules.security.access_control import require_committee_action
 from app.utils.logging_helpers import build_log_context, log_service_call
 from app.utils.time import utc_now
@@ -27,6 +29,19 @@ logger = logging.getLogger(__name__)
 
 
 class PaymentService:
+
+    @staticmethod
+    def _approval_request_required(db: Session, *, event_id) -> bool:
+        workflow_state = (
+            db.query(WorkflowState)
+            .filter(WorkflowState.event_id == event_id)
+            .first()
+        )
+        if not workflow_state:
+            return False
+
+        allowed_actions = STATE_RULES.get(workflow_state.current_state, set())
+        return "REQUEST_PAYMENT" in allowed_actions
 
     @staticmethod
     @log_service_call(logger, "PaymentService.record_payment")
@@ -38,7 +53,10 @@ class PaymentService:
         amount,
         payment_mode,
         performed_by,
-        override_reason=None
+        override_reason=None,
+        require_approved_request_context=False,
+        approved_request_id=None,
+        approved_service_context=None,
     ):
         """
         Record a payment (partial or full) for a flat in an event.
@@ -52,6 +70,15 @@ class PaymentService:
 
         if amount <= 0:
             raise Exception("Payment amount must be greater than zero")
+
+        if require_approved_request_context and PaymentService._approval_request_required(
+            db,
+            event_id=event_id,
+        ):
+            if approved_request_id is None and not approved_service_context:
+                raise Exception(
+                    "Direct payment mutation is blocked: approval is required by policy."
+                )
 
 
         event = db.query(Event).filter(Event.id == event_id).first()

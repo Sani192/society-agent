@@ -283,7 +283,9 @@ class RefundRequestService:
             amount=request.amount,
             performed_by=performed_by,
             reason=request.reason,
-            override_reason=f"Approved refund request {request.request_code}"
+            override_reason=f"Approved refund request {request.request_code}",
+            require_approved_request_context=True,
+            approved_request_id=request.id,
         )
 
         request.status = "approved"
