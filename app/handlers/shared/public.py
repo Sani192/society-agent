@@ -31,6 +31,7 @@ from app.handlers.shared.common import resolve_flat
 from app.i18n.catalog import translate
 from app.utils.guards import ensure_member_of_society
 from app.permissions.command_policy import get_event_state, member_action_state_warning
+from app.utils.response import safe_error_message
 
 
 def _resolve_member_flat(db, *, phone_number, event):
@@ -92,6 +93,8 @@ def handle_public_intent(
     event,
     member,
     lang: str | None = None,
+    trace_id: str | None = None,
+    correlation_id: str | None = None,
 ):
     allow_delegate = member is not None
     event_state = get_event_state(event)
@@ -240,8 +243,12 @@ def handle_public_intent(
                     requested_by_mapping_id=_pick_requester_mapping_id(mappings, flat.id)
                 )
             except Exception as exc:
-                logger.warning("Refund request failed", exc_info=exc)
-                return error_response(str(exc))
+                logger.warning(
+                    "Refund request failed",
+                    exc_info=exc,
+                    extra={"trace_id": trace_id, "correlation_id": correlation_id},
+                )
+                return error_response(safe_error_message(lang=lang))
             return success_response(
                 join_lines([
                     translate("public.refund.request_sent", lang),
@@ -278,8 +285,12 @@ def handle_public_intent(
                 override_reason="Via WhatsApp"
             )
         except Exception as exc:
-            logger.warning("Refund processing failed", exc_info=exc)
-            return error_response(str(exc))
+            logger.warning(
+                "Refund processing failed",
+                exc_info=exc,
+                extra={"trace_id": trace_id, "correlation_id": correlation_id},
+            )
+            return error_response(safe_error_message(lang=lang))
 
         return success_response(
             translate("public.refund.processed", lang, amount=format_currency(amount))
