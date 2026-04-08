@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import secrets
+import re
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,7 @@ from app.utils.time import utc_now
 from app.workflows.engine import WorkflowEngine
 
 TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+TOKEN_RE = re.compile(r"^[A-Z2-9]{6,20}$")
 SERVE_METHODS = {"QR_SCAN", "MANUAL_TOKEN", "FLAT_LOOKUP"}
 NO_TOKEN_FALLBACK_METHOD = "FLAT_LOOKUP_NO_TOKEN"
 _FOOD_OPERATION_ALLOWED_ROLES = {"chairman", "secretary", "treasurer", "committee_member"}
@@ -266,6 +268,9 @@ class FoodCollectionService:
         normalized_method = (method or "").strip().upper()
         if normalized_method not in SERVE_METHODS:
             raise Exception("Invalid serving method")
+        normalized_token_code = (token_code or "").strip().upper()
+        if not TOKEN_RE.fullmatch(normalized_token_code):
+            raise Exception("Invalid token")
 
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
@@ -302,7 +307,7 @@ class FoodCollectionService:
             db.query(EventFoodToken)
             .filter(
                 EventFoodToken.event_id == event_id,
-                EventFoodToken.token_code == (token_code or "").strip().upper(),
+                EventFoodToken.token_code == normalized_token_code,
             )
             .first()
         )
@@ -335,9 +340,35 @@ class FoodCollectionService:
             db.commit()
             raise Exception("Token already used")
 
-        token.served_at = utc_now()
-        token.served_method = normalized_method
-        token.served_by = performed_by
+        serve_count = (
+            db.query(EventFoodToken)
+            .filter(
+                EventFoodToken.id == token.id,
+                EventFoodToken.served_at.is_(None),
+            )
+            .update(
+                {
+                    EventFoodToken.served_at: utc_now(),
+                    EventFoodToken.served_method: normalized_method,
+                    EventFoodToken.served_by: performed_by,
+                },
+                synchronize_session=False,
+            )
+        )
+        if serve_count != 1:
+            db.add(
+                AuditLog(
+                    society_id=event.society_id,
+                    entity_type="food_collection",
+                    entity_id=token.id,
+                    action="REJECT_FOOD_TOKEN",
+                    reason=f"Already served via {token.served_method}",
+                    performed_by=performed_by,
+                )
+            )
+            db.commit()
+            raise Exception("Token already used")
+        db.refresh(token)
 
         db.add(
             AuditLog(
@@ -545,11 +576,14 @@ class FoodCollectionService:
 
     @staticmethod
     def inspect_token(db: Session, *, event_id, token_code: str):
+        normalized_token_code = (token_code or "").strip().upper()
+        if not TOKEN_RE.fullmatch(normalized_token_code):
+            raise Exception("Token not found")
         token = (
             db.query(EventFoodToken)
             .filter(
                 EventFoodToken.event_id == event_id,
-                EventFoodToken.token_code == (token_code or "").strip().upper(),
+                EventFoodToken.token_code == normalized_token_code,
             )
             .first()
         )

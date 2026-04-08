@@ -255,6 +255,8 @@ class RefundRequestService:
         request,
         performed_by
     ):
+        if request.status != "requested":
+            raise Exception("Refund request is no longer pending")
         event_society_id = RefundRequestService._get_event_society_id(db, request.event_id)
         require_committee_action(
             db,
