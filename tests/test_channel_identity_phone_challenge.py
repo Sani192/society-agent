@@ -161,5 +161,39 @@ def test_request_phone_link_challenge_does_not_store_denormalized_phone():
 
     created_challenges = [obj for obj in db.added if obj.__class__.__name__ == "CommitteeMemberPhoneLinkChallenge"]
     assert result["status"] == "issued"
+    assert result["delivery_status"] == "not_requested"
     assert len(created_challenges) == 1
     assert not hasattr(created_challenges[0], "phone_number")
+    assert "otp" not in result
+
+    audit_logs = [obj for obj in db.added if obj.__class__.__name__ == "AuditLog"]
+    assert len(audit_logs) == 2
+    for audit in audit_logs:
+        metadata = dict(audit.metadata_json or {})
+        assert "otp" not in metadata
+
+
+def test_request_phone_link_challenge_delivers_otp_via_explicit_transport():
+    member = _build_member()
+    db = _DBStub(member=member, challenge=None, identity=None)
+    transport_calls = []
+
+    def _transport(**kwargs):
+        transport_calls.append(kwargs)
+        return {"status": "queued"}
+
+    result = request_phone_link_challenge(
+        db=db,
+        channel_type="telegram",
+        sender_id="sender-1",
+        phone_number=member.phone_number,
+        username="janed",
+        otp_delivery_transport=_transport,
+    )
+
+    assert result["status"] == "issued"
+    assert result["delivery_status"] == "queued"
+    assert "challenge_id" in result
+    assert len(transport_calls) == 1
+    assert transport_calls[0]["phone_number"] == member.phone_number
+    assert "otp" in transport_calls[0]

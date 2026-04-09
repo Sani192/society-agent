@@ -4,6 +4,7 @@ import secrets
 import string
 from datetime import datetime, timedelta, timezone
 import hashlib
+from typing import Callable
 
 import re
 
@@ -193,6 +194,7 @@ def request_phone_link_challenge(
     username: str | None = None,
     ttl_minutes: int = PHONE_LINK_OTP_TTL_MINUTES,
     max_attempts: int = PHONE_LINK_MAX_ATTEMPTS,
+    otp_delivery_transport: Callable[..., bool | dict | None] | None = None,
 ):
     normalized_phone = _normalize_phone(phone_number)
     if not normalized_phone:
@@ -249,7 +251,39 @@ def request_phone_link_challenge(
     )
     db.commit()
     db.refresh(challenge)
-    return {"status": "issued", "challenge_id": challenge.id, "otp": otp}
+    delivery_status = "not_requested"
+    if otp_delivery_transport:
+        delivery_result = otp_delivery_transport(
+            member=member,
+            phone_number=normalized_phone,
+            otp=otp,
+            challenge=challenge,
+            channel_type=channel_type,
+            sender_id=str(sender_id),
+        )
+        if isinstance(delivery_result, dict):
+            delivery_status = str(delivery_result.get("status") or "unknown")
+        elif isinstance(delivery_result, bool):
+            delivery_status = "sent" if delivery_result else "failed"
+        elif delivery_result is None:
+            delivery_status = "unknown"
+        else:
+            delivery_status = str(delivery_result)
+
+    _log_phone_link_audit(
+        db,
+        member=member,
+        action="LINK_CHALLENGE_DELIVERY_ATTEMPTED",
+        reason="channel_link_phone_challenge_delivery_attempted",
+        metadata={
+            "channel_type": channel_type,
+            "sender_id": str(sender_id),
+            "challenge_id": str(challenge.id),
+            "delivery_status": delivery_status,
+        },
+    )
+    db.commit()
+    return {"status": "issued", "challenge_id": challenge.id, "delivery_status": delivery_status}
 
 
 def verify_phone_link_challenge(
