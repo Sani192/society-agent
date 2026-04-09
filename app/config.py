@@ -59,6 +59,11 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_csv(name: str, default: str = "") -> list[str]:
+    raw = os.getenv(name, default)
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 def _db_defaults_for_env(app_env: str) -> dict[str, int]:
     normalized = app_env.strip().lower()
     if normalized in {"production", "staging"}:
@@ -129,6 +134,8 @@ class Settings:
         "REPORTS_API_AUTH_MAX_IAT_FUTURE_SKEW_SECONDS",
         300,
     )
+    CORS_ALLOWED_ORIGINS = _env_csv("CORS_ALLOWED_ORIGINS", "")
+    PUBLIC_ENDPOINT_MAX_BODY_BYTES = _env_int("PUBLIC_ENDPOINT_MAX_BODY_BYTES", 131072)
 
     # Declared explicitly for static type-checkers; values are populated from env.
     WHATSAPP_VERIFY_TOKEN: str | None
@@ -161,7 +168,8 @@ class Settings:
     WHATSAPP_ALERT_RETRY_QUEUE_DEPTH_THRESHOLD = _env_int("WHATSAPP_ALERT_RETRY_QUEUE_DEPTH_THRESHOLD", 20)
     WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS = _env_int("WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS", 60)
     WHATSAPP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS = _env_int("WHATSAPP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS", 120)
-    WHATSAPP_WEBHOOK_MAX_BODY_BYTES = _env_int("WHATSAPP_WEBHOOK_MAX_BODY_BYTES", 262144)
+    WHATSAPP_WEBHOOK_MAX_BODY_BYTES = _env_int("WHATSAPP_WEBHOOK_MAX_BODY_BYTES", 65536)
+    TELEGRAM_WEBHOOK_MAX_BODY_BYTES = _env_int("TELEGRAM_WEBHOOK_MAX_BODY_BYTES", 65536)
     WHATSAPP_SENDER_SPAM_WINDOW_SECONDS = _env_int("WHATSAPP_SENDER_SPAM_WINDOW_SECONDS", 60)
     WHATSAPP_SENDER_SPAM_MAX_MESSAGES = _env_int("WHATSAPP_SENDER_SPAM_MAX_MESSAGES", 30)
 

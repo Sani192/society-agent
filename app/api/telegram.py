@@ -342,6 +342,14 @@ async def telegram_webhook_event(
     _ensure_channel_enabled()
     logger.info("Received Telegram webhook event")
     _verify_webhook_secret(x_telegram_bot_api_secret_token)
+    request_headers = getattr(request, "headers", {}) or {}
+    content_length = request_headers.get("content-length")
+    max_body_bytes = max(
+        1024,
+        min(int(settings.TELEGRAM_WEBHOOK_MAX_BODY_BYTES), int(settings.PUBLIC_ENDPOINT_MAX_BODY_BYTES)),
+    )
+    if content_length and content_length.isdigit() and int(content_length) > max_body_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
 
     payload_data = await request.json()
     if hasattr(request, "body"):
@@ -350,6 +358,8 @@ async def telegram_webhook_event(
             raw_body = json.dumps(payload_data, separators=(",", ":"), sort_keys=True).encode("utf-8")
     else:
         raw_body = json.dumps(payload_data, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    if len(raw_body) > max_body_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
     payload = TelegramWebhookPayload.model_validate(payload_data)
     payload_dict = payload.model_dump(exclude_none=True)
 
