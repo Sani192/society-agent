@@ -60,8 +60,8 @@ class PaymentRequestService:
         log_entry(logger, "PaymentRequestService.request_payment", context)
         if amount <= 0:
             logger.warning(
-                "Validation failed for payment request: amount <= 0 | context=%s",
-                context
+                "Validation failed for payment request: amount <= 0",
+                extra={"action": "REQUEST_PAYMENT", "result": "invalid_amount", "context": context},
             )
             raise Exception("Payment amount must be greater than zero")
 
@@ -70,18 +70,22 @@ class PaymentRequestService:
 
         if not event or not flat:
             logger.warning(
-                "Validation failed for payment request: invalid event/flat | context=%s",
-                context
+                "Validation failed for payment request: invalid event/flat",
+                extra={"action": "REQUEST_PAYMENT", "result": "invalid_event_or_flat", "context": context},
             )
             raise Exception("Invalid event or flat")
 
         if flat.society_id != event.society_id:
             logger.warning(
-                "Validation failed for payment request: flat/event society mismatch | context=%s",
-                {
-                    **context,
-                    "event_society_id": event.society_id,
-                    "flat_society_id": flat.society_id,
+                "Validation failed for payment request: flat/event society mismatch",
+                extra={
+                    "action": "REQUEST_PAYMENT",
+                    "result": "society_mismatch",
+                    "context": {
+                        **context,
+                        "event_society_id": event.society_id,
+                        "flat_society_id": flat.society_id,
+                    },
                 },
             )
             raise Exception("Flat does not belong to the event society")
@@ -115,8 +119,8 @@ class PaymentRequestService:
 
         if not food_pass:
             logger.warning(
-                "Validation failed for payment request: missing food pass | context=%s",
-                context
+                "Validation failed for payment request: missing food pass",
+                extra={"action": "REQUEST_PAYMENT", "result": "food_pass_missing", "context": context},
             )
             raise Exception("Food pass not found or flat not participating")
 
@@ -133,11 +137,12 @@ class PaymentRequestService:
 
         if existing:
             logger.info(
-                "Workflow decision: returning existing payment request | context=%s",
-                {
-                    **context,
-                    "request_code": existing.request_code
-                }
+                "Workflow decision: returning existing payment request",
+                extra={
+                    "action": "REQUEST_PAYMENT",
+                    "result": "existing_request_reused",
+                    "context": {**context, "request_code": existing.request_code},
+                },
             )
             log_exit(logger, "PaymentRequestService.request_payment", context)
             return existing
@@ -170,12 +175,16 @@ class PaymentRequestService:
         )
 
         logger.info(
-            "DB write: creating payment request | context=%s",
-            {
-                **context,
-                "society_id": event.society_id,
-                "request_code": request_code
-            }
+            "DB write: creating payment request",
+            extra={
+                "action": "REQUEST_PAYMENT",
+                "result": "db_create_pending",
+                "context": {
+                    **context,
+                    "society_id": event.society_id,
+                    "request_code": request_code,
+                },
+            },
         )
         db.add(request)
         db.flush()
@@ -207,21 +216,29 @@ class PaymentRequestService:
         try:
             db.commit()
             logger.info(
-                "Commit success: payment request created | context=%s",
-                {
-                    **context,
-                    "society_id": event.society_id,
-                    "request_code": request_code
-                }
+                "Commit success: payment request created",
+                extra={
+                    "action": "REQUEST_PAYMENT",
+                    "result": "committed",
+                    "context": {
+                        **context,
+                        "society_id": event.society_id,
+                        "request_code": request_code,
+                    },
+                },
             )
         except Exception:
             logger.exception(
-                "Commit failure: payment request create | context=%s",
-                {
-                    **context,
-                    "society_id": event.society_id,
-                    "request_code": request_code
-                }
+                "Commit failure: payment request create",
+                extra={
+                    "action": "REQUEST_PAYMENT",
+                    "result": "commit_failed",
+                    "context": {
+                        **context,
+                        "society_id": event.society_id,
+                        "request_code": request_code,
+                    },
+                },
             )
             db.rollback()
             raise
@@ -278,8 +295,8 @@ class PaymentRequestService:
         )
         log_entry(logger, "PaymentRequestService.approve_request", context)
         logger.info(
-            "Workflow decision: approving payment request | context=%s",
-            context
+            "Workflow decision: approving payment request",
+            extra={"action": "APPROVE_PAYMENT_REQUEST", "result": "started", "context": context},
         )
         payment = PaymentService.record_payment(
             db=db,
@@ -309,17 +326,20 @@ class PaymentRequestService:
             ),
             performed_by=performed_by
         ))
-        logger.info("DB write: updating payment request status | context=%s", context)
+        logger.info(
+            "DB write: updating payment request status",
+            extra={"action": "APPROVE_PAYMENT_REQUEST", "result": "db_update_pending", "context": context},
+        )
         try:
             db.commit()
             logger.info(
-                "Commit success: payment request approved | context=%s",
-                context
+                "Commit success: payment request approved",
+                extra={"action": "APPROVE_PAYMENT_REQUEST", "result": "committed", "context": context},
             )
         except Exception:
             logger.exception(
-                "Commit failure: payment request approve | context=%s",
-                context
+                "Commit failure: payment request approve",
+                extra={"action": "APPROVE_PAYMENT_REQUEST", "result": "commit_failed", "context": context},
             )
             db.rollback()
             raise

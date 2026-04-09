@@ -38,7 +38,10 @@ class WorkflowEngine:
         override_reason=None
     ) -> WorkflowDecision:
         context = build_log_context(event_id=event_id, performed_by=performed_by)
-        logger.info("Checking workflow action | action=%s context=%s", action, context)
+        logger.info(
+            "Checking workflow action",
+            extra={"action": action, "result": "started", "context": context},
+        )
         state_row = (
             db.query(WorkflowState)
             .filter(WorkflowState.event_id == event_id)
@@ -46,7 +49,10 @@ class WorkflowEngine:
         )
 
         if not state_row:
-            logger.warning("Workflow state missing | action=%s context=%s", action, context)
+            logger.warning(
+                "Workflow state missing",
+                extra={"action": action, "result": "state_missing", "context": context},
+            )
             return WorkflowDecision(
                 allowed=False,
                 requires_override=False,
@@ -56,14 +62,20 @@ class WorkflowEngine:
         current_state = state_row.current_state
         allowed_actions = STATE_RULES.get(current_state, set())
         logger.info(
-            "Resolved workflow state | state=%s action=%s context=%s",
-            current_state,
-            action,
-            context
+            "Resolved workflow state",
+            extra={
+                "action": action,
+                "result": "state_resolved",
+                "workflow_state": current_state,
+                "context": context,
+            },
         )
 
         if action in allowed_actions:
-            logger.info("Workflow action allowed | action=%s context=%s", action, context)
+            logger.info(
+                "Workflow action allowed",
+                extra={"action": action, "result": "allowed", "context": context},
+            )
             return WorkflowDecision(
                 allowed=True,
                 requires_override=False,
@@ -73,7 +85,10 @@ class WorkflowEngine:
         state_suffix = " for CLOSED state" if current_state == "CLOSED" else ""
 
         if not performed_by or (isinstance(performed_by, str) and not performed_by.strip()):
-            logger.warning("Override denied: missing performer | action=%s context=%s", action, context)
+            logger.warning(
+                "Override denied: missing performer",
+                extra={"action": action, "result": "override_denied_missing_performer", "context": context},
+            )
             return WorkflowDecision(
                 allowed=False,
                 requires_override=False,
@@ -92,9 +107,8 @@ class WorkflowEngine:
             or member.role not in OVERRIDE_ROLES
         ):
             logger.warning(
-                "Override denied: invalid member | action=%s context=%s",
-                action,
-                context
+                "Override denied: invalid member",
+                extra={"action": action, "result": "override_denied_invalid_member", "context": context},
             )
             return WorkflowDecision(
                 allowed=False,
@@ -103,7 +117,10 @@ class WorkflowEngine:
             )
 
         if not override_reason or not override_reason.strip():
-            logger.warning("Override denied: reason required | action=%s context=%s", action, context)
+            logger.warning(
+                "Override denied: reason required",
+                extra={"action": action, "result": "override_denied_reason_required", "context": context},
+            )
             return WorkflowDecision(
                 allowed=False,
                 requires_override=False,
@@ -111,7 +128,10 @@ class WorkflowEngine:
             )
 
         # Action not normally allowed → override possible
-        logger.info("Workflow requires override | action=%s context=%s", action, context)
+        logger.info(
+            "Workflow requires override",
+            extra={"action": action, "result": "requires_override", "context": context},
+        )
         return WorkflowDecision(
             allowed=False,
             requires_override=True,
@@ -133,11 +153,14 @@ class WorkflowEngine:
     ):
         context = build_log_context(event_id=event_id, society_id=society_id, performed_by=performed_by)
         logger.info(
-            "Applying workflow override | entity_type=%s entity_id=%s action=%s context=%s",
-            entity_type,
-            entity_id,
-            action,
-            context
+            "Applying workflow override",
+            extra={
+                "action": action,
+                "result": "override_apply_started",
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+                "context": context,
+            },
         )
         audit = AuditLog(
             society_id=society_id,
@@ -150,7 +173,10 @@ class WorkflowEngine:
         )
 
         db.add(audit)
-        logger.info("Captured override audit log | action=%s context=%s", action, context)
+        logger.info(
+            "Captured override audit log",
+            extra={"action": action, "result": "override_audit_logged", "context": context},
+        )
         return audit
 
 
