@@ -31,6 +31,9 @@ class QueryMock:
     def distinct(self, *args, **kwargs):
         return self
 
+    def with_for_update(self, *args, **kwargs):
+        return self
+
     def first(self):
         return self.first_result
 

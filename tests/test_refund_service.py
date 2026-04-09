@@ -18,7 +18,8 @@ def test_process_refund_creates_refund(monkeypatch):
         QueryMock(first_result=flat),
         QueryMock(first_result=committee_member),
         QueryMock(first_result=payment),
-        QueryMock(all_result=[])
+        QueryMock(all_result=[]),
+        QueryMock(scalar_result=200),
     ]
 
     monkeypatch.setattr(

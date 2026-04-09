@@ -420,6 +420,8 @@ class Payment(Base):
     __table_args__ = (
         Index("ix_payments_event_flat", "event_id", "flat_id"),
         Index("ix_payments_event_paid_at", "event_id", "paid_at"),
+        CheckConstraint("expected_amount >= 0", name="ck_payments_expected_amount_non_negative"),
+        CheckConstraint("paid_amount >= 0", name="ck_payments_paid_amount_non_negative"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -445,6 +447,7 @@ class Refund(Base):
         Index("ix_refunds_event_flat", "event_id", "flat_id"),
         Index("ix_refunds_event_created_at", "event_id", "created_at"),
         Index("ix_refunds_event_status", "event_id", "status"),
+        CheckConstraint("amount > 0", name="ck_refunds_amount_positive"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
