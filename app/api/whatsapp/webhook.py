@@ -6,12 +6,12 @@ import hashlib
 import hmac
 import json
 import heapq
-from collections import defaultdict, deque
 from typing import NoReturn, cast
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response, status
+import redis
 import requests  # type: ignore[import-untyped]
 
 from app.api.contracts import ErrorResponse, WebhookStatusResponse, WhatsAppWebhookPayload
@@ -66,8 +66,63 @@ MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_SECONDS = 2
 MAX_RETRY_BACKOFF_SECONDS = 60
 _RETRY_QUEUE: list[tuple[float, str, dict, int]] = []
-_WEBHOOK_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
-_SENDER_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+_RATE_LIMIT_KEY_PREFIX = "whatsapp:webhook:rate_limit"
+_RATE_LIMIT_REASON_WEBHOOK_IP = "WHATSAPP_WEBHOOK_IP_RATE_LIMIT_EXCEEDED"
+_RATE_LIMIT_REASON_SENDER_SPAM = "WHATSAPP_SENDER_SPAM_RATE_LIMIT_EXCEEDED"
+_RATE_LIMIT_REDIS_CLIENT: redis.Redis | None = None
+
+
+def _rate_limit_redis() -> redis.Redis:
+    global _RATE_LIMIT_REDIS_CLIENT
+    if _RATE_LIMIT_REDIS_CLIENT is None:
+        _RATE_LIMIT_REDIS_CLIENT = redis.from_url(str(settings.REDIS_URL), decode_responses=False)
+    return _RATE_LIMIT_REDIS_CLIENT
+
+
+def _rate_limit_key(*, bucket_type: str, subject: str) -> str:
+    return f"{_RATE_LIMIT_KEY_PREFIX}:{bucket_type}:{subject[:120]}"
+
+
+def _increment_sliding_window(*, key: str, now_ts: float, window_seconds: int) -> int:
+    window_start = now_ts - float(window_seconds)
+    pipe = _rate_limit_redis().pipeline(transaction=True)
+    pipe.zremrangebyscore(key, 0, window_start)
+    member = f"{now_ts:.6f}:{uuid4()}"
+    pipe.zadd(key, {member: now_ts})
+    pipe.zcard(key)
+    pipe.expire(key, max(1, int(window_seconds)))
+    _removed, _added, count, _ttl = pipe.execute()
+    return int(count)
+
+
+def _persist_rate_limit_audit_event(
+    *,
+    reason_code: str,
+    limit_scope: str,
+    key: str,
+    window_seconds: int,
+    max_allowed: int,
+    observed_count: int,
+) -> None:
+    event = NormalizedAuditEvent(
+        channel="whatsapp",
+        direction="system",
+        event_type="exception",
+        provider_error_code=reason_code,
+        provider_error_message="Rate limit exceeded",
+        external_user_id=key if limit_scope == "sender" else None,
+        chat_id_or_phone=key if limit_scope == "sender" else None,
+        payload_json={
+            "reason_code": reason_code,
+            "limit_scope": limit_scope,
+            "key": key,
+            "window_seconds": window_seconds,
+            "max_allowed": max_allowed,
+            "observed_count": observed_count,
+        },
+        occurred_at=datetime.now(timezone.utc),
+    )
+    persist_audit_events([event])
 
 
 def _client_key(request: Request) -> str:
@@ -86,26 +141,41 @@ def _enforce_webhook_rate_limit(request: Request) -> None:
     max_requests = max(1, int(settings.WHATSAPP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS))
     key = _client_key(request)
     now_ts = datetime.now(timezone.utc).timestamp()
-    bucket = _WEBHOOK_RATE_LIMIT_BUCKETS[key]
-    cutoff_ts = now_ts - float(window_seconds)
-    while bucket and bucket[0] <= cutoff_ts:
-        bucket.popleft()
-    if len(bucket) >= max_requests:
+    redis_key = _rate_limit_key(bucket_type="ip", subject=key)
+    try:
+        observed_count = _increment_sliding_window(key=redis_key, now_ts=now_ts, window_seconds=window_seconds)
+    except Exception:
+        logger.exception(
+            "WhatsApp webhook rate limit backend unavailable",
+            extra={"event": "whatsapp_webhook_rate_limit_backend_error", "client_key": key[:64]},
+        )
+        return
+
+    if observed_count > max_requests:
         increment_counter("whatsapp.webhook.rate_limited")
+        _persist_rate_limit_audit_event(
+            reason_code=_RATE_LIMIT_REASON_WEBHOOK_IP,
+            limit_scope="ip",
+            key=key[:64],
+            window_seconds=window_seconds,
+            max_allowed=max_requests,
+            observed_count=observed_count,
+        )
         logger.warning(
             "WhatsApp webhook rate limit exceeded",
             extra={
                 "event": "whatsapp_webhook_rate_limited",
+                "reason_code": _RATE_LIMIT_REASON_WEBHOOK_IP,
                 "client_key": key[:64],
                 "window_seconds": window_seconds,
                 "max_requests": max_requests,
+                "observed_count": observed_count,
             },
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded",
         )
-    bucket.append(now_ts)
 
 
 def _enforce_sender_spam_limit(sender_id: str | None) -> None:
@@ -115,17 +185,41 @@ def _enforce_sender_spam_limit(sender_id: str | None) -> None:
     window_seconds = max(1, int(settings.WHATSAPP_SENDER_SPAM_WINDOW_SECONDS))
     max_messages = max(1, int(settings.WHATSAPP_SENDER_SPAM_MAX_MESSAGES))
     now_ts = datetime.now(timezone.utc).timestamp()
-    bucket = _SENDER_RATE_LIMIT_BUCKETS[sender_key]
-    cutoff_ts = now_ts - float(window_seconds)
-    while bucket and bucket[0] <= cutoff_ts:
-        bucket.popleft()
-    if len(bucket) >= max_messages:
+    redis_key = _rate_limit_key(bucket_type="sender", subject=sender_key)
+    try:
+        observed_count = _increment_sliding_window(key=redis_key, now_ts=now_ts, window_seconds=window_seconds)
+    except Exception:
+        logger.exception(
+            "WhatsApp sender spam limit backend unavailable",
+            extra={"event": "whatsapp_sender_spam_limit_backend_error", "sender_key": sender_key[:64]},
+        )
+        return
+
+    if observed_count > max_messages:
         increment_counter("whatsapp.webhook.sender_rate_limited")
+        _persist_rate_limit_audit_event(
+            reason_code=_RATE_LIMIT_REASON_SENDER_SPAM,
+            limit_scope="sender",
+            key=sender_key,
+            window_seconds=window_seconds,
+            max_allowed=max_messages,
+            observed_count=observed_count,
+        )
+        logger.warning(
+            "WhatsApp sender spam limit exceeded",
+            extra={
+                "event": "whatsapp_sender_spam_rate_limited",
+                "reason_code": _RATE_LIMIT_REASON_SENDER_SPAM,
+                "sender_key": sender_key[:64],
+                "window_seconds": window_seconds,
+                "max_messages": max_messages,
+                "observed_count": observed_count,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Sender rate limit exceeded",
         )
-    bucket.append(now_ts)
 
 
 class _WhatsAppRuntimeStrategy(WebhookRuntimeStrategy):
