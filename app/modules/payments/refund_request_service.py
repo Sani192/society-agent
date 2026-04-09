@@ -60,8 +60,8 @@ class RefundRequestService:
         log_entry(logger, "RefundRequestService.request_refund", context)
         if amount <= 0:
             logger.warning(
-                "Validation failed for refund request: amount <= 0 | context=%s",
-                context
+                "Validation failed for refund request: amount <= 0",
+                extra={"action": "REQUEST_REFUND", "result": "invalid_amount", "context": context},
             )
             raise Exception("Refund amount must be greater than zero")
 
@@ -70,18 +70,22 @@ class RefundRequestService:
 
         if not event or not flat:
             logger.warning(
-                "Validation failed for refund request: invalid event/flat | context=%s",
-                context
+                "Validation failed for refund request: invalid event/flat",
+                extra={"action": "REQUEST_REFUND", "result": "invalid_event_or_flat", "context": context},
             )
             raise Exception("Invalid event or flat")
 
         if flat.society_id != event.society_id:
             logger.warning(
-                "Validation failed for refund request: flat/event society mismatch | context=%s",
-                {
-                    **context,
-                    "event_society_id": event.society_id,
-                    "flat_society_id": flat.society_id,
+                "Validation failed for refund request: flat/event society mismatch",
+                extra={
+                    "action": "REQUEST_REFUND",
+                    "result": "society_mismatch",
+                    "context": {
+                        **context,
+                        "event_society_id": event.society_id,
+                        "flat_society_id": flat.society_id,
+                    },
                 },
             )
             raise Exception("Flat does not belong to the event society")
@@ -114,8 +118,8 @@ class RefundRequestService:
 
         if not payment or payment.paid_amount <= 0:
             logger.warning(
-                "Validation failed for refund request: no payment available | context=%s",
-                context
+                "Validation failed for refund request: no payment available",
+                extra={"action": "REQUEST_REFUND", "result": "payment_missing", "context": context},
             )
             raise Exception("No payment available for refund")
 
@@ -132,11 +136,12 @@ class RefundRequestService:
 
         if existing:
             logger.info(
-                "Workflow decision: returning existing refund request | context=%s",
-                {
-                    **context,
-                    "request_code": existing.request_code
-                }
+                "Workflow decision: returning existing refund request",
+                extra={
+                    "action": "REQUEST_REFUND",
+                    "result": "existing_request_reused",
+                    "context": {**context, "request_code": existing.request_code},
+                },
             )
             log_exit(logger, "RefundRequestService.request_refund", context)
             return existing
@@ -169,12 +174,16 @@ class RefundRequestService:
         )
 
         logger.info(
-            "DB write: creating refund request | context=%s",
-            {
-                **context,
-                "society_id": event.society_id,
-                "request_code": request_code
-            }
+            "DB write: creating refund request",
+            extra={
+                "action": "REQUEST_REFUND",
+                "result": "db_create_pending",
+                "context": {
+                    **context,
+                    "society_id": event.society_id,
+                    "request_code": request_code,
+                },
+            },
         )
         db.add(request)
         db.flush()
@@ -209,21 +218,29 @@ class RefundRequestService:
         try:
             db.commit()
             logger.info(
-                "Commit success: refund request created | context=%s",
-                {
-                    **context,
-                    "society_id": event.society_id,
-                    "request_code": request_code
-                }
+                "Commit success: refund request created",
+                extra={
+                    "action": "REQUEST_REFUND",
+                    "result": "committed",
+                    "context": {
+                        **context,
+                        "society_id": event.society_id,
+                        "request_code": request_code,
+                    },
+                },
             )
         except Exception:
             logger.exception(
-                "Commit failure: refund request create | context=%s",
-                {
-                    **context,
-                    "society_id": event.society_id,
-                    "request_code": request_code
-                }
+                "Commit failure: refund request create",
+                extra={
+                    "action": "REQUEST_REFUND",
+                    "result": "commit_failed",
+                    "context": {
+                        **context,
+                        "society_id": event.society_id,
+                        "request_code": request_code,
+                    },
+                },
             )
             db.rollback()
             raise
@@ -280,8 +297,8 @@ class RefundRequestService:
         )
         log_entry(logger, "RefundRequestService.approve_request", context)
         logger.info(
-            "Workflow decision: approving refund request | context=%s",
-            context
+            "Workflow decision: approving refund request",
+            extra={"action": "APPROVE_REFUND_REQUEST", "result": "started", "context": context},
         )
         refund = RefundService.process_refund(
             db=db,
@@ -311,17 +328,20 @@ class RefundRequestService:
             ),
             performed_by=performed_by
         ))
-        logger.info("DB write: updating refund request status | context=%s", context)
+        logger.info(
+            "DB write: updating refund request status",
+            extra={"action": "APPROVE_REFUND_REQUEST", "result": "db_update_pending", "context": context},
+        )
         try:
             db.commit()
             logger.info(
-                "Commit success: refund request approved | context=%s",
-                context
+                "Commit success: refund request approved",
+                extra={"action": "APPROVE_REFUND_REQUEST", "result": "committed", "context": context},
             )
         except Exception:
             logger.exception(
-                "Commit failure: refund request approve | context=%s",
-                context
+                "Commit failure: refund request approve",
+                extra={"action": "APPROVE_REFUND_REQUEST", "result": "commit_failed", "context": context},
             )
             db.rollback()
             raise
