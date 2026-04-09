@@ -15,11 +15,17 @@ from sqlalchemy.orm import Session
 from app.workflows.engine import WorkflowEngine
 from app.db.models import Event, WorkflowState, AuditLog
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.validation import validate_uuid_if_candidate
 
 logger = logging.getLogger(__name__)
 
 
 class EventService:
+    @staticmethod
+    def _validate_event_and_member_ids(*, event_id, performed_by):
+        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
+        performed_by = validate_uuid_if_candidate(performed_by, field_name="member_id")
+        return event_id, performed_by
 
     @staticmethod
     def _require_event_and_workflow(db: Session, event_id: Any) -> tuple[Event, WorkflowState]:
@@ -59,6 +65,7 @@ class EventService:
         """
         Creates a new event and initializes workflow state.
         """
+        created_by = validate_uuid_if_candidate(created_by, field_name="member_id")
         context = build_log_context(society_id=society_id, performed_by=created_by)
         logger.info(
             "Creating event | name=%s date=%s context=%s",
@@ -122,6 +129,10 @@ class EventService:
         performed_by,
         override_reason=None
     ):
+        event_id, performed_by = EventService._validate_event_and_member_ids(
+            event_id=event_id,
+            performed_by=performed_by,
+        )
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Activating event | context=%s", context)
         event, workflow = EventService._require_event_and_workflow(db, event_id)
@@ -181,6 +192,10 @@ class EventService:
         performed_by,
         override_reason=None
     ):
+        event_id, performed_by = EventService._validate_event_and_member_ids(
+            event_id=event_id,
+            performed_by=performed_by,
+        )
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Locking passes | context=%s", context)
         event, workflow = EventService._require_event_and_workflow(db, event_id)
@@ -240,6 +255,10 @@ class EventService:
         performed_by,
         override_reason=None
     ):
+        event_id, performed_by = EventService._validate_event_and_member_ids(
+            event_id=event_id,
+            performed_by=performed_by,
+        )
         context = build_log_context(event_id=event_id, performed_by=performed_by)
         logger.info("Starting event day | context=%s", context)
         event, workflow = EventService._require_event_and_workflow(db, event_id)
@@ -302,6 +321,9 @@ class EventService:
         action="CLOSE_EVENT",
         override_reason=None
     ):
+        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
+        if performed_by is not None:
+            performed_by = validate_uuid_if_candidate(performed_by, field_name="member_id")
         context = build_log_context(
             event_id=event_id,
             performed_by=performed_by,
