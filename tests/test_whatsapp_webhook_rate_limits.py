@@ -6,6 +6,8 @@ from fastapi import HTTPException
 import app.api.whatsapp.webhook as webhook_api
 from app.config import settings
 
+pytestmark = [pytest.mark.integration]
+
 
 class StubRequest:
     def __init__(self, ip: str = "203.0.113.10"):
