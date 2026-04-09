@@ -7,6 +7,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, Event, EventFoodCounter, EventFoodPass, EventFoodToken, Flat
@@ -22,6 +23,20 @@ _FOOD_OPERATION_ALLOWED_ROLES = {"chairman", "secretary", "treasurer", "committe
 
 
 class FoodCollectionService:
+
+    @staticmethod
+    def _is_food_token_unique_conflict(error: IntegrityError) -> bool:
+        original_error = getattr(error, "orig", None)
+        diagnostic = getattr(original_error, "diag", None)
+        constraint_name = getattr(diagnostic, "constraint_name", None)
+        if constraint_name == "uq_event_food_tokens_event_token":
+            return True
+
+        error_text = str(original_error or error).lower()
+        return (
+            "event_food_tokens" in error_text
+            and ("uq_event_food_tokens_event_token" in error_text or "duplicate key" in error_text)
+        )
 
     @staticmethod
     def _ensure_workflow_action_allowed(
@@ -113,67 +128,91 @@ class FoodCollectionService:
             performed_by=performed_by,
             override_reason=override_reason,
         )
-
-        existing_count = (
-            db.query(func.count(EventFoodToken.id))
-            .filter(EventFoodToken.event_id == event_id)
-            .scalar()
-        )
-        if existing_count and existing_count > 0:
-            raise Exception("Food tokens already generated for this event")
-
-        passes = (
-            db.query(EventFoodPass)
-            .filter(
-                EventFoodPass.event_id == event_id,
-                EventFoodPass.is_participating.is_(True),
-            )
-            .all()
-        )
-
         token_rows: list[EventFoodToken] = []
-        token_codes: set[str] = set()
+        try:
+            # Serialize generation by locking the event row in the same transaction
+            # as the existence check and token inserts.
+            db.refresh(event, with_for_update=True)
 
-        for food_pass in passes:
-            token_plan = {
-                "veg": food_pass.veg_count,
-                "jain": food_pass.jain_count,
-                "kids": food_pass.kids_count,
-            }
-            for food_type, count in token_plan.items():
-                for _ in range(max(count, 0)):
-                    code = FoodCollectionService._build_token_code(
-                        existing_codes=token_codes,
-                        length=token_length,
-                    )
-                    token_rows.append(
-                        EventFoodToken(
-                            event_id=event_id,
-                            flat_id=food_pass.flat_id,
-                            food_type=food_type,
-                            token_code=code,
-                            qr_payload=f"DFP:{event_id}:{code}",
-                        )
-                    )
-
-        for row in token_rows:
-            db.add(row)
-
-        db.add(
-            AuditLog(
-                society_id=event.society_id,
-                entity_type="food_collection",
-                entity_id=event_id,
-                action="GENERATE_FOOD_TOKENS",
-                reason=f"Generated {len(token_rows)} tokens",
-                performed_by=performed_by,
+            existing_count = (
+                db.query(func.count(EventFoodToken.id))
+                .filter(EventFoodToken.event_id == event_id)
+                .scalar()
             )
-        )
+            if existing_count and existing_count > 0:
+                raise Exception("Food tokens already generated for this event")
+
+            passes = (
+                db.query(EventFoodPass)
+                .filter(
+                    EventFoodPass.event_id == event_id,
+                    EventFoodPass.is_participating.is_(True),
+                )
+                .all()
+            )
+
+            token_codes: set[str] = set()
+            for food_pass in passes:
+                token_plan = {
+                    "veg": food_pass.veg_count,
+                    "jain": food_pass.jain_count,
+                    "kids": food_pass.kids_count,
+                }
+                for food_type, count in token_plan.items():
+                    for _ in range(max(count, 0)):
+                        code = FoodCollectionService._build_token_code(
+                            existing_codes=token_codes,
+                            length=token_length,
+                        )
+                        token_rows.append(
+                            EventFoodToken(
+                                event_id=event_id,
+                                flat_id=food_pass.flat_id,
+                                food_type=food_type,
+                                token_code=code,
+                                qr_payload=f"DFP:{event_id}:{code}",
+                            )
+                        )
+
+            for row in token_rows:
+                db.add(row)
+
+            db.add(
+                AuditLog(
+                    society_id=event.society_id,
+                    entity_type="food_collection",
+                    entity_id=event_id,
+                    action="GENERATE_FOOD_TOKENS",
+                    reason=f"Generated {len(token_rows)} tokens",
+                    performed_by=performed_by,
+                )
+            )
+
+            db.commit()
+        except IntegrityError as error:
+            db.rollback()
+            if not FoodCollectionService._is_food_token_unique_conflict(error):
+                raise
+
+            db.add(
+                AuditLog(
+                    society_id=event.society_id,
+                    entity_type="food_collection",
+                    entity_id=event_id,
+                    action="GENERATE_FOOD_TOKENS_CONFLICT",
+                    reason=(
+                        "Token generation conflict detected due to duplicate token insert; "
+                        "tokens are already generated for this event"
+                    ),
+                    performed_by=performed_by,
+                )
+            )
+            db.commit()
+            raise Exception("Food tokens already generated for this event") from error
 
         if notify_callback is not None:
             notify_callback(event=event, generated_tokens=token_rows)
 
-        db.commit()
         return token_rows
 
     @staticmethod
