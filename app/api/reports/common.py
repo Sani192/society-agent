@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from uuid import UUID
+
+from fastapi import status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.auth import AuthenticatedPrincipal
@@ -9,7 +13,8 @@ from app.modules.reports.common.resolvers import get_event
 from app.permissions.report_guard import ensure_report_access
 from app.utils.audit_logger import log_report_access
 from app.utils.logger import logger
-from app.utils.response import error_envelope
+from app.utils.response import error_envelope, safe_error_envelope
+from app.utils.validation import validate_uuid
 
 
 def _resolve_authenticated_committee_member(*, principal: AuthenticatedPrincipal, db: Session):
@@ -59,7 +64,20 @@ def authorize_committee_member_report(
 
 
 def require_event(*, db: Session, event_id: str | None):
-    event = get_event(db, event_id)
+    resolved_event_id: str | UUID | None = event_id
+    if event_id is not None:
+        try:
+            resolved_event_id = validate_uuid(event_id, field_name="event_id")
+        except Exception:
+            return (
+                None,
+                JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content=safe_error_envelope(),
+                ),
+            )
+
+    event = get_event(db, resolved_event_id)
     if not event:
         return None, error_envelope("Event not found")
     return event, None

@@ -11,6 +11,7 @@ from app.db.models import AuditLog, CommitteeMember
 from app.utils.guards import normalize_phone
 from app.utils.identity import normalize_identifier
 from app.utils.logger import logger
+from app.utils.validation import validate_uuid_if_candidate
 
 VALID_COMMITTEE_ROLES = {"chairman", "treasurer", "secretary", "committee_member"}
 
@@ -25,6 +26,7 @@ class CommitteeMemberService:
 
     @staticmethod
     def _ensure_actor_authorized(*, db: Session, society_id, performed_by):
+        performed_by = validate_uuid_if_candidate(performed_by, field_name="member_id")
         actor = (
             db.query(CommitteeMember)
             .filter(
@@ -166,6 +168,7 @@ class CommitteeMemberService:
 
     @staticmethod
     def remove_member(db: Session, society_id, member_id, performed_by):
+        member_id = validate_uuid_if_candidate(member_id, field_name="member_id")
         CommitteeMemberService._ensure_actor_authorized(
             db=db,
             society_id=society_id,
@@ -219,6 +222,7 @@ class CommitteeMemberService:
 
     @staticmethod
     def change_role(db: Session, society_id, member_id, role, performed_by):
+        member_id = validate_uuid_if_candidate(member_id, field_name="member_id")
         CommitteeMemberService._ensure_actor_authorized(
             db=db,
             society_id=society_id,
