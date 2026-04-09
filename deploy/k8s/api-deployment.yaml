@@ -11,8 +11,19 @@ spec:
     metadata:
       labels:
         app: society-agent-api
+      annotations:
+        society-agent.io/reverse-proxy-required-headers: "X-Forwarded-Proto, X-Forwarded-For, X-Forwarded-Host, Forwarded"
     spec:
       containers:
         - name: api
           image: society-agent:latest
-          command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+          command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+          env:
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://example.com"
+            - name: PUBLIC_ENDPOINT_MAX_BODY_BYTES
+              value: "131072"
+            - name: WHATSAPP_WEBHOOK_MAX_BODY_BYTES
+              value: "65536"
+            - name: TELEGRAM_WEBHOOK_MAX_BODY_BYTES
+              value: "65536"

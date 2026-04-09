@@ -612,7 +612,10 @@ async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundT
     _ensure_channel_enabled()
     _enforce_webhook_rate_limit(request)
     content_length = request.headers.get("content-length")
-    max_body_bytes = max(1024, int(settings.WHATSAPP_WEBHOOK_MAX_BODY_BYTES))
+    max_body_bytes = max(
+        1024,
+        min(int(settings.WHATSAPP_WEBHOOK_MAX_BODY_BYTES), int(settings.PUBLIC_ENDPOINT_MAX_BODY_BYTES)),
+    )
     if content_length and content_length.isdigit() and int(content_length) > max_body_bytes:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
     if hasattr(request, "body"):
