@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -62,9 +64,10 @@ def authorize_committee_member_report(
 
 
 def require_event(*, db: Session, event_id: str | None):
+    resolved_event_id: str | UUID | None = event_id
     if event_id is not None:
         try:
-            event_id = validate_uuid(event_id, field_name="event_id")
+            resolved_event_id = validate_uuid(event_id, field_name="event_id")
         except Exception:
             return (
                 None,
@@ -74,7 +77,7 @@ def require_event(*, db: Session, event_id: str | None):
                 ),
             )
 
-    event = get_event(db, event_id)
+    event = get_event(db, resolved_event_id)
     if not event:
         return None, error_envelope("Event not found")
     return event, None
