@@ -10,6 +10,7 @@ Created on Tue Feb 04 10:22:18 2026
 
 import logging
 from sqlalchemy.orm import Session
+from app.db.models import UserFlatMapping as UserFlatMappingModel
 
 from app.db.models import (
     Event,
@@ -32,13 +33,14 @@ logger = logging.getLogger(__name__)
 
 class PaymentRequestService:
     @staticmethod
-    def _authorize_requester_mapping(*, mapping, event, flat_id):
+    def _authorize_requester_mapping(*, mapping, event, flat_id) -> UserFlatMappingModel:
         if not mapping:
             raise Exception("Invalid requester mapping")
         if mapping.society_id != event.society_id or not mapping.is_active:
             raise Exception("Requester mapping is not active for this society")
         if mapping.flat_id != flat_id:
             raise Exception("Requester is not authorized for the selected flat")
+        return mapping
 
     @staticmethod
     def _get_event_society_id(db: Session, event_id):
@@ -101,7 +103,7 @@ class PaymentRequestService:
             raise Exception("Flat does not belong to the event society")
 
         mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
-        PaymentRequestService._authorize_requester_mapping(
+        mapping = PaymentRequestService._authorize_requester_mapping(
             mapping=mapping,
             event=event,
             flat_id=flat_id,
