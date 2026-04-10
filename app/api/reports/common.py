@@ -14,7 +14,7 @@ from app.permissions.report_guard import ensure_report_access
 from app.utils.audit_logger import log_report_access
 from app.utils.logger import logger
 from app.utils.response import error_envelope, safe_error_envelope
-from app.utils.validation import validate_uuid
+from app.utils.validation import ValidationError, validate_uuid
 
 
 def _resolve_authenticated_committee_member(*, principal: AuthenticatedPrincipal, db: Session):
@@ -68,7 +68,7 @@ def require_event(*, db: Session, event_id: str | None):
     if event_id is not None:
         try:
             resolved_event_id = validate_uuid(event_id, field_name="event_id")
-        except Exception:
+        except ValidationError:
             return (
                 None,
                 JSONResponse(

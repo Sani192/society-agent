@@ -8,6 +8,9 @@ from app.db.models import AuditLog, Event, WorkflowState
 from app.modules.events.service import EventService
 from tests.utils import QueryMock
 
+EVENT_ID = "00000000-0000-0000-0000-0000000000e1"
+MEMBER_ID = "00000000-0000-0000-0000-0000000000e2"
+
 
 def test_create_event_creates_workflow_and_audit():
     db = MagicMock()
@@ -21,7 +24,7 @@ def test_create_event_creates_workflow_and_audit():
         charge_per_adult=300,
         charge_per_child=150,
         payment_deadline=datetime(2026, 9, 10, 23, 59),
-        created_by="member-1"
+        created_by=MEMBER_ID
     )
 
     assert event.status == "DRAFT"
@@ -66,8 +69,8 @@ def test_event_lifecycle_transitions(
 
     kwargs = dict(
         db=db,
-        event_id="event-1",
-        performed_by="member-1"
+        event_id=EVENT_ID,
+        performed_by=MEMBER_ID
     )
     if override_reason is not None:
         kwargs["override_reason"] = override_reason
@@ -101,8 +104,8 @@ def test_event_lifecycle_requires_override(monkeypatch):
     with pytest.raises(Exception, match="Blocked"):
         EventService.activate_event(
             db=db,
-            event_id="event-1",
-            performed_by="member-1"
+            event_id=EVENT_ID,
+            performed_by=MEMBER_ID
         )
 
 
@@ -114,8 +117,8 @@ def test_close_event_requires_reason_before_state_update():
     with pytest.raises(Exception, match="Close reason is required."):
         EventService.close_event(
             db=db,
-            event_id="event-1",
-            performed_by="member-1",
+            event_id=EVENT_ID,
+            performed_by=MEMBER_ID,
             override_reason="   "
         )
 
@@ -128,7 +131,7 @@ def test_close_event_requires_reason_before_state_update():
 
 def test_close_event_success_with_reason_records_exact_audit_reason(monkeypatch):
     reason = "Closed after post-event reconciliation"
-    event = SimpleNamespace(id="event-1", society_id="soc-1", status="EVENT_DAY")
+    event = SimpleNamespace(id=EVENT_ID, society_id="soc-1", status="EVENT_DAY")
     workflow = SimpleNamespace(current_state="EVENT_DAY", allowed_next_states=["CLOSE_EVENT"])
     db = MagicMock()
     db.query.side_effect = [
@@ -143,8 +146,8 @@ def test_close_event_success_with_reason_records_exact_audit_reason(monkeypatch)
 
     EventService.close_event(
         db=db,
-        event_id="event-1",
-        performed_by="member-1",
+        event_id=EVENT_ID,
+        performed_by=MEMBER_ID,
         reason=reason,
         action="CLOSE_EVENT"
     )
@@ -161,12 +164,12 @@ def test_close_event_success_with_reason_records_exact_audit_reason(monkeypatch)
     ]
     assert len(audit_logs) == 1
     assert audit_logs[0].reason == reason
-    assert audit_logs[0].performed_by == "member-1"
+    assert str(audit_logs[0].performed_by) == MEMBER_ID
 
 
 def test_close_event_from_system_source_still_creates_audit(monkeypatch):
     reason = "AUTO_CLOSE: event_date passed by 3 hours"
-    event = SimpleNamespace(id="event-1", society_id="soc-1", status="EVENT_DAY")
+    event = SimpleNamespace(id=EVENT_ID, society_id="soc-1", status="EVENT_DAY")
     workflow = SimpleNamespace(current_state="EVENT_DAY", allowed_next_states=["CLOSE_EVENT"])
     db = MagicMock()
     db.query.side_effect = [
@@ -181,7 +184,7 @@ def test_close_event_from_system_source_still_creates_audit(monkeypatch):
 
     EventService.close_event(
         db=db,
-        event_id="event-1",
+        event_id=EVENT_ID,
         performed_by=None,
         source="system:auto_close_job",
         reason=reason,
