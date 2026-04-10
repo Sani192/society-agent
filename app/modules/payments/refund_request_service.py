@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 class RefundRequestService:
     @staticmethod
+    def _authorize_requester_mapping(*, mapping, event, flat_id):
+        if not mapping:
+            raise Exception("Invalid requester mapping")
+        if mapping.society_id != event.society_id or not mapping.is_active:
+            raise Exception("Requester mapping is not active for this society")
+        if mapping.flat_id != flat_id:
+            raise Exception("Requester is not authorized for the selected flat")
+
+    @staticmethod
     def _get_event_society_id(db: Session, event_id):
         event_id = validate_uuid(event_id, field_name="event_id")
         event = db.query(Event).filter(Event.id == event_id).first()
@@ -55,7 +64,8 @@ class RefundRequestService:
         context = build_log_context(
             event_id=event_id,
             flat_id=flat_id,
-            performed_by=requested_by_mapping_id
+            performed_by=None,
+            requested_by_mapping_id=requested_by_mapping_id,
         )
         log_entry(logger, "RefundRequestService.request_refund", context)
         if amount <= 0:
@@ -90,11 +100,18 @@ class RefundRequestService:
             )
             raise Exception("Flat does not belong to the event society")
 
+        mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
+        RefundRequestService._authorize_requester_mapping(
+            mapping=mapping,
+            event=event,
+            flat_id=flat_id,
+        )
+
         decision = WorkflowEngine.check_action(
             db=db,
             event_id=event_id,
             action="REQUEST_REFUND",
-            performed_by=requested_by_mapping_id,
+            performed_by=None,
             override_reason=override_reason
         )
 
@@ -154,14 +171,6 @@ class RefundRequestService:
         )
         request_code = f"REF-{count + 1:03d}"
 
-        mapping = db.query(UserFlatMapping).filter(UserFlatMapping.id == requested_by_mapping_id).first()
-        if not mapping:
-            raise Exception("Invalid requester mapping")
-        if mapping.society_id != event.society_id or not mapping.is_active:
-            raise Exception("Requester mapping is not active for this society")
-        if mapping.flat_id != flat_id:
-            raise Exception("Requester is not authorized for the selected flat")
-
         request = RefundRequest(
             event_id=event_id,
             flat_id=flat_id,
@@ -189,6 +198,11 @@ class RefundRequestService:
         db.flush()
 
         if is_override:
+            RefundRequestService._authorize_requester_mapping(
+                mapping=mapping,
+                event=event,
+                flat_id=flat_id,
+            )
             WorkflowEngine.apply_override(
                 db=db,
                 society_id=event.society_id,
@@ -197,7 +211,7 @@ class RefundRequestService:
                 entity_id=request.id,
                 action="REQUEST_REFUND",
                 reason=override_reason,
-                performed_by=requested_by_mapping_id
+                performed_by=None
             )
 
         db.add(AuditLog(
