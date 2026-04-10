@@ -10,19 +10,22 @@ from app.modules.payments.refund_request_service import RefundRequestService
 from app.modules.reminders.reminder_service import ReminderService
 from tests.utils import QueryMock
 
+EVENT_ID = "00000000-0000-0000-0000-0000000000c1"
+FLAT_ID = "00000000-0000-0000-0000-0000000000c2"
+
 
 def test_payment_request_rejects_flat_from_other_society():
     db = MagicMock()
     db.query.side_effect = [
-        QueryMock(first_result=SimpleNamespace(id="event-1", society_id="soc-1")),
-        QueryMock(first_result=SimpleNamespace(id="flat-1", society_id="soc-2")),
+        QueryMock(first_result=SimpleNamespace(id=EVENT_ID, society_id="soc-1")),
+        QueryMock(first_result=SimpleNamespace(id=FLAT_ID, society_id="soc-2")),
     ]
 
     with pytest.raises(Exception, match="Flat does not belong to the event society"):
         PaymentRequestService.request_payment(
             db=db,
-            event_id="event-1",
-            flat_id="flat-1",
+            event_id=EVENT_ID,
+            flat_id=FLAT_ID,
             amount=100,
             payment_mode="upi",
             requested_by_mapping_id="mapping-1",
@@ -32,15 +35,15 @@ def test_payment_request_rejects_flat_from_other_society():
 def test_refund_request_rejects_flat_from_other_society():
     db = MagicMock()
     db.query.side_effect = [
-        QueryMock(first_result=SimpleNamespace(id="event-1", society_id="soc-1")),
-        QueryMock(first_result=SimpleNamespace(id="flat-1", society_id="soc-2")),
+        QueryMock(first_result=SimpleNamespace(id=EVENT_ID, society_id="soc-1")),
+        QueryMock(first_result=SimpleNamespace(id=FLAT_ID, society_id="soc-2")),
     ]
 
     with pytest.raises(Exception, match="Flat does not belong to the event society"):
         RefundRequestService.request_refund(
             db=db,
-            event_id="event-1",
-            flat_id="flat-1",
+            event_id=EVENT_ID,
+            flat_id=FLAT_ID,
             amount=100,
             reason="duplicate",
             requested_by_mapping_id="mapping-1",

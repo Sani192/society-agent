@@ -5,6 +5,9 @@ import pytest
 
 from app.modules.committee.committee_member_service import CommitteeMemberService
 
+ACTOR_ID = "00000000-0000-0000-0000-0000000000aa"
+MEMBER_ID = "00000000-0000-0000-0000-0000000000ab"
+
 
 class _Query:
     def __init__(self, *, first_result=None, count_result=None, all_result=None):
@@ -51,7 +54,7 @@ def test_add_member_forbidden_non_chairman():
             name="N",
             phone_number="+91 99999 00000",
             role="treasurer",
-            performed_by="actor",
+            performed_by=ACTOR_ID,
         )
 
 
@@ -69,7 +72,7 @@ def test_add_member_duplicate_active_same_society():
             name="N",
             phone_number="+91 99999 00000",
             role="treasurer",
-            performed_by="actor",
+            performed_by=ACTOR_ID,
         )
 
 
@@ -87,7 +90,7 @@ def test_add_member_success_creates_active_member():
         name="New Member",
         phone_number="+91 99999 00002",
         role="committee_member",
-        performed_by="actor",
+        performed_by=ACTOR_ID,
     )
 
     assert result.is_active is True
@@ -109,7 +112,7 @@ def test_add_member_invalid_role_rejected():
             name="N",
             phone_number="+91 99999 00000",
             role="invalid-role",
-            performed_by="actor",
+            performed_by=ACTOR_ID,
         )
 
 
@@ -128,7 +131,7 @@ def test_add_member_reactivate_inactive():
         name="Reactivated",
         phone_number="+91 99999 00000",
         role="secretary",
-        performed_by="actor",
+        performed_by=ACTOR_ID,
     )
 
     assert result is inactive
@@ -149,8 +152,8 @@ def test_remove_member_last_chairman_guard():
         CommitteeMemberService.remove_member(
             db=db,
             society_id="soc",
-            member_id="m3",
-            performed_by="actor",
+            member_id=MEMBER_ID,
+            performed_by=ACTOR_ID,
         )
 
 
@@ -165,8 +168,8 @@ def test_remove_member_soft_deactivation_success():
     result = CommitteeMemberService.remove_member(
         db=db,
         society_id="soc",
-        member_id="m5",
-        performed_by="actor",
+        member_id=MEMBER_ID,
+        performed_by=ACTOR_ID,
     )
 
     assert result is target
@@ -184,9 +187,9 @@ def test_change_role_success():
     result = CommitteeMemberService.change_role(
         db=db,
         society_id="soc",
-        member_id="m4",
+        member_id=MEMBER_ID,
         role="treasurer",
-        performed_by="actor",
+        performed_by=ACTOR_ID,
     )
 
     assert result is target
@@ -206,7 +209,7 @@ def test_change_role_last_chairman_guard():
         CommitteeMemberService.change_role(
             db=db,
             society_id="soc",
-            member_id="m6",
+            member_id=MEMBER_ID,
             role="secretary",
-            performed_by="actor",
+            performed_by=ACTOR_ID,
         )

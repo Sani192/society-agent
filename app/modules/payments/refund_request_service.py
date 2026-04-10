@@ -25,7 +25,7 @@ from app.workflows.engine import WorkflowEngine
 from app.utils.logging_helpers import build_log_context, log_entry, log_exit, log_service_call
 from app.utils.time import utc_now
 from app.utils.currency import format_currency
-from app.utils.validation import validate_uuid_if_candidate
+from app.utils.validation import validate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class RefundRequestService:
     @staticmethod
     def _get_event_society_id(db: Session, event_id):
-        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
+        event_id = validate_uuid(event_id, field_name="event_id")
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise Exception("Invalid event")
@@ -50,8 +50,8 @@ class RefundRequestService:
         requested_by_mapping_id,
         override_reason=None
     ):
-        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
-        flat_id = validate_uuid_if_candidate(flat_id, field_name="flat_id")
+        event_id = validate_uuid(event_id, field_name="event_id")
+        flat_id = validate_uuid(flat_id, field_name="flat_id")
         context = build_log_context(
             event_id=event_id,
             flat_id=flat_id,
@@ -257,8 +257,8 @@ class RefundRequestService:
         flat_id,
         amount
     ):
-        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
-        flat_id = validate_uuid_if_candidate(flat_id, field_name="flat_id")
+        event_id = validate_uuid(event_id, field_name="event_id")
+        flat_id = validate_uuid(flat_id, field_name="flat_id")
         return (
             db.query(RefundRequest)
             .filter(
@@ -278,7 +278,7 @@ class RefundRequestService:
         request,
         performed_by
     ):
-        performed_by = validate_uuid_if_candidate(performed_by, field_name="member_id")
+        performed_by = validate_uuid(performed_by, field_name="member_id")
         if request.status != "requested":
             raise Exception("Refund request is no longer pending")
         event_society_id = RefundRequestService._get_event_society_id(db, request.event_id)
@@ -357,7 +357,7 @@ class RefundRequestService:
         performed_by,
         rejection_reason=None
     ):
-        performed_by = validate_uuid_if_candidate(performed_by, field_name="member_id")
+        performed_by = validate_uuid(performed_by, field_name="member_id")
         event_society_id = RefundRequestService._get_event_society_id(db, request.event_id)
         require_committee_action(
             db,
@@ -403,9 +403,9 @@ class RefundRequestService:
         requested_by_mapping_ids=None,
         flat_id=None
     ):
-        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
+        event_id = validate_uuid(event_id, field_name="event_id")
         if flat_id is not None:
-            flat_id = validate_uuid_if_candidate(flat_id, field_name="flat_id")
+            flat_id = validate_uuid(flat_id, field_name="flat_id")
         query = (
             db.query(RefundRequest, Flat)
             .join(Flat, RefundRequest.flat_id == Flat.id)

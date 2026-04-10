@@ -24,7 +24,7 @@ from app.workflows.rules import STATE_RULES
 from app.modules.security.access_control import require_committee_action
 from app.utils.logging_helpers import build_log_context, log_service_call
 from app.utils.time import utc_now
-from app.utils.validation import validate_uuid_if_candidate
+from app.utils.validation import validate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,11 @@ logger = logging.getLogger(__name__)
 class PaymentService:
     @staticmethod
     def _validate_identifiers(*, event_id, flat_id, performed_by, approved_request_id=None):
-        event_id = validate_uuid_if_candidate(event_id, field_name="event_id")
-        flat_id = validate_uuid_if_candidate(flat_id, field_name="flat_id")
-        performed_by = validate_uuid_if_candidate(performed_by, field_name="member_id")
+        event_id = validate_uuid(event_id, field_name="event_id")
+        flat_id = validate_uuid(flat_id, field_name="flat_id")
+        performed_by = validate_uuid(performed_by, field_name="member_id")
         if approved_request_id is not None:
-            validate_uuid_if_candidate(approved_request_id, field_name="request_id")
+            validate_uuid(approved_request_id, field_name="request_id")
         return event_id, flat_id, performed_by
 
     @staticmethod
