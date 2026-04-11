@@ -998,7 +998,9 @@ def handle_committee_intent(
 
             if state.step == "sponsor_name":
                 if not answer:
-                    return error_response("Sponsor name (or flat) is required.")
+                    return error_response(
+                        translate("committee.pending.add_sponsor.sponsor_name_required", lang)
+                    )
                 state.data["sponsor_name"] = answer
                 state.step = "amount_or_details"
                 save_committee_action_session(committee_action_session_key, state)
@@ -1008,9 +1010,13 @@ def handle_committee_intent(
                 sponsor_type = state.data.get("sponsor_type", "")
                 sponsor_name = state.data.get("sponsor_name", "")
                 if sponsor_type == "monetary" and not answer.isdigit():
-                    return info_response("Sponsor amount must be numeric. Example: 5000")
+                    return info_response(
+                        translate("committee.pending.add_sponsor.amount_numeric", lang)
+                    )
                 if not answer:
-                    return error_response("Sponsor amount/details is required.")
+                    return error_response(
+                        translate("committee.pending.add_sponsor.amount_or_details_required", lang)
+                    )
                 clear_committee_action_session(committee_action_session_key)
                 return _add_sponsor_contribution(
                     db=db,
@@ -1024,7 +1030,9 @@ def handle_committee_intent(
         if state.action == "REFUND_SPONSOR":
             if state.step == "contribution_code":
                 if not answer:
-                    return error_response("Contribution code is required.")
+                    return error_response(
+                        translate("committee.pending.refund_sponsor.contribution_code_required", lang)
+                    )
                 state.data["contribution_code"] = answer.upper()
                 state.step = "amount"
                 save_committee_action_session(committee_action_session_key, state)
@@ -1032,7 +1040,9 @@ def handle_committee_intent(
 
             if state.step == "amount":
                 if not answer.isdigit():
-                    return info_response("Refund amount must be numeric. Example: 500")
+                    return info_response(
+                        translate("committee.pending.refund_sponsor.amount_numeric", lang)
+                    )
                 state.data["amount"] = answer
                 state.step = "reason"
                 save_committee_action_session(committee_action_session_key, state)

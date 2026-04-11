@@ -363,6 +363,15 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                     "reason_required": "Expense reason/category is required.",
                     "amount_numeric": "Expense amount must be numeric. Example: 1200",
                 },
+                "add_sponsor": {
+                    "sponsor_name_required": "Sponsor name (or flat) is required.",
+                    "amount_numeric": "Sponsor amount must be numeric. Example: 5000",
+                    "amount_or_details_required": "Sponsor amount/details is required.",
+                },
+                "refund_sponsor": {
+                    "contribution_code_required": "Contribution code is required.",
+                    "amount_numeric": "Refund amount must be numeric. Example: 500",
+                },
                 "remind_flat": {
                     "flat_number": "Please share flat number. Example: A-101\nExpected next reply: flat number.\nType `cancel` to stop.",
                 },
