@@ -66,6 +66,7 @@ from app.commands.parser import (
     parse_target_flat,
 )
 from app.i18n.catalog import translate
+from app.utils.response import safe_error_envelope, safe_error_message
 
 
 from app.channels.whatsapp.event_creation_session import (
@@ -695,6 +696,47 @@ def _build_committee_action_session_key(*, member, inbound_message):
     )
 
 
+def _committee_trace_context(*, inbound_message) -> tuple[str | None, str | None]:
+    metadata = getattr(inbound_message, "metadata", None) or {}
+    trace_id = metadata.get("trace_id")
+    correlation_id = metadata.get("correlation_id")
+    return trace_id, correlation_id
+
+
+def _safe_committee_error_response(*, lang: str | None = None):
+    return error_response(safe_error_envelope(lang=lang)["message"])
+
+
+def _run_committee_guarded(*, action, action_name: str, intent: str, inbound_message=None, lang: str | None = None, extra: dict | None = None):
+    try:
+        return action()
+    except Exception:
+        trace_id, correlation_id = _committee_trace_context(inbound_message=inbound_message)
+        log_extra = {
+            "intent": intent,
+            "action_name": action_name,
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
+        }
+        if extra:
+            log_extra.update(extra)
+        logger.exception("Committee handler action failed", extra=log_extra)
+        return _safe_committee_error_response(lang=lang)
+
+
+def _log_committee_exception(*, intent: str, action_name: str, inbound_message=None, extra: dict | None = None):
+    trace_id, correlation_id = _committee_trace_context(inbound_message=inbound_message)
+    log_extra = {
+        "intent": intent,
+        "action_name": action_name,
+        "trace_id": trace_id,
+        "correlation_id": correlation_id,
+    }
+    if extra:
+        log_extra.update(extra)
+    logger.exception("Committee handler action failed", extra=log_extra)
+
+
 def _prompt_for_pending_action_step(state: CommitteeActionSessionState, lang: str | None = None) -> str:
     prompts = {
         ("ADD_EXPENSE", "reason"): translate("committee.pending.add_expense.reason", lang),
@@ -1017,7 +1059,17 @@ def handle_committee_intent(
                         save_committee_action_session(committee_action_session_key, state)
                         return info_response(_prompt_for_pending_action_step(state))
                     clear_committee_action_session(committee_action_session_key)
-                    return error_response(str(exc))
+                    logger.exception(
+                        "Committee pending action failed",
+                        extra={
+                            "intent": intent,
+                            "action": state.action,
+                            "step": state.step,
+                            "trace_id": _committee_trace_context(inbound_message=inbound_message)[0],
+                            "correlation_id": _committee_trace_context(inbound_message=inbound_message)[1],
+                        },
+                    )
+                    return _safe_committee_error_response(lang=lang)
                 clear_committee_action_session(committee_action_session_key)
                 return success_response(
                     translate(
@@ -1044,8 +1096,18 @@ def handle_committee_intent(
                         performed_by=member.id,
                         override_reason=answer,
                     )
-                except Exception as exc:
-                    return error_response(str(exc))
+                except Exception:
+                    logger.exception(
+                        "Committee pending action failed",
+                        extra={
+                            "intent": intent,
+                            "action": state.action,
+                            "step": state.step,
+                            "trace_id": _committee_trace_context(inbound_message=inbound_message)[0],
+                            "correlation_id": _committee_trace_context(inbound_message=inbound_message)[1],
+                        },
+                    )
+                    return _safe_committee_error_response(lang=lang)
                 clear_committee_action_session(committee_action_session_key)
                 return success_response(
                     translate(
@@ -1090,8 +1152,16 @@ def handle_committee_intent(
                         message_body=answer,
                         scope="event" if state.action == "ANNOUNCE_EVENT" else "society",
                     )
-                except ValueError as exc:
-                    return error_response(str(exc))
+                except ValueError:
+                    logger.exception(
+                        "Committee pending announcement queue failed",
+                        extra={
+                            "intent": intent,
+                            "trace_id": _committee_trace_context(inbound_message=inbound_message)[0],
+                            "correlation_id": _committee_trace_context(inbound_message=inbound_message)[1],
+                        },
+                    )
+                    return _safe_committee_error_response(lang=lang)
                 return success_response(
                     translate(
                         "committee.announcement_accepted",
@@ -1186,15 +1256,21 @@ def handle_committee_intent(
         if not target_event:
             return error_response("No event found to activate. Please create an event first.")
 
-        try:
-            EventService.activate_event(
+        activation_result = _run_committee_guarded(
+            action=lambda: EventService.activate_event(
                 db=db,
                 event_id=target_event.id,
                 performed_by=member.id,
                 override_reason="Via WhatsApp",
-            )
-        except Exception as exc:
-            return error_response(str(exc))
+            ),
+            action_name="activate_event",
+            intent=intent,
+            inbound_message=inbound_message,
+            lang=lang,
+            extra={"event_id": str(getattr(target_event, "id", ""))},
+        )
+        if isinstance(activation_result, str):
+            return activation_result
 
         return success_response(
             f"Event activated: {target_event.name}",
@@ -1209,15 +1285,21 @@ def handle_committee_intent(
         if not event:
             return error_response("No active event found. Please contact committee.")
 
-        try:
-            EventService.lock_passes(
+        lock_result = _run_committee_guarded(
+            action=lambda: EventService.lock_passes(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
                 override_reason="Via WhatsApp",
-            )
-        except Exception as exc:
-            return error_response(str(exc))
+            ),
+            action_name="lock_passes",
+            intent=intent,
+            inbound_message=inbound_message,
+            lang=lang,
+            extra={"event_id": str(getattr(event, "id", ""))},
+        )
+        if isinstance(lock_result, str):
+            return lock_result
 
         return success_response(
             f"Passes locked for event: {event.name}",
@@ -1232,15 +1314,21 @@ def handle_committee_intent(
         if not event:
             return error_response("No active event found. Please contact committee.")
 
-        try:
-            EventService.start_event_day(
+        start_result = _run_committee_guarded(
+            action=lambda: EventService.start_event_day(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
                 override_reason="Via WhatsApp",
-            )
-        except Exception as exc:
-            return error_response(str(exc))
+            ),
+            action_name="start_event_day",
+            intent=intent,
+            inbound_message=inbound_message,
+            lang=lang,
+            extra={"event_id": str(getattr(event, "id", ""))},
+        )
+        if isinstance(start_result, str):
+            return start_result
 
         return success_response(
             f"Event day started: {event.name}",
@@ -1252,8 +1340,8 @@ def handle_committee_intent(
         normalized_message, override_reason = _extract_override_reason(message)
         if not event:
             return error_response("No active event found. Please contact committee.")
-        try:
-            tokens = FoodCollectionService.generate_tokens_for_event(
+        tokens = _run_committee_guarded(
+            action=lambda: FoodCollectionService.generate_tokens_for_event(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
@@ -1264,9 +1352,15 @@ def handle_committee_intent(
                     generated_tokens=generated_tokens,
                     performed_by=member.id,
                 ),
-            )
-        except Exception as exc:
-            return error_response(str(exc))
+            ),
+            action_name="generate_tokens_for_event",
+            intent=intent,
+            inbound_message=inbound_message,
+            lang=lang,
+            extra={"event_id": str(getattr(event, "id", ""))},
+        )
+        if isinstance(tokens, str):
+            return tokens
         return success_response(
             f"Generated {len(tokens)} food tokens for {event.name}. Share 'my tokens' with members.",
             heading="Food tokens generated",
@@ -1278,16 +1372,22 @@ def handle_committee_intent(
         if not event:
             return error_response("No active event found. Please contact committee.")
         auto_close_minutes = parse_amount(normalized_message) or 120
-        try:
-            counter = FoodCollectionService.open_food_counter(
+        counter = _run_committee_guarded(
+            action=lambda: FoodCollectionService.open_food_counter(
                 db=db,
                 event_id=event.id,
                 performed_by=member.id,
                 auto_close_minutes=auto_close_minutes,
                 override_reason=override_reason,
-            )
-        except Exception as exc:
-            return error_response(str(exc))
+            ),
+            action_name="open_food_counter",
+            intent=intent,
+            inbound_message=inbound_message,
+            lang=lang,
+            extra={"event_id": str(getattr(event, "id", ""))},
+        )
+        if isinstance(counter, str):
+            return counter
 
         announcement_message = _build_food_counter_open_announcement(
             event_name=event.name,
@@ -1341,8 +1441,14 @@ def handle_committee_intent(
                 performed_by=member.id,
                 override_reason=override_reason,
             )
-        except Exception as exc:
-            return error_response(str(exc))
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="verify_and_serve_token",
+                inbound_message=inbound_message,
+                extra={"event_id": str(getattr(event, "id", "")), "token_code": token_code},
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             f"Served token {served.token_code} ({served.food_type}).",
@@ -1379,8 +1485,14 @@ def handle_committee_intent(
                 performed_by=member.id,
                 override_reason=override_reason,
             )
-        except Exception as exc:
-            return error_response(str(exc))
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="serve_by_flat_lookup",
+                inbound_message=inbound_message,
+                extra={"event_id": str(getattr(event, "id", "")), "flat_number": flat_number},
+            )
+            return _safe_committee_error_response(lang=lang)
         return success_response(
             f"Served {flat.flat_number} via no-token fallback ({served.token_code}).",
             heading="Plate served",
@@ -1400,8 +1512,14 @@ def handle_committee_intent(
                 event_id=event.id,
                 flat_number=flat_number,
             )
-        except Exception as exc:
-            return error_response(str(exc))
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="committee_flat_status",
+                inbound_message=inbound_message,
+                extra={"event_id": str(getattr(event, "id", "")), "flat_number": flat_number},
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             join_lines([
@@ -1427,8 +1545,14 @@ def handle_committee_intent(
                 event_id=event.id,
                 token_code=token_code,
             )
-        except Exception as exc:
-            return error_response(str(exc))
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="inspect_token",
+                inbound_message=inbound_message,
+                extra={"event_id": str(getattr(event, "id", "")), "token_code": token_code},
+            )
+            return _safe_committee_error_response(lang=lang)
         status = "Served" if token.served_at else "Not served"
         return success_response(
             join_lines([
@@ -1505,8 +1629,14 @@ def handle_committee_intent(
                 performed_by=member.id,
                 override_reason=reason.strip(),
             )
-        except Exception as exc:
-            return error_response(str(exc))
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="close_event",
+                inbound_message=inbound_message,
+                extra={"event_id": str(getattr(target_event, "id", ""))},
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             f"Event closed: {target_event.name}",
@@ -1693,10 +1823,22 @@ def handle_committee_intent(
                 format="pdf",
                 event_id=session.event_id,
             )
-        except ValueError as exc:
-            return error_response(str(exc))
-        except Exception as exc:
-            return error_response(f"Export failed: {exc}")
+        except ValueError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="export_report",
+                inbound_message=inbound_message,
+                extra={"category": selected_option["category"], "report_key": selected_option["report_key"]},
+            )
+            return _safe_committee_error_response(lang=lang)
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="export_report",
+                inbound_message=inbound_message,
+                extra={"category": selected_option["category"], "report_key": selected_option["report_key"]},
+            )
+            return _safe_committee_error_response(lang=lang)
 
         clear_export_session(session_key)
         return _dispatch_export_result(
@@ -1740,12 +1882,27 @@ def handle_committee_intent(
                 role=role,
                 performed_by=member.id,
             )
-        except PermissionError as exc:
-            return warning_response(str(exc))
-        except ValueError as exc:
-            return error_response(str(exc))
-        except Exception as exc:
-            return error_response(str(exc))
+        except PermissionError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="add_committee_member_permission",
+                inbound_message=inbound_message,
+            )
+            return warning_response(safe_error_message(lang=lang))
+        except ValueError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="add_committee_member_validation",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="add_committee_member",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             f"Committee member saved: {created.name} ({created.role})",
@@ -1765,12 +1922,27 @@ def handle_committee_intent(
                 member_id=member_id,
                 performed_by=member.id,
             )
-        except PermissionError as exc:
-            return warning_response(str(exc))
-        except ValueError as exc:
-            return error_response(str(exc))
-        except Exception as exc:
-            return error_response(str(exc))
+        except PermissionError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="remove_committee_member_permission",
+                inbound_message=inbound_message,
+            )
+            return warning_response(safe_error_message(lang=lang))
+        except ValueError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="remove_committee_member_validation",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="remove_committee_member",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             f"Committee member removed: {removed.name}",
@@ -1796,12 +1968,27 @@ def handle_committee_intent(
                 role=role,
                 performed_by=member.id,
             )
-        except PermissionError as exc:
-            return warning_response(str(exc))
-        except ValueError as exc:
-            return error_response(str(exc))
-        except Exception as exc:
-            return error_response(str(exc))
+        except PermissionError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="change_committee_role_permission",
+                inbound_message=inbound_message,
+            )
+            return warning_response(safe_error_message(lang=lang))
+        except ValueError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="change_committee_role_validation",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
+        except Exception:
+            _log_committee_exception(
+                intent=intent,
+                action_name="change_committee_role",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             f"Role updated: {updated.name} is now {updated.role}",
@@ -1886,8 +2073,13 @@ def handle_committee_intent(
                 message_body=announcement_body,
                 scope="event" if intent == "ANNOUNCE_EVENT" else "society",
             )
-        except ValueError as exc:
-            return error_response(str(exc))
+        except ValueError:
+            _log_committee_exception(
+                intent=intent,
+                action_name="queue_announcement",
+                inbound_message=inbound_message,
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             (
@@ -2171,7 +2363,13 @@ def handle_committee_intent(
                 )
                 save_committee_action_session(committee_action_session_key, state)
                 return info_response(_prompt_for_pending_action_step(state))
-            return error_response(str(exc))
+            _log_committee_exception(
+                intent=intent,
+                action_name="process_sponsor_refund",
+                inbound_message=inbound_message,
+                extra={"event_id": str(getattr(event, "id", "")), "contribution_code": contribution_code.upper()},
+            )
+            return _safe_committee_error_response(lang=lang)
 
         return success_response(
             translate(

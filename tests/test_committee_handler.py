@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from app.handlers.shared.committee import handle_committee_intent
+from app.utils.response import safe_error_message
 from app.permissions.command_policy import get_intent_state_warning
 from app.channels.whatsapp.committee_action_session import clear_committee_action_session
 from tests.utils import QueryMock
@@ -625,10 +626,7 @@ def test_committee_refund_sponsor_surfaces_error(monkeypatch):
         member=member,
     )
 
-    assert (
-        response
-        == "❌ Refund exceeds contribution amount. Remaining refundable amount: ₹0"
-    )
+    assert response == f"❌ {safe_error_message()}"
 
 
 
@@ -1172,8 +1170,7 @@ def test_committee_announce_event_returns_error_when_no_active_event(monkeypatch
         member=member,
     )
 
-    assert response.startswith("❌")
-    assert "No active event found" in response
+    assert response == f"❌ {safe_error_message()}"
 
 
 def test_committee_list_members(monkeypatch):
