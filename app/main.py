@@ -9,6 +9,10 @@ Created on Sat Jan 10 13:47:02 2026
 # app/main.py
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from sqlalchemy import inspect
+from sqlalchemy import text
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +37,8 @@ from app.api.reports.administrative import router as administrative_reports_rout
 from app.api.reports.governance import router as governance_reports_router
 from app.api.reports.public import router as public_reports_router
 from app.api.reports.operations import router as operations_reports_router
+
+MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "docs" / "migrations"
 
 
 class PublicRequestSizeGuardMiddleware(BaseHTTPMiddleware):
@@ -96,10 +102,131 @@ def _request_is_https(request: Request) -> bool:
     return False
 
 
+
+
+def _pending_schema_differences() -> tuple[list[str], dict[str, list[str]]]:
+    inspector = inspect(engine)
+    expected_tables = set(Base.metadata.tables.keys())
+    inspected_tables = set(inspector.get_table_names())
+    missing_tables = sorted(expected_tables - inspected_tables)
+
+    missing_columns_by_table: dict[str, list[str]] = {}
+    for table_name, table in Base.metadata.tables.items():
+        if table_name not in inspected_tables:
+            continue
+        inspected_columns = {column["name"] for column in inspector.get_columns(table_name)}
+        model_columns = {column.name for column in table.columns}
+        missing_columns = sorted(model_columns - inspected_columns)
+        if missing_columns:
+            missing_columns_by_table[table_name] = missing_columns
+
+    return missing_tables, missing_columns_by_table
+
+
+def _migration_file_paths() -> list[Path]:
+    if not MIGRATIONS_DIR.exists():
+        return []
+    return sorted(path for path in MIGRATIONS_DIR.iterdir() if path.is_file() and path.suffix == ".sql")
+
+
+def _ensure_migration_tracking_table() -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    filename TEXT PRIMARY KEY,
+                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+
+
+def _applied_migrations() -> set[str]:
+    _ensure_migration_tracking_table()
+    with engine.begin() as connection:
+        rows = connection.execute(text("SELECT filename FROM schema_migrations")).fetchall()
+    return {row[0] for row in rows}
+
+
+def _apply_migration_file(migration_file: Path) -> None:
+    sql_script = migration_file.read_text(encoding="utf-8")
+    if not sql_script.strip():
+        return
+
+    raw_connection = engine.raw_connection()
+    try:
+        cursor = raw_connection.cursor()
+        try:
+            if hasattr(cursor, "executescript"):
+                cursor.executescript(sql_script)
+            else:
+                cursor.execute(sql_script)
+            raw_connection.commit()
+        finally:
+            cursor.close()
+    except Exception:
+        raw_connection.rollback()
+        raise
+    finally:
+        raw_connection.close()
+
+
+def _run_migration_pipeline() -> None:
+    applied = _applied_migrations()
+    for migration_file in _migration_file_paths():
+        migration_name = migration_file.name
+        if migration_name in applied:
+            continue
+        _apply_migration_file(migration_file)
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO schema_migrations (filename) VALUES (:filename)"),
+                {"filename": migration_name},
+            )
+
+
+def _app_env_normalized() -> str:
+    configured_env = getattr(settings, "APP_ENV_NORMALIZED", None)
+    if isinstance(configured_env, str) and configured_env.strip():
+        return configured_env.strip().lower()
+    return str(getattr(settings, "APP_ENV", "local")).strip().lower()
+
+
+def _enforce_schema_readiness() -> None:
+    app_env_normalized = _app_env_normalized()
+    if app_env_normalized in {"local", "dev"}:
+        Base.metadata.create_all(bind=engine)
+        return
+
+    if app_env_normalized in {"staging", "production"}:
+        if settings.STARTUP_MIGRATIONS_ENABLED:
+            _run_migration_pipeline()
+        pending_tables, missing_columns_by_table = _pending_schema_differences()
+        if pending_tables or missing_columns_by_table:
+            pending_tables_csv = ", ".join(pending_tables) if pending_tables else "none"
+            missing_columns_summary = (
+                "; ".join(
+                    f"{table_name}: {', '.join(columns)}"
+                    for table_name, columns in sorted(missing_columns_by_table.items())
+                )
+                if missing_columns_by_table
+                else "none"
+            )
+            raise RuntimeError(
+                "Pending database migrations detected in "
+                f"APP_ENV={getattr(settings, 'APP_ENV', app_env_normalized)}. "
+                f"Missing tables: {pending_tables_csv}. "
+                f"Missing columns: {missing_columns_summary}. "
+                "Run the migration pipeline before starting the application "
+                "(or set STARTUP_MIGRATIONS_ENABLED=true for controlled startup automation)."
+            )
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    Base.metadata.create_all(bind=engine)
+    _enforce_schema_readiness()
 
     # Startup sanity checks
     if settings.WHATSAPP_ENABLED:
