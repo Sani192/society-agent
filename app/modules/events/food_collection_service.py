@@ -20,9 +20,113 @@ TOKEN_RE = re.compile(r"^[A-Z2-9]{6,20}$")
 SERVE_METHODS = {"QR_SCAN", "MANUAL_TOKEN", "FLAT_LOOKUP"}
 NO_TOKEN_FALLBACK_METHOD = "FLAT_LOOKUP_NO_TOKEN"
 _FOOD_OPERATION_ALLOWED_ROLES = {"chairman", "secretary", "treasurer", "committee_member"}
+FAILED_TOKEN_BURST_WINDOW = timedelta(minutes=3)
+FAILED_TOKEN_BURST_THRESHOLD = 5
+FAILED_TOKEN_LOCKOUT = timedelta(minutes=10)
 
 
 class FoodCollectionService:
+    @staticmethod
+    def _actor_identifier(performed_by) -> str:
+        if performed_by is None:
+            return "system"
+        return str(performed_by)
+
+    @staticmethod
+    def _active_failed_token_lockout(
+        db: Session,
+        *,
+        event_id,
+        actor_id: str,
+    ) -> datetime | None:
+        lockout_start_cutoff = utc_now() - FAILED_TOKEN_LOCKOUT
+        lockout_audit = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_type == "food_collection",
+                AuditLog.entity_id == event_id,
+                AuditLog.action == "REJECT_FOOD_TOKEN_BURST",
+                AuditLog.reason == f"Actor lockout active for {actor_id}",
+                AuditLog.performed_at >= lockout_start_cutoff,
+            )
+            .order_by(AuditLog.performed_at.desc())
+            .first()
+        )
+        if not lockout_audit:
+            return None
+        performed_at = getattr(lockout_audit, "performed_at", None)
+        if not performed_at:
+            return None
+        expires_at = performed_at + FAILED_TOKEN_LOCKOUT
+        if utc_now() >= expires_at:
+            return None
+        return expires_at
+
+    @staticmethod
+    def _record_failed_token_attempt(
+        db: Session,
+        *,
+        event,
+        event_id,
+        actor_id: str,
+        normalized_method: str,
+        performed_by,
+    ) -> None:
+        now = utc_now()
+        db.add(
+            AuditLog(
+                society_id=event.society_id,
+                entity_type="food_collection",
+                entity_id=event_id,
+                action="REJECT_FOOD_TOKEN",
+                reason="Token not found",
+                source=normalized_method,
+                metadata_json={
+                    "actor_id": actor_id,
+                    "source_method": normalized_method,
+                    "attempt_type": "failed_token",
+                    "failed_at": now.isoformat(),
+                },
+                performed_by=performed_by,
+            )
+        )
+
+        burst_window_start = now - FAILED_TOKEN_BURST_WINDOW
+        failed_attempt_count = (
+            db.query(func.count(AuditLog.id))
+            .filter(
+                AuditLog.entity_type == "food_collection",
+                AuditLog.entity_id == event_id,
+                AuditLog.action == "REJECT_FOOD_TOKEN",
+                AuditLog.performed_by == performed_by,
+                AuditLog.source == normalized_method,
+                AuditLog.performed_at >= burst_window_start,
+            )
+            .scalar()
+            or 0
+        )
+
+        if failed_attempt_count < FAILED_TOKEN_BURST_THRESHOLD:
+            return
+
+        db.add(
+            AuditLog(
+                society_id=event.society_id,
+                entity_type="food_collection",
+                entity_id=event_id,
+                action="REJECT_FOOD_TOKEN_BURST",
+                reason=f"Actor lockout active for {actor_id}",
+                source=normalized_method,
+                metadata_json={
+                    "actor_id": actor_id,
+                    "source_method": normalized_method,
+                    "burst_failures": int(failed_attempt_count),
+                    "burst_window_seconds": int(FAILED_TOKEN_BURST_WINDOW.total_seconds()),
+                    "lockout_seconds": int(FAILED_TOKEN_LOCKOUT.total_seconds()),
+                },
+                performed_by=performed_by,
+            )
+        )
 
     @staticmethod
     def _is_food_token_unique_conflict(error: IntegrityError) -> bool:
@@ -105,7 +209,7 @@ class FoodCollectionService:
         event_id,
         performed_by,
         notify_callback=None,
-        token_length: int = 6,
+        token_length: int = 8,
         override_reason=None,
     ):
         event = db.query(Event).filter(Event.id == event_id).first()
@@ -117,8 +221,8 @@ class FoodCollectionService:
             performed_by=performed_by,
             allowed_roles=_FOOD_OPERATION_ALLOWED_ROLES,
         )
-        if token_length < 6:
-            raise Exception("Token length must be at least 6 characters")
+        if token_length < 8:
+            raise Exception("Token length must be at least 8 characters")
 
         FoodCollectionService._ensure_workflow_action_allowed(
             db=db,
@@ -342,6 +446,32 @@ class FoodCollectionService:
         ):
             raise Exception("Food service has ended")
 
+        actor_id = FoodCollectionService._actor_identifier(performed_by)
+        lockout_expires_at = FoodCollectionService._active_failed_token_lockout(
+            db=db,
+            event_id=event_id,
+            actor_id=actor_id,
+        )
+        if lockout_expires_at:
+            db.add(
+                AuditLog(
+                    society_id=event.society_id,
+                    entity_type="food_collection",
+                    entity_id=event_id,
+                    action="REJECT_FOOD_TOKEN",
+                    reason="Actor temporarily locked after repeated failed token attempts",
+                    source=normalized_method,
+                    metadata_json={
+                        "actor_id": actor_id,
+                        "source_method": normalized_method,
+                        "lockout_expires_at": lockout_expires_at.isoformat(),
+                    },
+                    performed_by=performed_by,
+                )
+            )
+            db.commit()
+            raise Exception("Too many failed attempts. Try again later.")
+
         token = (
             db.query(EventFoodToken)
             .filter(
@@ -352,15 +482,13 @@ class FoodCollectionService:
         )
 
         if not token:
-            db.add(
-                AuditLog(
-                    society_id=event.society_id,
-                    entity_type="food_collection",
-                    entity_id=event_id,
-                    action="REJECT_FOOD_TOKEN",
-                    reason="Token not found",
-                    performed_by=performed_by,
-                )
+            FoodCollectionService._record_failed_token_attempt(
+                db=db,
+                event=event,
+                event_id=event_id,
+                actor_id=actor_id,
+                normalized_method=normalized_method,
+                performed_by=performed_by,
             )
             db.commit()
             raise Exception("Invalid token")
@@ -373,6 +501,7 @@ class FoodCollectionService:
                     entity_id=token.id,
                     action="REJECT_FOOD_TOKEN",
                     reason=f"Already served via {token.served_method}",
+                    source=normalized_method,
                     performed_by=performed_by,
                 )
             )
@@ -402,6 +531,7 @@ class FoodCollectionService:
                     entity_id=token.id,
                     action="REJECT_FOOD_TOKEN",
                     reason=f"Already served via {token.served_method}",
+                    source=normalized_method,
                     performed_by=performed_by,
                 )
             )
@@ -416,6 +546,7 @@ class FoodCollectionService:
                 entity_id=token.id,
                 action="SERVE_FOOD_TOKEN",
                 reason=f"Served via {normalized_method}",
+                source=normalized_method,
                 performed_by=performed_by,
             )
         )

@@ -10,6 +10,7 @@ from app.modules.events.food_collection_service import (
     NO_TOKEN_FALLBACK_METHOD,
     TOKEN_ALPHABET,
 )
+from app.utils.time import utc_now
 from tests.utils import QueryMock
 
 
@@ -46,10 +47,27 @@ def test_generate_tokens_for_event_creates_one_token_per_plate(monkeypatch):
 
     assert len(tokens) == 4
     assert len({row.token_code for row in tokens}) == 4
-    assert all(len(row.token_code) == 6 for row in tokens)
+    assert all(len(row.token_code) == 8 for row in tokens)
     assert all(ch in TOKEN_ALPHABET for row in tokens for ch in row.token_code)
     assert {row.food_type for row in tokens} == {"veg", "jain", "kids"}
     db.commit.assert_called_once()
+
+
+def test_generate_tokens_for_event_rejects_token_length_below_eight():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
+    ]
+
+    with pytest.raises(Exception, match="at least 8"):
+        FoodCollectionService.generate_tokens_for_event(
+            db=db,
+            event_id="event-1",
+            performed_by="member-1",
+            token_length=7,
+        )
 
 
 def test_build_token_code_retries_on_collision_and_stays_format_compliant(monkeypatch):
@@ -131,6 +149,7 @@ def test_verify_and_serve_token_rejects_used_token():
         QueryMock(first_result=event),
         QueryMock(first_result=_committee_member()),
         QueryMock(first_result=counter),
+        QueryMock(first_result=None),
         QueryMock(first_result=token),
     ]
 
@@ -142,6 +161,78 @@ def test_verify_and_serve_token_rejects_used_token():
             method="manual_token",
             performed_by="member-1",
         )
+
+
+def test_verify_and_serve_token_tracks_failed_attempt_burst_with_actor_and_method():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
+
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=None),
+        QueryMock(first_result=None),
+        QueryMock(scalar_result=5),
+    ]
+
+    with pytest.raises(Exception, match="Invalid token"):
+        FoodCollectionService.verify_and_serve_token(
+            db=db,
+            event_id="event-1",
+            token_code="ABCD23",
+            method="manual_token",
+            performed_by="member-1",
+        )
+
+    audit_logs = [call.args[0] for call in db.add.call_args_list]
+    assert len(audit_logs) == 2
+    reject = audit_logs[0]
+    burst = audit_logs[1]
+    assert reject.action == "REJECT_FOOD_TOKEN"
+    assert reject.source == "MANUAL_TOKEN"
+    assert reject.metadata_json["actor_id"] == "member-1"
+    assert reject.metadata_json["source_method"] == "MANUAL_TOKEN"
+    assert burst.action == "REJECT_FOOD_TOKEN_BURST"
+    assert burst.source == "MANUAL_TOKEN"
+    assert burst.metadata_json["actor_id"] == "member-1"
+    assert burst.metadata_json["source_method"] == "MANUAL_TOKEN"
+    assert burst.metadata_json["burst_failures"] == 5
+    db.commit.assert_called_once()
+
+
+def test_verify_and_serve_token_applies_lockout_after_failed_burst():
+    event = SimpleNamespace(id="event-1", society_id="soc-1")
+    counter = SimpleNamespace(is_open=True, closes_at=None)
+    lockout_audit = SimpleNamespace(performed_at=utc_now())
+
+    db = MagicMock()
+    db.query.side_effect = [
+        QueryMock(first_result=event),
+        QueryMock(first_result=_committee_member()),
+        QueryMock(first_result=counter),
+        QueryMock(first_result=lockout_audit),
+    ]
+
+    with pytest.raises(Exception, match="Too many failed attempts"):
+        FoodCollectionService.verify_and_serve_token(
+            db=db,
+            event_id="event-1",
+            token_code="ABCD23",
+            method="manual_token",
+            performed_by="member-1",
+        )
+
+    audit_logs = [call.args[0] for call in db.add.call_args_list]
+    assert len(audit_logs) == 1
+    assert audit_logs[0].action == "REJECT_FOOD_TOKEN"
+    assert audit_logs[0].reason == "Actor temporarily locked after repeated failed token attempts"
+    assert audit_logs[0].source == "MANUAL_TOKEN"
+    assert audit_logs[0].metadata_json["actor_id"] == "member-1"
+    assert audit_logs[0].metadata_json["source_method"] == "MANUAL_TOKEN"
+    assert "lockout_expires_at" in audit_logs[0].metadata_json
+    db.commit.assert_called_once()
 
 
 def test_member_pass_status_builds_totals_and_remaining():
