@@ -7,6 +7,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import NoReturn
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -18,7 +19,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _raise_invalid_token(detail: str, *, reason_code: str, actor_id: str | None = None) -> None:
+def _raise_invalid_token(detail: str, *, reason_code: str, actor_id: str | None = None) -> NoReturn:
     log_security_event(
         logger,
         event="invalid_token_check",
