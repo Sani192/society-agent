@@ -44,6 +44,7 @@ from app.db.session import SessionLocal
 from app.utils.channel_audit_service import AuditTransport
 from app.utils.logger import logger
 from app.utils.operational_metrics import increment_counter
+from app.utils.security_logging import log_security_event
 
 router = APIRouter()
 
@@ -90,6 +91,15 @@ def _verify_webhook_secret(secret: str | None) -> None:
         return
     if secret != expected_secret:
         logger.warning("Telegram webhook secret validation failed")
+        log_security_event(
+            logger,
+            event="invalid_token_check",
+            action="verify_telegram_webhook_secret",
+            resource_id="telegram_webhook",
+            method="x-telegram-bot-api-secret-token",
+            result="denied",
+            reason_code="WEBHOOK_SECRET_INVALID",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden",
@@ -281,6 +291,20 @@ def process_telegram_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
             else:
                 had_nonrecoverable_failure = True
                 increment_counter("telegram.webhook.failed_processing")
+                if retry_attempt >= MAX_RETRY_ATTEMPTS or not recoverable:
+                    log_security_event(
+                        logger,
+                        event="repeated_webhook_failures",
+                        actor_id=str(message.sender_id),
+                        action="process_telegram_envelope",
+                        resource_id=envelope_id,
+                        method="webhook",
+                        result="failed",
+                        reason_code=type(exc).__name__,
+                        trace_id=trace_id,
+                        retry_attempt=retry_attempt,
+                        max_retry_attempts=MAX_RETRY_ATTEMPTS,
+                    )
                 _push_dead_letter(
                     trace_id=trace_id,
                     correlation_id=correlation_id_str,
