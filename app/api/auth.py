@@ -12,6 +12,24 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
+from app.utils.security_logging import log_security_event
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def _raise_invalid_token(detail: str, *, reason_code: str, actor_id: str | None = None) -> None:
+    log_security_event(
+        logger,
+        event="invalid_token_check",
+        actor_id=actor_id,
+        action="verify_reports_api_token",
+        resource_id="reports_api_auth",
+        method="bearer_token",
+        result="denied",
+        reason_code=reason_code,
+    )
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
 @dataclass(frozen=True)
@@ -44,8 +62,8 @@ def _verify_and_decode_principal_token(token: str) -> dict:
 
     try:
         payload_part, signature_part = token.split(".", 1)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token") from exc
+    except ValueError:
+        _raise_invalid_token("Invalid auth token", reason_code="TOKEN_MALFORMED")
 
     expected_signature = hmac.new(
         signing_secret.encode("utf-8"),
@@ -55,60 +73,54 @@ def _verify_and_decode_principal_token(token: str) -> dict:
 
     provided_signature = _b64url_decode(signature_part)
     if not hmac.compare_digest(expected_signature, provided_signature):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token signature")
+        _raise_invalid_token("Invalid auth token signature", reason_code="TOKEN_SIGNATURE_INVALID")
 
     try:
         payload_json = _b64url_decode(payload_part)
         payload = json.loads(payload_json.decode("utf-8"))
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token payload") from exc
+    except Exception:
+        _raise_invalid_token("Invalid auth token payload", reason_code="TOKEN_PAYLOAD_DECODE_INVALID")
 
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token payload")
+        _raise_invalid_token("Invalid auth token payload", reason_code="TOKEN_PAYLOAD_TYPE_INVALID")
 
     now_ts = int(datetime.now(timezone.utc).timestamp())
 
     exp = payload.get("exp")
     if exp is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token missing expiry")
+        _raise_invalid_token("Auth token missing expiry", reason_code="TOKEN_EXP_MISSING")
 
     try:
         exp_ts = int(exp)
         exp_dt = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
-    except (TypeError, ValueError, OSError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token expiry") from exc
+    except (TypeError, ValueError, OSError):
+        _raise_invalid_token("Invalid auth token expiry", reason_code="TOKEN_EXP_INVALID")
     if exp_dt <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token expired")
+        _raise_invalid_token("Auth token expired", reason_code="TOKEN_EXPIRED")
 
     iat = payload.get("iat")
     if iat is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Auth token missing issued-at")
+        _raise_invalid_token("Auth token missing issued-at", reason_code="TOKEN_IAT_MISSING")
     try:
         iat_ts = int(iat)
         datetime.fromtimestamp(iat_ts, tz=timezone.utc)
-    except (TypeError, ValueError, OSError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token issued-at") from exc
+    except (TypeError, ValueError, OSError):
+        _raise_invalid_token("Invalid auth token issued-at", reason_code="TOKEN_IAT_INVALID")
 
     max_iat_future_skew = max(
         0,
         int(getattr(settings, "REPORTS_API_AUTH_MAX_IAT_FUTURE_SKEW_SECONDS", 300)),
     )
     if iat_ts > (now_ts + max_iat_future_skew):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth token issued-at is in the future",
-        )
+        _raise_invalid_token("Auth token issued-at is in the future", reason_code="TOKEN_IAT_IN_FUTURE")
 
     max_ttl_seconds = max(1, int(getattr(settings, "REPORTS_API_AUTH_MAX_TTL_SECONDS", 3600)))
     if exp_ts - iat_ts > max_ttl_seconds:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth token expiry exceeds max TTL",
-        )
+        _raise_invalid_token("Auth token expiry exceeds max TTL", reason_code="TOKEN_TTL_EXCEEDED")
 
     expected_aud = getattr(settings, "REPORTS_API_AUTH_AUDIENCE", None)
     if expected_aud and payload.get("aud") != expected_aud:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token audience")
+        _raise_invalid_token("Invalid auth token audience", reason_code="TOKEN_AUDIENCE_INVALID")
 
     return payload
 
@@ -117,7 +129,7 @@ def get_authenticated_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer),
 ) -> AuthenticatedPrincipal:
     if credentials is None or not credentials.credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+        _raise_invalid_token("Missing bearer token", reason_code="TOKEN_MISSING")
 
     payload = _verify_and_decode_principal_token(credentials.credentials)
     member_id_raw = payload.get("committee_member_id")
@@ -129,13 +141,13 @@ def get_authenticated_principal(
     if member_id_raw is not None:
         try:
             committee_member_id = uuid.UUID(str(member_id_raw))
-        except (TypeError, ValueError) as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid committee member id") from exc
+        except (TypeError, ValueError):
+            _raise_invalid_token("Invalid committee member id", reason_code="TOKEN_MEMBER_ID_INVALID")
 
     if committee_member_id is None and not (channel_type and external_user_id):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth token must include committee member id or channel identity",
+        _raise_invalid_token(
+            "Auth token must include committee member id or channel identity",
+            reason_code="TOKEN_PRINCIPAL_MISSING",
         )
 
     return AuthenticatedPrincipal(

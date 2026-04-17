@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, Event, EventFoodCounter, EventFoodPass, EventFoodToken, Flat
 from app.modules.security.access_control import require_committee_roles
+from app.utils.security_logging import log_security_event
 from app.utils.time import utc_now
 from app.workflows.engine import WorkflowEngine
+from app.utils.logger import get_logger
 
 TOKEN_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 TOKEN_RE = re.compile(r"^[A-Z2-9]{6,20}$")
@@ -23,6 +25,7 @@ _FOOD_OPERATION_ALLOWED_ROLES = {"chairman", "secretary", "treasurer", "committe
 FAILED_TOKEN_BURST_WINDOW = timedelta(minutes=3)
 FAILED_TOKEN_BURST_THRESHOLD = 5
 FAILED_TOKEN_LOCKOUT = timedelta(minutes=10)
+logger = get_logger(__name__)
 
 
 class FoodCollectionService:
@@ -73,6 +76,13 @@ class FoodCollectionService:
         performed_by,
     ) -> None:
         now = utc_now()
+        security_metadata = FoodCollectionService._serving_audit_metadata(
+            actor_id=actor_id,
+            method=normalized_method,
+            token_code=None,
+            event_id=event_id,
+            served_at=now,
+        )
         db.add(
             AuditLog(
                 society_id=event.society_id,
@@ -82,8 +92,7 @@ class FoodCollectionService:
                 reason="Token not found",
                 source=normalized_method,
                 metadata_json={
-                    "actor_id": actor_id,
-                    "source_method": normalized_method,
+                    **security_metadata,
                     "attempt_type": "failed_token",
                     "failed_at": now.isoformat(),
                 },
@@ -118,8 +127,7 @@ class FoodCollectionService:
                 reason=f"Actor lockout active for {actor_id}",
                 source=normalized_method,
                 metadata_json={
-                    "actor_id": actor_id,
-                    "source_method": normalized_method,
+                    **security_metadata,
                     "burst_failures": int(failed_attempt_count),
                     "burst_window_seconds": int(FAILED_TOKEN_BURST_WINDOW.total_seconds()),
                     "lockout_seconds": int(FAILED_TOKEN_LOCKOUT.total_seconds()),
@@ -127,6 +135,28 @@ class FoodCollectionService:
                 performed_by=performed_by,
             )
         )
+
+    @staticmethod
+    def _serving_audit_metadata(
+        *,
+        actor_id: str,
+        method: str,
+        token_code: str | None,
+        event_id,
+        served_at: datetime,
+    ) -> dict[str, str | None]:
+        return {
+            "who": actor_id,
+            "what": f"food_token_serving:{method}",
+            "when": served_at.isoformat(),
+            "method": method,
+            "actor_id": actor_id,
+            "source_method": method,
+            "event_id": str(event_id),
+            "token_code": token_code,
+            "is_qr": str(method == "QR_SCAN").lower(),
+            "is_manual": str(method in {"MANUAL_TOKEN", NO_TOKEN_FALLBACK_METHOD, "FLAT_LOOKUP"}).lower(),
+        }
 
     @staticmethod
     def _is_food_token_unique_conflict(error: IntegrityError) -> bool:
@@ -413,6 +443,16 @@ class FoodCollectionService:
             raise Exception("Invalid serving method")
         normalized_token_code = (token_code or "").strip().upper()
         if not TOKEN_RE.fullmatch(normalized_token_code):
+            log_security_event(
+                logger,
+                event="invalid_token_check",
+                actor_id=str(performed_by) if performed_by is not None else None,
+                action="verify_and_serve_token",
+                resource_id=str(event_id),
+                method=normalized_method or "unknown",
+                result="denied",
+                reason_code="TOKEN_FORMAT_INVALID",
+            )
             raise Exception("Invalid token")
 
         event = db.query(Event).filter(Event.id == event_id).first()
@@ -453,6 +493,13 @@ class FoodCollectionService:
             actor_id=actor_id,
         )
         if lockout_expires_at:
+            serving_metadata = FoodCollectionService._serving_audit_metadata(
+                actor_id=actor_id,
+                method=normalized_method,
+                token_code=normalized_token_code,
+                event_id=event_id,
+                served_at=utc_now(),
+            )
             db.add(
                 AuditLog(
                     society_id=event.society_id,
@@ -462,8 +509,7 @@ class FoodCollectionService:
                     reason="Actor temporarily locked after repeated failed token attempts",
                     source=normalized_method,
                     metadata_json={
-                        "actor_id": actor_id,
-                        "source_method": normalized_method,
+                        **serving_metadata,
                         "lockout_expires_at": lockout_expires_at.isoformat(),
                     },
                     performed_by=performed_by,
@@ -494,6 +540,13 @@ class FoodCollectionService:
             raise Exception("Invalid token")
 
         if token.served_at is not None:
+            serving_metadata = FoodCollectionService._serving_audit_metadata(
+                actor_id=actor_id,
+                method=normalized_method,
+                token_code=normalized_token_code,
+                event_id=event_id,
+                served_at=utc_now(),
+            )
             db.add(
                 AuditLog(
                     society_id=event.society_id,
@@ -502,6 +555,7 @@ class FoodCollectionService:
                     action="REJECT_FOOD_TOKEN",
                     reason=f"Already served via {token.served_method}",
                     source=normalized_method,
+                    metadata_json=serving_metadata,
                     performed_by=performed_by,
                 )
             )
@@ -524,6 +578,13 @@ class FoodCollectionService:
             )
         )
         if serve_count != 1:
+            serving_metadata = FoodCollectionService._serving_audit_metadata(
+                actor_id=actor_id,
+                method=normalized_method,
+                token_code=normalized_token_code,
+                event_id=event_id,
+                served_at=utc_now(),
+            )
             db.add(
                 AuditLog(
                     society_id=event.society_id,
@@ -532,6 +593,7 @@ class FoodCollectionService:
                     action="REJECT_FOOD_TOKEN",
                     reason=f"Already served via {token.served_method}",
                     source=normalized_method,
+                    metadata_json=serving_metadata,
                     performed_by=performed_by,
                 )
             )
@@ -547,6 +609,13 @@ class FoodCollectionService:
                 action="SERVE_FOOD_TOKEN",
                 reason=f"Served via {normalized_method}",
                 source=normalized_method,
+                metadata_json=FoodCollectionService._serving_audit_metadata(
+                    actor_id=actor_id,
+                    method=normalized_method,
+                    token_code=normalized_token_code,
+                    event_id=event_id,
+                    served_at=utc_now(),
+                ),
                 performed_by=performed_by,
             )
         )
@@ -651,6 +720,14 @@ class FoodCollectionService:
                 entity_id=flat_id,
                 action=NO_TOKEN_FALLBACK_METHOD,
                 reason="Manual serve via flat lookup without available token",
+                source=NO_TOKEN_FALLBACK_METHOD,
+                metadata_json=FoodCollectionService._serving_audit_metadata(
+                    actor_id=FoodCollectionService._actor_identifier(performed_by),
+                    method=NO_TOKEN_FALLBACK_METHOD,
+                    token_code=None,
+                    event_id=event_id,
+                    served_at=utc_now(),
+                ),
                 performed_by=performed_by,
             )
         )

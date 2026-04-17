@@ -23,6 +23,7 @@ from app.workflows.engine import WorkflowEngine
 from app.workflows.rules import STATE_RULES
 from app.modules.security.access_control import require_committee_action
 from app.utils.logging_helpers import build_log_context, log_service_call
+from app.utils.security_logging import log_security_event
 from app.utils.time import utc_now
 from app.utils.validation import validate_uuid
 
@@ -92,6 +93,16 @@ class PaymentService:
             event_id=event_id,
         ):
             if approved_request_id is None and not approved_service_context:
+                log_security_event(
+                    logger,
+                    event="approval_bypass_attempt",
+                    actor_id=str(performed_by),
+                    action="record_payment",
+                    resource_id=str(flat_id),
+                    method="direct_mutation",
+                    result="denied",
+                    reason_code="PAYMENT_APPROVAL_CONTEXT_MISSING",
+                )
                 raise Exception(
                     "Direct payment mutation is blocked: approval is required by policy."
                 )

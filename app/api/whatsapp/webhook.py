@@ -56,6 +56,7 @@ from app.config import settings
 from app.utils.channel_audit_service import AuditTransport
 from app.utils.logger import logger
 from app.utils.operational_metrics import increment_counter
+from app.utils.security_logging import log_security_event
 from app.channels.whatsapp.response_templates import INVALID_INPUT_METADATA_KEY
 
 from app.db.session import SessionLocal
@@ -298,6 +299,15 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
         )
     if not signature_header:
         logger.warning("WhatsApp webhook signature header missing")
+        log_security_event(
+            logger,
+            event="unauthorized_access",
+            action="verify_whatsapp_signature",
+            resource_id="whatsapp_webhook",
+            method="x-hub-signature-256",
+            result="denied",
+            reason_code="SIGNATURE_MISSING",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing signature header",
@@ -310,6 +320,15 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
     expected_signature = f"sha256={expected_hash}"
     if not hmac.compare_digest(expected_signature, signature_header):
         logger.warning("Invalid WhatsApp webhook signature")
+        log_security_event(
+            logger,
+            event="invalid_token_check",
+            action="verify_whatsapp_signature",
+            resource_id="whatsapp_webhook",
+            method="x-hub-signature-256",
+            result="denied",
+            reason_code="SIGNATURE_INVALID",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature",
@@ -555,6 +574,20 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
             else:
                 had_nonrecoverable_failure = True
                 increment_counter("whatsapp.webhook.failed_processing")
+                if retry_attempt >= MAX_RETRY_ATTEMPTS or not recoverable:
+                    log_security_event(
+                        logger,
+                        event="repeated_webhook_failures",
+                        actor_id=str(message.sender_id),
+                        action="process_whatsapp_envelope",
+                        resource_id=envelope_id,
+                        method="webhook",
+                        result="failed",
+                        reason_code=type(exc).__name__,
+                        trace_id=trace_id,
+                        retry_attempt=retry_attempt,
+                        max_retry_attempts=MAX_RETRY_ATTEMPTS,
+                    )
                 _push_dead_letter(
                     trace_id=trace_id,
                     correlation_id=correlation_id_str,
