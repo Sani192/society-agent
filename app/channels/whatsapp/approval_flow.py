@@ -81,7 +81,7 @@ def _send_approval_selection_list(
             for pending, flat in pending_users[:WHATSAPP_APPROVAL_ROW_LIMIT]
         ]
         empty_message = "No pending user requests."
-        fallback_template = "approve user REQ-001"
+        fallback_template = "approve user REQ-7F3K9D"
         header_text = "Approve User"
 
     elif approval_type == "payment":
@@ -101,7 +101,7 @@ def _send_approval_selection_list(
             for request, flat in pending_payments[:WHATSAPP_APPROVAL_ROW_LIMIT]
         ]
         empty_message = "No pending payment requests."
-        fallback_template = "approve payment PAY-001"
+        fallback_template = "approve payment PAY-7F3K9D"
         header_text = "Approve Payment"
 
     else:
@@ -121,7 +121,7 @@ def _send_approval_selection_list(
             for request, flat in pending_refunds[:WHATSAPP_APPROVAL_ROW_LIMIT]
         ]
         empty_message = "No pending refund requests."
-        fallback_template = "approve refund REF-001"
+        fallback_template = "approve refund REF-7F3K9D"
         header_text = "Approve Refund"
 
     if not rows:

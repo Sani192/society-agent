@@ -2108,7 +2108,7 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 3:
-            return info_response("Example: approve user REQ-003")
+            return info_response("Example: approve user REQ-7F3K9D")
 
         request_code = parts[2].upper()
 
@@ -2126,7 +2126,7 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 3:
-            return info_response("Example: approve payment PAY-001")
+            return info_response("Example: approve payment PAY-7F3K9D")
 
         request_code = parts[2].upper()
         request = PaymentRequestService.get_request_by_code(
@@ -2148,7 +2148,7 @@ def handle_committee_intent(
 
         parts = message.split()
         if len(parts) < 3:
-            return info_response("Example: approve refund REF-001")
+            return info_response("Example: approve refund REF-7F3K9D")
 
         request_code = parts[2].upper()
         request = RefundRequestService.get_request_by_code(
