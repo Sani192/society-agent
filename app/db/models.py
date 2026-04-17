@@ -733,7 +733,7 @@ class PendingUser(Base):
     society_id = Column(UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
 
     request_code = Column(String, nullable=False, index=True)
-    # e.g. REQ-001
+    # e.g. REQ-7F3K9D
 
     member_identity_id = Column(
         UUID(as_uuid=True),

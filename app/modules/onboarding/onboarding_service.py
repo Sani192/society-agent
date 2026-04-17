@@ -16,6 +16,10 @@ from app.modules.users.user_flat_service import UserFlatService
 from app.utils.identity import normalize_identifier
 from app.utils.logging_helpers import build_log_context, log_service_call
 from app.utils.logging_helpers import mask_phone
+from app.utils.request_codes import (
+    MAX_REQUEST_CODE_GENERATION_ATTEMPTS,
+    generate_request_code,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,24 +119,33 @@ class OnboardingService:
             )
             return existing.request_code
 
-        count = (
-            db.query(PendingUser)
-            .filter(PendingUser.society_id == society.id)
-            .count()
-        )
+        pending = None
+        request_code = None
+        for _ in range(MAX_REQUEST_CODE_GENERATION_ATTEMPTS):
+            request_code = generate_request_code(prefix="REQ")
+            logger.info("Generated onboarding request code | request_code=%s context=%s", request_code, context)
 
-        request_code = f"REQ-{count + 1:03d}"
-        logger.info("Generated onboarding request code | request_code=%s context=%s", request_code, context)
+            pending = PendingUser(
+                society_id=society.id,
+                request_code=request_code,
+                member_identity_id=identity.id,
+                flat_id=flat.id
+            )
 
-        pending = PendingUser(
-            society_id=society.id,
-            request_code=request_code,
-            member_identity_id=identity.id,
-            flat_id=flat.id
-        )
-
-        db.add(pending)
-        db.flush()
+            db.add(pending)
+            try:
+                db.flush()
+                break
+            except IntegrityError as exc:
+                db.rollback()
+                logger.warning(
+                    "Onboarding request conflict, retrying code generation | context=%s error=%s",
+                    context,
+                    exc
+                )
+                pending = None
+        if pending is None:
+            raise Exception("Could not generate a unique onboarding request code. Please retry.")
         logger.info("Created pending onboarding request | id=%s context=%s", pending.id, context)
         db.add(AuditLog(
             society_id=society.id,

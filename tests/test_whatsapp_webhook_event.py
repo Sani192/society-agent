@@ -1110,7 +1110,7 @@ def test_whatsapp_webhook_event_ui_approve_payment_falls_back_to_template_when_l
     response = asyncio.run(whatsapp_webhook_event(StubRequest({"entry": []})))
 
     assert response == {"status": "ok"}
-    assert text_attempts == [("919999000072", "approve payment PAY-001")]
+    assert text_attempts == [("919999000072", "approve payment PAY-7F3K9D")]
 
 
 def test_whatsapp_webhook_event_ui_join_society_starts_conversation(monkeypatch):

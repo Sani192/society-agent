@@ -342,6 +342,11 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "No active event found. Please contact committee.",
             },
+            "approvals": {
+                "approve_user_example": "Example: approve user REQ-7F3K9D",
+                "approve_payment_example": "Example: approve payment PAY-7F3K9D",
+                "approve_refund_example": "Example: approve refund REF-7F3K9D",
+            },
             "refund_reason_required": "Refund reason is required.",
             "override_reason_required": "Override reason is required.",
             "sponsor_refund_processed": "Sponsor refund processed ({contribution_code}).",
@@ -606,6 +611,11 @@ TRANSLATIONS: dict[str, CatalogDict] = {
             "common": {
                 "no_active_event": "कोई सक्रिय इवेंट नहीं मिला। कृपया समिति से संपर्क करें।",
             },
+            "approvals": {
+                "approve_user_example": "उदाहरण: approve user REQ-7F3K9D",
+                "approve_payment_example": "उदाहरण: approve payment PAY-7F3K9D",
+                "approve_refund_example": "उदाहरण: approve refund REF-7F3K9D",
+            },
             "refund_reason_required": "रिफंड का कारण आवश्यक है।",
             "override_reason_required": "ओवरराइड कारण आवश्यक है।",
             "sponsor_refund_processed": "प्रायोजक रिफंड प्रोसेस हुआ ({contribution_code}).",
@@ -860,6 +870,11 @@ TRANSLATIONS: dict[str, CatalogDict] = {
         "committee": {
             "common": {
                 "no_active_event": "કોઈ સક્રિય ઇવેન્ટ મળ્યો નથી. કૃપા કરીને સમિતિનો સંપર્ક કરો.",
+            },
+            "approvals": {
+                "approve_user_example": "ઉદાહરણ: approve user REQ-7F3K9D",
+                "approve_payment_example": "ઉદાહરણ: approve payment PAY-7F3K9D",
+                "approve_refund_example": "ઉદાહરણ: approve refund REF-7F3K9D",
             },
             "refund_reason_required": "રિફંડ કારણ જરૂરી છે.",
             "override_reason_required": "ઓવરરાઇડ કારણ જરૂરી છે.",

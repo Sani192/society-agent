@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:22:18 2026
 # app/modules/payments/payment_request_service.py
 
 import logging
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db.models import UserFlatMapping as UserFlatMappingModel
 
@@ -27,6 +28,10 @@ from app.utils.logging_helpers import build_log_context, log_entry, log_exit, lo
 from app.utils.time import utc_now
 from app.utils.currency import format_currency
 from app.utils.validation import validate_uuid
+from app.utils.request_codes import (
+    MAX_REQUEST_CODE_GENERATION_ATTEMPTS,
+    generate_request_code,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -166,39 +171,50 @@ class PaymentRequestService:
             log_exit(logger, "PaymentRequestService.request_payment", context)
             return existing
 
-        count = (
-            db.query(PaymentRequest)
-            .join(Event, PaymentRequest.event_id == Event.id)
-            .filter(Event.society_id == event.society_id)
-            .count()
-        )
-        request_code = f"PAY-{count + 1:03d}"
+        request = None
+        request_code = None
+        for _ in range(MAX_REQUEST_CODE_GENERATION_ATTEMPTS):
+            request_code = generate_request_code(prefix="PAY")
+            request = PaymentRequest(
+                event_id=event_id,
+                flat_id=flat_id,
+                request_code=request_code,
+                amount=amount,
+                payment_mode=payment_mode,
+                status="requested",
+                requested_by_mapping_id=requested_by_mapping_id,
+                member_identity_id=mapping.member_identity_id
+            )
 
-        request = PaymentRequest(
-            event_id=event_id,
-            flat_id=flat_id,
-            request_code=request_code,
-            amount=amount,
-            payment_mode=payment_mode,
-            status="requested",
-            requested_by_mapping_id=requested_by_mapping_id,
-            member_identity_id=mapping.member_identity_id
-        )
-
-        logger.info(
-            "DB write: creating payment request",
-            extra={
-                "action": "REQUEST_PAYMENT",
-                "result": "db_create_pending",
-                "context": {
-                    **context,
-                    "society_id": event.society_id,
-                    "request_code": request_code,
+            logger.info(
+                "DB write: creating payment request",
+                extra={
+                    "action": "REQUEST_PAYMENT",
+                    "result": "db_create_pending",
+                    "context": {
+                        **context,
+                        "society_id": event.society_id,
+                        "request_code": request_code,
+                    },
                 },
-            },
-        )
-        db.add(request)
-        db.flush()
+            )
+            db.add(request)
+            try:
+                db.flush()
+                break
+            except IntegrityError:
+                db.rollback()
+                logger.warning(
+                    "Payment request code conflict; retrying generation",
+                    extra={
+                        "action": "REQUEST_PAYMENT",
+                        "result": "request_code_conflict_retry",
+                        "context": {**context, "request_code": request_code},
+                    },
+                )
+                request = None
+        if request is None:
+            raise Exception("Could not generate a unique payment request code. Please retry.")
 
         if is_override:
             PaymentRequestService._authorize_requester_mapping(

@@ -9,6 +9,7 @@ Created on Tue Feb 04 10:23:02 2026
 # app/modules/payments/refund_request_service.py
 
 import logging
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db.models import UserFlatMapping as UserFlatMappingModel
 
@@ -27,6 +28,10 @@ from app.utils.logging_helpers import build_log_context, log_entry, log_exit, lo
 from app.utils.time import utc_now
 from app.utils.currency import format_currency
 from app.utils.validation import validate_uuid
+from app.utils.request_codes import (
+    MAX_REQUEST_CODE_GENERATION_ATTEMPTS,
+    generate_request_code,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,39 +170,50 @@ class RefundRequestService:
             log_exit(logger, "RefundRequestService.request_refund", context)
             return existing
 
-        count = (
-            db.query(RefundRequest)
-            .join(Event, RefundRequest.event_id == Event.id)
-            .filter(Event.society_id == event.society_id)
-            .count()
-        )
-        request_code = f"REF-{count + 1:03d}"
+        request = None
+        request_code = None
+        for _ in range(MAX_REQUEST_CODE_GENERATION_ATTEMPTS):
+            request_code = generate_request_code(prefix="REF")
+            request = RefundRequest(
+                event_id=event_id,
+                flat_id=flat_id,
+                request_code=request_code,
+                amount=amount,
+                reason=reason,
+                status="requested",
+                requested_by_mapping_id=requested_by_mapping_id,
+                member_identity_id=mapping.member_identity_id
+            )
 
-        request = RefundRequest(
-            event_id=event_id,
-            flat_id=flat_id,
-            request_code=request_code,
-            amount=amount,
-            reason=reason,
-            status="requested",
-            requested_by_mapping_id=requested_by_mapping_id,
-            member_identity_id=mapping.member_identity_id
-        )
-
-        logger.info(
-            "DB write: creating refund request",
-            extra={
-                "action": "REQUEST_REFUND",
-                "result": "db_create_pending",
-                "context": {
-                    **context,
-                    "society_id": event.society_id,
-                    "request_code": request_code,
+            logger.info(
+                "DB write: creating refund request",
+                extra={
+                    "action": "REQUEST_REFUND",
+                    "result": "db_create_pending",
+                    "context": {
+                        **context,
+                        "society_id": event.society_id,
+                        "request_code": request_code,
+                    },
                 },
-            },
-        )
-        db.add(request)
-        db.flush()
+            )
+            db.add(request)
+            try:
+                db.flush()
+                break
+            except IntegrityError:
+                db.rollback()
+                logger.warning(
+                    "Refund request code conflict; retrying generation",
+                    extra={
+                        "action": "REQUEST_REFUND",
+                        "result": "request_code_conflict_retry",
+                        "context": {**context, "request_code": request_code},
+                    },
+                )
+                request = None
+        if request is None:
+            raise Exception("Could not generate a unique refund request code. Please retry.")
 
         if is_override:
             RefundRequestService._authorize_requester_mapping(
