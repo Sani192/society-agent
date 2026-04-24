@@ -20,8 +20,8 @@ from seed_flats import seed_flats
 from seed_reminder_config import seed_reminder_config
 
 ADVISORY_LOCK_KEY = 82473011
-BOOTSTRAP_GUARD_KEY = "initial_bootstrap"
-BOOTSTRAP_GUARD_TABLE = "bootstrap_seed_guard"
+BOOTSTRAP_RUN_KEY = "initial_bootstrap_v1"
+BOOTSTRAP_RUNS_TABLE = "bootstrap_runs"
 
 
 def seed_society(db) -> Society:
@@ -94,8 +94,15 @@ def seed_chairman_channel_identity(db, *, chairman: CommitteeMember) -> Committe
 
 def is_bootstrap_completed(db) -> bool:
     row = db.execute(
-        text(f"SELECT 1 FROM {BOOTSTRAP_GUARD_TABLE} WHERE seed_key = :seed_key LIMIT 1"),
-        {"seed_key": BOOTSTRAP_GUARD_KEY},
+        text(
+            f"""
+            SELECT 1
+            FROM {BOOTSTRAP_RUNS_TABLE}
+            WHERE "key" = :key AND status = :status
+            LIMIT 1
+            """
+        ),
+        {"key": BOOTSTRAP_RUN_KEY, "status": "completed"},
     ).first()
     return row is not None
 
@@ -104,12 +111,12 @@ def mark_bootstrap_completed(db) -> None:
     db.execute(
         text(
             f"""
-            INSERT INTO {BOOTSTRAP_GUARD_TABLE} (seed_key, completed_at)
-            VALUES (:seed_key, NOW())
-            ON CONFLICT (seed_key) DO NOTHING
+            INSERT INTO {BOOTSTRAP_RUNS_TABLE} ("key", status, completed_at)
+            VALUES (:key, :status, NOW())
+            ON CONFLICT ("key") DO NOTHING
             """
         ),
-        {"seed_key": BOOTSTRAP_GUARD_KEY},
+        {"key": BOOTSTRAP_RUN_KEY, "status": "completed"},
     )
 
 
