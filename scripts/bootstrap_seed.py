@@ -16,8 +16,8 @@ from app.db.models import (
     Society,
 )
 from app.db.session import SessionLocal
-from seed_flats import seed_flats
-from seed_reminder_config import seed_reminder_config
+from seed_flats import seed_flats_without_commit
+from seed_reminder_config import seed_reminder_config_without_commit
 
 ADVISORY_LOCK_KEY = 82473011
 BOOTSTRAP_GUARD_KEY = "initial_bootstrap"
@@ -139,10 +139,10 @@ def main() -> int:
         seed_chairman_channel_identity(db, chairman=chairman)
 
         stage = "seed flats"
-        seed_flats(db)
+        seed_flats_without_commit(db)
 
         stage = "seed reminder config"
-        seed_reminder_config(db)
+        seed_reminder_config_without_commit(db)
 
         stage = "mark bootstrap as completed"
         mark_bootstrap_completed(db)

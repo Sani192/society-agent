@@ -2,18 +2,25 @@
 # -*- coding: utf-8 -*-
 """Create reminder config if absent."""
 
+from typing import TypedDict
+
 from app.db.models import ReminderConfig, Society
 from app.db.session import SessionLocal
 
 
-def seed_reminder_config(db) -> bool:
+class SeedReminderConfigResult(TypedDict):
+    created_count: int
+    skipped_count: int
+
+
+def seed_reminder_config_without_commit(db) -> SeedReminderConfigResult:
     society = db.query(Society).first()
     if society is None:
         raise ValueError("No society found")
 
     existing = db.query(ReminderConfig).filter(ReminderConfig.society_id == society.id).first()
     if existing is not None:
-        return False
+        return {"created_count": 0, "skipped_count": 1}
 
     config = ReminderConfig(
         society_id=society.id,
@@ -23,15 +30,20 @@ def seed_reminder_config(db) -> bool:
         frequency="daily",
     )
     db.add(config)
-    return True
+    return {"created_count": 1, "skipped_count": 0}
+
+
+def seed_reminder_config(db) -> bool:
+    result = seed_reminder_config_without_commit(db)
+    return result["created_count"] > 0
 
 
 def main() -> None:
     db = SessionLocal()
     try:
-        created = seed_reminder_config(db)
+        result = seed_reminder_config_without_commit(db)
         db.commit()
-        if created:
+        if result["created_count"]:
             print("✅ Reminder config created")
         else:
             print("ℹ️ Reminder config already exists")
