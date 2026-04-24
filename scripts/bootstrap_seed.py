@@ -8,7 +8,7 @@ import os
 import sys
 import json
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import Any, Callable, TypeVar, cast
 
 from sqlalchemy import text
 
@@ -30,6 +30,7 @@ DEFAULT_JOIN_CODE = "JOIN123"
 DEFAULT_APPROVAL_REQUIRED = True
 DEFAULT_WHATSAPP_EXTERNAL_USER_ID = "919999000000"
 DEFAULT_BOOTSTRAP_SEED_FILE = "bootstrap.seed.json"
+T = TypeVar("T")
 
 
 def _bootstrap_fail(message: str) -> ValueError:
@@ -372,6 +373,69 @@ def mark_bootstrap_completed(db) -> None:
     )
 
 
+def _log_stage_start(stage: str) -> None:
+    print(f"START {stage}")
+
+
+def _log_stage_success(stage: str) -> None:
+    print(f"SUCCESS {stage}")
+
+
+def _log_stage_fail(stage: str) -> None:
+    print(f"FAIL {stage}", file=sys.stderr)
+
+
+def _run_stage(stage: str, action: Callable[[], T]) -> T:
+    _log_stage_start(stage)
+    try:
+        result = action()
+    except Exception:
+        _log_stage_fail(stage)
+        raise
+    _log_stage_success(stage)
+    return result
+
+
+def _verify_seeded_data(db) -> None:
+    society_count = cast(int, db.execute(text("SELECT COUNT(*) FROM societies")).scalar_one())
+    if society_count < 1:
+        raise ValueError("Verification failed: society count must be >= 1")
+
+    active_chairman_count = cast(
+        int,
+        db.execute(
+            text("SELECT COUNT(*) FROM committee_members WHERE role = 'chairman' AND is_active = TRUE")
+        ).scalar_one(),
+    )
+    if active_chairman_count < 1:
+        raise ValueError("Verification failed: expected at least one active chairman")
+
+    chairman_identity_count = cast(
+        int,
+        db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM committee_members cm
+                INNER JOIN committee_member_channel_identities ci
+                    ON ci.committee_member_id = cm.id
+                WHERE cm.role = 'chairman' AND cm.is_active = TRUE
+                """
+            )
+        ).scalar_one(),
+    )
+    if chairman_identity_count < 1:
+        raise ValueError("Verification failed: expected active chairman with channel identity")
+
+    flats_count = cast(int, db.execute(text("SELECT COUNT(*) FROM flats")).scalar_one())
+    if flats_count <= 0:
+        raise ValueError("Verification failed: flats count must be > 0")
+
+    reminder_config_count = cast(int, db.execute(text("SELECT COUNT(*) FROM reminder_configs")).scalar_one())
+    if reminder_config_count < 1:
+        raise ValueError("Verification failed: reminder config must exist")
+
+
 def main() -> int:
     stage = "load bootstrap config"
     db = None
@@ -383,48 +447,60 @@ def main() -> int:
             bootstrap_overrides = _validated_bootstrap_overrides(raw_config)
 
         stage = "initialization"
-        db = SessionLocal()
-        db.execute(
-            text("SELECT pg_advisory_xact_lock(:lock_key)"),
-            {"lock_key": ADVISORY_LOCK_KEY},
-        )
+
+        def _initialize() -> Any:
+            nonlocal db
+            db = SessionLocal()
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(:lock_key)"),
+                {"lock_key": ADVISORY_LOCK_KEY},
+            )
+            return db
+
+        _run_stage(stage, _initialize)
 
         stage = "check guard"
-        if is_bootstrap_completed(db):
+        if _run_stage(stage, lambda: is_bootstrap_completed(db)):
             print("already seeded")
             db.rollback()
             return 0
 
         stage = "seed society"
-        society = seed_society(db, overrides=bootstrap_overrides)
+        society = _run_stage(stage, lambda: seed_society(db, overrides=bootstrap_overrides))
 
         stage = "seed first chairman"
-        chairman = seed_first_chairman(db, society=society, overrides=bootstrap_overrides)
+        chairman = _run_stage(stage, lambda: seed_first_chairman(db, society=society, overrides=bootstrap_overrides))
 
         stage = "seed chairman channel identity"
-        seed_chairman_channel_identity(db, chairman=chairman, overrides=bootstrap_overrides)
+        _run_stage(stage, lambda: seed_chairman_channel_identity(db, chairman=chairman, overrides=bootstrap_overrides))
 
         stage = "seed flats"
         flats_to_seed = cast(Sequence[tuple[str, str, str]] | None, (bootstrap_overrides or {}).get("flats"))
         if flats_to_seed is None:
             flats_to_seed = _load_bootstrap_flats()
         if flats_to_seed is None:
-            seed_flats_without_commit(db)
+            _run_stage(stage, lambda: seed_flats_without_commit(db))
         else:
-            seed_flats_without_commit(db, flats=flats_to_seed)
+            _run_stage(stage, lambda: seed_flats_without_commit(db, flats=flats_to_seed))
 
         stage = "seed reminder config"
-        reminder_enabled = cast(bool | None, (bootstrap_overrides or {}).get("reminder_enabled"))
-        seed_reminder_config_without_commit_with_defaults(
-            db,
-            enabled=True if reminder_enabled is None else reminder_enabled,
-            run_hour=cast(int, (bootstrap_overrides or {}).get("reminder_run_hour")) if bootstrap_overrides else 10,
-            run_minute=cast(int, (bootstrap_overrides or {}).get("reminder_run_minute")) if bootstrap_overrides else 0,
-            frequency=cast(str, (bootstrap_overrides or {}).get("reminder_frequency")) if bootstrap_overrides else "daily",
-        )
+        def _seed_reminder_config() -> Any:
+            reminder_enabled = cast(bool | None, (bootstrap_overrides or {}).get("reminder_enabled"))
+            return seed_reminder_config_without_commit_with_defaults(
+                db,
+                enabled=True if reminder_enabled is None else reminder_enabled,
+                run_hour=cast(int, (bootstrap_overrides or {}).get("reminder_run_hour")) if bootstrap_overrides else 10,
+                run_minute=cast(int, (bootstrap_overrides or {}).get("reminder_run_minute")) if bootstrap_overrides else 0,
+                frequency=cast(str, (bootstrap_overrides or {}).get("reminder_frequency")) if bootstrap_overrides else "daily",
+            )
+
+        _run_stage(stage, _seed_reminder_config)
+
+        stage = "verify seeded data"
+        _run_stage(stage, lambda: _verify_seeded_data(db))
 
         stage = "mark bootstrap as completed"
-        mark_bootstrap_completed(db)
+        _run_stage(stage, lambda: mark_bootstrap_completed(db))
 
         db.commit()
         print("bootstrap seed completed")
