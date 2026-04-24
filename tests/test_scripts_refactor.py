@@ -103,7 +103,7 @@ def test_seed_flats_is_idempotent_when_flat_exists():
 
     assert created == 0
     db.add.assert_not_called()
-    db.commit.assert_called_once()
+    db.commit.assert_not_called()
 
 
 def test_seed_flats_adds_missing_flat():
@@ -114,7 +114,7 @@ def test_seed_flats_adds_missing_flat():
 
     assert created == 1
     db.add.assert_called_once()
-    db.commit.assert_called_once()
+    db.commit.assert_not_called()
 
 
 def test_seed_reminder_config_raises_when_society_missing():
@@ -144,4 +144,4 @@ def test_seed_reminder_config_creates_when_missing():
 
     assert created is True
     db.add.assert_called_once()
-    db.commit.assert_called_once()
+    db.commit.assert_not_called()

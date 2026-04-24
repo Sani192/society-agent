@@ -23,7 +23,6 @@ def seed_reminder_config(db) -> bool:
         frequency="daily",
     )
     db.add(config)
-    db.commit()
     return True
 
 
@@ -31,6 +30,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         created = seed_reminder_config(db)
+        db.commit()
         if created:
             print("✅ Reminder config created")
         else:
