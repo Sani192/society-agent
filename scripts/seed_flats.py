@@ -33,7 +33,6 @@ def seed_flats(db, flats: Sequence[tuple[str, str, str]] = DEFAULT_FLATS) -> int
             )
             created_count += 1
 
-    db.commit()
     return created_count
 
 
@@ -41,6 +40,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         created = seed_flats(db)
+        db.commit()
         if created:
             print("✅ Flats seeded")
         else:
