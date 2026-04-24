@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from scripts import map_user_to_flat, reset_event, seed_flats, seed_reminder_config
+from scripts import bootstrap_seed, map_user_to_flat, reset_event, seed_flats, seed_reminder_config
 from tests.utils import QueryMock
 
 
@@ -145,3 +145,49 @@ def test_seed_reminder_config_creates_when_missing():
     assert created is True
     db.add.assert_called_once()
     db.commit.assert_not_called()
+
+
+def test_bootstrap_validated_overrides_parses_required_fields():
+    overrides = bootstrap_seed._validated_bootstrap_overrides(  # noqa: SLF001
+        {
+            "society": {
+                "name": "Alpha Society",
+                "city": "Austin",
+                "state": "Texas",
+                "timezone": "America/Chicago",
+            },
+            "onboarding": {"join_code": "JOIN-007", "approval_required": False},
+            "chairman": {
+                "name": "Jane Doe",
+                "phone": "+15125550123",
+                "channel_identity": {"channel_type": "whatsapp", "external_user_id": "15125550123"},
+            },
+            "flats": [{"flat_number": "A-101", "block": "A", "owner_name": "Owner 1"}],
+            "reminder_defaults": {"enabled": True, "run_hour": 9, "run_minute": 30, "frequency": "daily"},
+        }
+    )
+
+    assert overrides["society_name"] == "Alpha Society"
+    assert overrides["flats"] == (("A-101", "A", "Owner 1"),)
+    assert overrides["reminder_run_hour"] == 9
+
+
+def test_bootstrap_validated_overrides_fails_fast_for_bad_config():
+    with pytest.raises(ValueError, match="Invalid bootstrap config: missing required field 'chairman.phone'"):
+        bootstrap_seed._validated_bootstrap_overrides(  # noqa: SLF001
+            {
+                "society": {
+                    "name": "Alpha Society",
+                    "city": "Austin",
+                    "state": "Texas",
+                    "timezone": "America/Chicago",
+                },
+                "onboarding": {"join_code": "JOIN-007"},
+                "chairman": {
+                    "name": "Jane Doe",
+                    "channel_identity": {"external_user_id": "15125550123"},
+                },
+                "flats": [{"flat_number": "A-101", "block": "A", "owner_name": "Owner 1"}],
+                "reminder_defaults": {"run_hour": 9, "run_minute": 30, "frequency": "daily"},
+            }
+        )
