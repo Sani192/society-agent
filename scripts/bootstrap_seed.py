@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Sequence
+from typing import Any, cast
 
 from sqlalchemy import text
 
@@ -90,9 +91,10 @@ def seed_first_chairman(db, *, society: Society) -> CommitteeMember:
 
 def seed_chairman_channel_identity(db, *, chairman: CommitteeMember) -> CommitteeMemberChannelIdentity:
     channel_type = "whatsapp"
+    chairman_phone = cast(str | None, getattr(chairman, "phone_number", None))
     external_user_id = normalize_identifier(
-        os.getenv("BOOTSTRAP_CHAIRMAN_EXTERNAL_USER_ID", chairman.phone_number)
-    ) or normalize_identifier(chairman.phone_number) or DEFAULT_WHATSAPP_EXTERNAL_USER_ID
+        os.getenv("BOOTSTRAP_CHAIRMAN_EXTERNAL_USER_ID", chairman_phone)
+    ) or normalize_identifier(chairman_phone) or DEFAULT_WHATSAPP_EXTERNAL_USER_ID
     username = os.getenv("BOOTSTRAP_CHAIRMAN_USERNAME")
 
     existing = (
@@ -148,8 +150,8 @@ def _build_society_config() -> dict:
 
 
 def _ensure_society_onboarding_config(db, *, society: Society) -> Society:
-    config = dict(society.config_json or {})
-    onboarding = dict(config.get("onboarding") or {})
+    config: dict[str, Any] = dict(cast(dict[str, Any] | None, getattr(society, "config_json", None)) or {})
+    onboarding: dict[str, Any] = dict(cast(dict[str, Any] | None, config.get("onboarding")) or {})
     changed = False
 
     join_code = onboarding.get("join_code")
@@ -167,7 +169,7 @@ def _ensure_society_onboarding_config(db, *, society: Society) -> Society:
 
     if changed:
         config["onboarding"] = onboarding
-        society.config_json = config
+        setattr(society, "config_json", config)
         db.flush()
     return society
 
@@ -191,7 +193,7 @@ def _load_bootstrap_flats() -> Sequence[tuple[str, str, str]] | None:
     if not flats_list:
         return None
 
-    flats: list[tuple[str, str, str]] = []
+    parsed_flats: list[tuple[str, str, str]] = []
     for row in flats_list.split(";"):
         cleaned = row.strip()
         if not cleaned:
@@ -199,8 +201,8 @@ def _load_bootstrap_flats() -> Sequence[tuple[str, str, str]] | None:
         parts = [part.strip() for part in cleaned.split(",")]
         if len(parts) != 3:
             raise ValueError(f"Invalid BOOTSTRAP_FLATS_LIST row: {cleaned}")
-        flats.append((parts[0], parts[1], parts[2]))
-    return tuple(flats)
+        parsed_flats.append((parts[0], parts[1], parts[2]))
+    return tuple(parsed_flats)
 
 
 def is_bootstrap_completed(db) -> bool:
