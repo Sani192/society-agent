@@ -458,6 +458,8 @@ def main() -> int:
             return db
 
         _run_stage(stage, _initialize)
+        if db is None:
+            raise RuntimeError("Database session initialization failed")
 
         stage = "check guard"
         if _run_stage(stage, lambda: is_bootstrap_completed(db)):
