@@ -14,6 +14,23 @@ class SeedReminderConfigResult(TypedDict):
 
 
 def seed_reminder_config_without_commit(db) -> SeedReminderConfigResult:
+    return seed_reminder_config_without_commit_with_defaults(
+        db,
+        enabled=True,
+        run_hour=10,
+        run_minute=0,
+        frequency="daily",
+    )
+
+
+def seed_reminder_config_without_commit_with_defaults(
+    db,
+    *,
+    enabled: bool,
+    run_hour: int,
+    run_minute: int,
+    frequency: str,
+) -> SeedReminderConfigResult:
     society = db.query(Society).first()
     if society is None:
         raise ValueError("No society found")
@@ -24,10 +41,10 @@ def seed_reminder_config_without_commit(db) -> SeedReminderConfigResult:
 
     config = ReminderConfig(
         society_id=society.id,
-        enabled=True,
-        run_hour=10,
-        run_minute=0,
-        frequency="daily",
+        enabled=enabled,
+        run_hour=run_hour,
+        run_minute=run_minute,
+        frequency=frequency,
     )
     db.add(config)
     return {"created_count": 1, "skipped_count": 0}
