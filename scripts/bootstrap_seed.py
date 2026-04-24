@@ -31,8 +31,8 @@ def seed_society(db) -> Society:
 
     society = Society(
         name=settings.DEFAULT_SOCIETY_NAME or "My Society",
-        city=os.getenv("DEFAULT_SOCIETY_CITY", "Bengaluru"),
-        state=os.getenv("DEFAULT_SOCIETY_STATE", "Karnataka"),
+        city=os.getenv("DEFAULT_SOCIETY_CITY", "Ahmedabad"),
+        state=os.getenv("DEFAULT_SOCIETY_STATE", "Gujarat"),
         timezone=settings.TIMEZONE,
         config_json={"seed": "bootstrap"},
         is_active=True,
