@@ -5,8 +5,13 @@
 
 from __future__ import annotations
 
-import signal
+import os
+import sys
 import time
+import signal
+
+# Ensure the root project directory is on the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.db.base import Base
 from app.db.models import Society

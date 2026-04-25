@@ -6,6 +6,8 @@ set -euo pipefail
 # - Starts API server in foreground
 # - Ensures scheduler stops when API exits
 
+export PYTHONPATH=.
+
 cleanup() {
   if [[ -n "${SCHEDULER_PID:-}" ]] && kill -0 "$SCHEDULER_PID" 2>/dev/null; then
     kill "$SCHEDULER_PID" 2>/dev/null || true
