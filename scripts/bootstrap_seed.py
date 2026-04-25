@@ -162,10 +162,19 @@ def seed_society(db, *, overrides: dict[str, Any] | None = None) -> Society:
         return _ensure_society_onboarding_config(db, society=society, overrides=overrides)
 
     society = Society(
-        name=cast(str, (overrides or {}).get("society_name")) or settings.DEFAULT_SOCIETY_NAME or "My Society",
-        city=cast(str, (overrides or {}).get("society_city")) or os.getenv("DEFAULT_SOCIETY_CITY", "Ahmedabad"),
-        state=cast(str, (overrides or {}).get("society_state")) or os.getenv("DEFAULT_SOCIETY_STATE", "Gujarat"),
-        timezone=cast(str, (overrides or {}).get("society_timezone")) or settings.TIMEZONE,
+        name=cast(str, (overrides or {}).get("society_name"))
+        or os.getenv("BOOTSTRAP_SOCIETY_NAME")
+        or settings.DEFAULT_SOCIETY_NAME
+        or "My Society",
+        city=cast(str, (overrides or {}).get("society_city"))
+        or os.getenv("BOOTSTRAP_SOCIETY_CITY")
+        or os.getenv("DEFAULT_SOCIETY_CITY", "Ahmedabad"),
+        state=cast(str, (overrides or {}).get("society_state"))
+        or os.getenv("BOOTSTRAP_SOCIETY_STATE")
+        or os.getenv("DEFAULT_SOCIETY_STATE", "Gujarat"),
+        timezone=cast(str, (overrides or {}).get("society_timezone"))
+        or os.getenv("BOOTSTRAP_SOCIETY_TIMEZONE")
+        or settings.TIMEZONE,
         config_json=_build_society_config(overrides=overrides),
         is_active=True,
     )
@@ -258,6 +267,20 @@ def _parse_bool(value: str | None, *, default: bool) -> bool:
     if normalized in {"0", "false", "no", "n", "off"}:
         return False
     return default
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    return _parse_bool(os.getenv(name), default=default)
 
 
 def _build_society_config(*, overrides: dict[str, Any] | None = None) -> dict:
@@ -592,12 +615,27 @@ def main() -> int:
         stage = "seed reminder config"
         def _seed_reminder_config() -> Any:
             reminder_enabled = cast(bool | None, (bootstrap_overrides or {}).get("reminder_enabled"))
+            if reminder_enabled is None:
+                reminder_enabled = _env_bool("BOOTSTRAP_REMINDER_ENABLED", default=True)
+
+            run_hour = cast(int | None, (bootstrap_overrides or {}).get("reminder_run_hour"))
+            if run_hour is None:
+                run_hour = _env_int("BOOTSTRAP_REMINDER_RUN_HOUR", default=10)
+
+            run_minute = cast(int | None, (bootstrap_overrides or {}).get("reminder_run_minute"))
+            if run_minute is None:
+                run_minute = _env_int("BOOTSTRAP_REMINDER_RUN_MINUTE", default=0)
+
+            frequency = cast(str | None, (bootstrap_overrides or {}).get("reminder_frequency"))
+            if frequency is None:
+                frequency = os.getenv("BOOTSTRAP_REMINDER_FREQUENCY", "daily")
+
             return seed_reminder_config_without_commit_with_defaults(
                 db,
-                enabled=True if reminder_enabled is None else reminder_enabled,
-                run_hour=cast(int, (bootstrap_overrides or {}).get("reminder_run_hour")) if bootstrap_overrides else 10,
-                run_minute=cast(int, (bootstrap_overrides or {}).get("reminder_run_minute")) if bootstrap_overrides else 0,
-                frequency=cast(str, (bootstrap_overrides or {}).get("reminder_frequency")) if bootstrap_overrides else "daily",
+                enabled=reminder_enabled,
+                run_hour=run_hour,
+                run_minute=run_minute,
+                frequency=frequency,
             )
 
         _run_stage(stage, _seed_reminder_config)
