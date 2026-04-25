@@ -99,3 +99,15 @@ def test_migration_sql_bundle_contains_all_model_columns():
         "Migration SQL files are missing model columns: "
         f"{missing_by_table}. Add/update SQL migrations before release."
     )
+
+
+
+def test_migration_sql_bundle_declares_bootstrap_seed_guard_table():
+    sql_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    declared_tables: set[str] = set()
+    for sql_file in sql_files:
+        declared_tables |= _tables_declared_in_sql(sql_file.read_text(encoding="utf-8"))
+
+    assert "bootstrap_seed_guard" in declared_tables, (
+        "Migration SQL bundle must declare bootstrap_seed_guard for fresh bootstrap compatibility."
+    )
