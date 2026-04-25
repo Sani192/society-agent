@@ -148,6 +148,13 @@ CREATE UNIQUE INDEX ix_member_identities_whatsapp_user_id ON member_identities (
 CREATE INDEX ix_member_identities_normalized_phone ON member_identities (normalized_phone);
 
 
+CREATE TABLE bootstrap_seed_guard (
+	seed_key TEXT NOT NULL,
+	completed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (seed_key)
+);
+
+
 CREATE TABLE committee_members (
 	id UUID NOT NULL, 
 	society_id UUID NOT NULL, 
