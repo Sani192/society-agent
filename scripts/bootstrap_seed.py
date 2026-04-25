@@ -603,14 +603,14 @@ def main() -> int:
         _run_stage(stage, _seed_reminder_config)
 
         stage = "verify seeded data"
-        _run_stage(
-            stage,
-            lambda: _verify_seeded_data(
+        def _flush_and_verify():
+            db.flush()
+            _verify_seeded_data(
                 db,
                 society_id=cast(int, society.id),
                 chairman_id=cast(int, chairman.id),
-            ),
-        )
+            )
+        _run_stage(stage, _flush_and_verify)
 
         stage = "mark bootstrap as completed"
         _run_stage(stage, lambda: mark_bootstrap_completed(db))
