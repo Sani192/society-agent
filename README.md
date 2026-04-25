@@ -185,7 +185,7 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
        - Fix JSON syntax and required fields/types/ranges listed above.
      - Missing table:
        - Errors like relation/table not found (for example `bootstrap_seed_guard`, `societies`, `flats`, etc.) indicate schema is not applied.
-       - Apply baseline schema/migrations first, then re-run.
+       - Apply baseline schema/migrations first (`alembic upgrade head`), then re-run bootstrap.
      - Uniqueness errors:
        - Duplicate keys (for example chairman channel identity uniqueness) abort the transaction and roll everything back.
        - Resolve conflicting existing data (or reset DB), then re-run bootstrap once.
@@ -243,9 +243,9 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
 For full request/response schemas, use Swagger UI (`/docs`) or the OpenAPI contract file at `contracts/openapi.v1.json`.
 
 ### Single-server deployment (API + scheduler together)
-If you run only one server/VM, start both processes with:
+If you run only one server/VM (e.g., Render.com), start the migrations, seeding, and processes with:
 ```bash
-./scripts/run_single_server.sh
+alembic upgrade head && python scripts/bootstrap_seed.py && ./scripts/run_single_server.sh
 ```
 This starts the scheduler worker first, then the API server. On shutdown, it also stops the scheduler process.
 

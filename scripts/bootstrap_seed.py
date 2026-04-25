@@ -11,10 +11,15 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import json
+import os
+import sys
+from pathlib import Path
 from collections.abc import Sequence
 from typing import Any, Callable, TypeVar, cast
 
-from sqlalchemy import text
+import alembic.config
+import alembic.command
+from sqlalchemy import text, inspect
 
 from app.config import settings
 from app.db.models import (
@@ -380,11 +385,27 @@ def _load_bootstrap_flats() -> Sequence[tuple[str, str, str]] | None:
 
 
 def is_bootstrap_completed(db) -> bool:
+    inspector = inspect(db.get_bind())
+    if BOOTSTRAP_GUARD_TABLE not in inspector.get_table_names():
+        return False
+
     row = db.execute(
         text(f"SELECT 1 FROM {BOOTSTRAP_GUARD_TABLE} WHERE seed_key = :seed_key LIMIT 1"),
         {"seed_key": BOOTSTRAP_GUARD_KEY},
     ).first()
     return row is not None
+
+
+def _enforce_schema_readiness() -> None:
+    # Locate alembic.ini relative to this script (scripts/ is one level deep)
+    alembic_ini_path = Path(__file__).resolve().parents[1] / "alembic.ini"
+    if not alembic_ini_path.exists():
+        print(f"Warning: alembic.ini not found at {alembic_ini_path}. Skipping internal migration.")
+        return
+
+    alembic_cfg = alembic.config.Config(str(alembic_ini_path))
+    print("Enforcing schema readiness (alembic upgrade head)...")
+    alembic.command.upgrade(alembic_cfg, "head")
 
 
 def mark_bootstrap_completed(db) -> None:
@@ -577,6 +598,7 @@ def main() -> int:
 
         def _initialize() -> Any:
             nonlocal db
+            _enforce_schema_readiness()
             db = SessionLocal()
             db.execute(
                 text("SELECT pg_advisory_xact_lock(:lock_key)"),
