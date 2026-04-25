@@ -599,6 +599,11 @@ def main() -> int:
         def _initialize() -> Any:
             nonlocal db
             _enforce_schema_readiness()
+            # Safety: Ensure all models (including the guard table) are created
+            from app.db.base import Base
+            from app.db.session import engine
+            Base.metadata.create_all(bind=engine)
+
             db = SessionLocal()
             db.execute(
                 text("SELECT pg_advisory_xact_lock(:lock_key)"),
