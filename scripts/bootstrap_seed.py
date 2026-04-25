@@ -396,44 +396,144 @@ def _run_stage(stage: str, action: Callable[[], T]) -> T:
     return result
 
 
-def _verify_seeded_data(db) -> None:
-    society_count = cast(int, db.execute(text("SELECT COUNT(*) FROM societies")).scalar_one())
-    if society_count < 1:
-        raise ValueError("Verification failed: society count must be >= 1")
-
-    active_chairman_count = cast(
-        int,
-        db.execute(
-            text("SELECT COUNT(*) FROM committee_members WHERE role = 'chairman' AND is_active = TRUE")
-        ).scalar_one(),
-    )
-    if active_chairman_count < 1:
-        raise ValueError("Verification failed: expected at least one active chairman")
-
-    chairman_identity_count = cast(
-        int,
+def _verify_seeded_data(
+    db,
+    *,
+    society_id: int,
+    chairman_id: int,
+    include_global_diagnostics: bool = True,
+) -> None:
+    scoped_society_exists = cast(
+        bool,
         db.execute(
             text(
                 """
-                SELECT COUNT(*)
-                FROM committee_members cm
-                INNER JOIN committee_member_channel_identities ci
-                    ON ci.committee_member_id = cm.id
-                WHERE cm.role = 'chairman' AND cm.is_active = TRUE
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM societies
+                    WHERE id = :society_id AND is_active = TRUE
+                )
                 """
-            )
+            ),
+            {"society_id": society_id},
         ).scalar_one(),
     )
-    if chairman_identity_count < 1:
-        raise ValueError("Verification failed: expected active chairman with channel identity")
+    if not scoped_society_exists:
+        raise ValueError(f"Verification failed: active society not found for society_id={society_id}")
 
-    flats_count = cast(int, db.execute(text("SELECT COUNT(*) FROM flats")).scalar_one())
-    if flats_count <= 0:
-        raise ValueError("Verification failed: flats count must be > 0")
+    scoped_chairman_exists = cast(
+        bool,
+        db.execute(
+            text(
+                """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM committee_members
+                    WHERE id = :chairman_id
+                      AND society_id = :society_id
+                      AND role = 'chairman'
+                      AND is_active = TRUE
+                )
+                """
+            ),
+            {"society_id": society_id, "chairman_id": chairman_id},
+        ).scalar_one(),
+    )
+    if not scoped_chairman_exists:
+        raise ValueError(
+            "Verification failed: active chairman not found for "
+            f"chairman_id={chairman_id}, society_id={society_id}"
+        )
 
-    reminder_config_count = cast(int, db.execute(text("SELECT COUNT(*) FROM reminder_configs")).scalar_one())
-    if reminder_config_count < 1:
-        raise ValueError("Verification failed: reminder config must exist")
+    scoped_chairman_identity_exists = cast(
+        bool,
+        db.execute(
+            text(
+                """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM committee_member_channel_identities
+                    WHERE committee_member_id = :chairman_id
+                )
+                """
+            ),
+            {"chairman_id": chairman_id},
+        ).scalar_one(),
+    )
+    if not scoped_chairman_identity_exists:
+        raise ValueError(
+            "Verification failed: chairman channel identity not found for "
+            f"chairman_id={chairman_id}"
+        )
+
+    scoped_flats_exist = cast(
+        bool,
+        db.execute(
+            text(
+                """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM flats
+                    WHERE society_id = :society_id
+                )
+                """
+            ),
+            {"society_id": society_id},
+        ).scalar_one(),
+    )
+    if not scoped_flats_exist:
+        raise ValueError(f"Verification failed: flats not found for society_id={society_id}")
+
+    scoped_reminder_config_exists = cast(
+        bool,
+        db.execute(
+            text(
+                """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM reminder_configs
+                    WHERE society_id = :society_id
+                )
+                """
+            ),
+            {"society_id": society_id},
+        ).scalar_one(),
+    )
+    if not scoped_reminder_config_exists:
+        raise ValueError(f"Verification failed: reminder config not found for society_id={society_id}")
+
+    if include_global_diagnostics:
+        society_count = cast(int, db.execute(text("SELECT COUNT(*) FROM societies")).scalar_one())
+        active_chairman_count = cast(
+            int,
+            db.execute(
+                text("SELECT COUNT(*) FROM committee_members WHERE role = 'chairman' AND is_active = TRUE")
+            ).scalar_one(),
+        )
+        chairman_identity_count = cast(
+            int,
+            db.execute(
+                text(
+                    """
+                    SELECT COUNT(*)
+                    FROM committee_members cm
+                    INNER JOIN committee_member_channel_identities ci
+                        ON ci.committee_member_id = cm.id
+                    WHERE cm.role = 'chairman' AND cm.is_active = TRUE
+                    """
+                )
+            ).scalar_one(),
+        )
+        flats_count = cast(int, db.execute(text("SELECT COUNT(*) FROM flats")).scalar_one())
+        reminder_config_count = cast(int, db.execute(text("SELECT COUNT(*) FROM reminder_configs")).scalar_one())
+        print(
+            "Diagnostic global counts: "
+            f"societies={society_count}, "
+            f"active_chairmen={active_chairman_count}, "
+            f"chairman_identities={chairman_identity_count}, "
+            f"flats={flats_count}, "
+            f"reminder_configs={reminder_config_count}"
+        )
 
 
 def main() -> int:
@@ -499,7 +599,14 @@ def main() -> int:
         _run_stage(stage, _seed_reminder_config)
 
         stage = "verify seeded data"
-        _run_stage(stage, lambda: _verify_seeded_data(db))
+        _run_stage(
+            stage,
+            lambda: _verify_seeded_data(
+                db,
+                society_id=cast(int, society.id),
+                chairman_id=cast(int, chairman.id),
+            ),
+        )
 
         stage = "mark bootstrap as completed"
         _run_stage(stage, lambda: mark_bootstrap_completed(db))
