@@ -1,0 +1,39 @@
+{
+  "society": {
+    "name": "Sunrise Residency",
+    "city": "Ahmedabad",
+    "state": "Gujarat",
+    "timezone": "Asia/Kolkata"
+  },
+  "onboarding": {
+    "join_code": "JOIN123",
+    "approval_required": true
+  },
+  "chairman": {
+    "name": "Mahesh Patel",
+    "phone": "+919999000001",
+    "channel_identity": {
+      "channel_type": "whatsapp",
+      "external_user_id": "+919999000001",
+      "username": null
+    }
+  },
+  "flats": [
+    {
+      "flat_number": "A-101",
+      "block": "A",
+      "owner_name": "Ramesh Patel"
+    },
+    {
+      "flat_number": "A-102",
+      "block": "A",
+      "owner_name": "Mihir Patel"
+    }
+  ],
+  "reminder_defaults": {
+    "enabled": true,
+    "frequency": "daily",
+    "run_hour": 10,
+    "run_minute": 0
+  }
+}

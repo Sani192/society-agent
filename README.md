@@ -140,7 +140,7 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
        "approval_required": true
      },
      "chairman": {
-       "name": "Amit Shah",
+       "name": "Mahesh Patel",
        "phone": "+919999000001",
        "channel_identity": {
          "channel_type": "whatsapp",
@@ -149,7 +149,7 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
        }
      },
      "flats": [
-       { "flat_number": "A-101", "block": "A", "owner_name": "Rita Patel" },
+       { "flat_number": "A-101", "block": "A", "owner_name": "Ramesh Patel" },
        { "flat_number": "A-102", "block": "A", "owner_name": "Mihir Patel" }
      ],
      "reminder_defaults": {
@@ -282,9 +282,103 @@ Run from repository root:
   python scripts/ci/check_localization_literals.py
   ```
 
-This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
-- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
-- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
-### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
-- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
-This system helps the society managing committee manage:- Festival events- Food passes- Payments & refunds- Sponsors & donations- Expenses- Carry-forward balances- Transparent reportsThe system is designed with **full transparency** and **audit safety**.---## 🚀 How to Run (Local)### 1️⃣ Activate virtual environment```bashsource venv/bin/activate
+This system helps the society managing committee manage:
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
+This system helps the society managing committee manage:
+
+- Festival events
+- Food passes
+- Payments & refunds
+- Sponsors & donations
+- Expenses
+- Carry-forward balances
+- Transparent reports
+
+The system is designed with **full transparency** and **audit safety**.
+
+---
+
+## 🚀 How to Run (Local)
+
+### 1️⃣ Activate virtual environment
+
+```bash
+source venv/bin/activate
