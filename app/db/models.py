@@ -804,3 +804,10 @@ class AnnouncementDelivery(Base):
 
     announcement = relationship("Announcement", backref="deliveries")
     member_identity = relationship("MemberIdentity", backref="announcement_deliveries")
+
+
+class BootstrapSeedGuard(Base):
+    __tablename__ = "bootstrap_seed_guard"
+
+    seed_key = Column(Text, primary_key=True)
+    completed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

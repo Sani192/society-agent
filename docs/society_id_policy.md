@@ -17,4 +17,4 @@ For the tables above:
 2. When `flat_id` is present, `society_id` must equal `flats.society_id`.
 3. Application write paths must derive persisted `society_id` from authoritative foreign key targets (`events`), not from caller input.
 
-The migration `docs/migrations/20260224_society_id_consistency_guards.sql` adds trigger guards for DB-level enforcement.
+The application write paths and database-level constraints enforce these invariants to maintain consistency.

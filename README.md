@@ -92,11 +92,11 @@ TELEGRAM_WEBHOOK_SECRET=
    GRANT ALL PRIVILEGES ON DATABASE society_db TO society_user;
    ```
 2. Ensure `.env` points to those credentials.
-3. (Optional for local bootstrap) Apply the baseline schema directly:
+3. Start the application. Alembic will automatically run schema migrations at startup to create all tables.
+   Alternatively, you can run migrations manually via:
    ```bash
-   psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f docs/migrations/20260319_baseline_schema.sql
+   alembic upgrade head
    ```
-4. Start the app.
 
 ### Bootstrap Seeding
 Use bootstrap seeding to initialize baseline records (society, chairman, chairman channel identity, flats, reminder config) in a single guarded transaction.
@@ -191,17 +191,16 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
        - Resolve conflicting existing data (or reset DB), then re-run bootstrap once.
 
 ### Environment behavior on startup
-- `APP_ENV=local` or `APP_ENV=dev`: application startup can auto-create missing tables for local development convenience.
-- `APP_ENV=staging` or `APP_ENV=production`: startup validates schema readiness before serving traffic.
-- Optional controlled automation: set `STARTUP_MIGRATIONS_ENABLED=true` to run SQL migrations from `docs/migrations/*.sql` during startup.
-- `schema_migrations` is used to track applied migration filenames so each SQL migration runs once per database.
-- If migrations are still pending after pipeline execution, startup fails fast when required tables **or model columns** are missing so the rollout can be stopped safely.
+- The application uses **Alembic** to manage database schema migrations.
+- On startup (`APP_ENV=staging` or `APP_ENV=production`), the application automatically runs `alembic.command.upgrade("head")` to ensure the database schema is up-to-date.
+- Legacy compatibility: if a database initialized with old SQL scripts is detected, the startup process will automatically `stamp` the database to head before proceeding.
 
 ### Schema reference
-- The canonical baseline schema lives at `docs/migrations/20260319_baseline_schema.sql`.
-- Historical SQL patches in `docs/migrations/` are applied incrementally by the startup migration pipeline in lexical filename order.
-- Any schema-changing code update should include a new SQL migration file under `docs/migrations/` to keep runtime schema and model metadata in sync.
-- CI/test guard `tests/test_migration_schema_guard.py` verifies the migration SQL bundle declares all current ORM model tables and columns.
+- The schema is managed natively by Alembic. Migration scripts live in the `alembic/versions/` directory.
+- Any schema-changing code update in `app/db/models.py` must include a new Alembic migration:
+  ```bash
+  alembic revision --autogenerate -m "Add new feature"
+  ```
 
 ## 5. Run instructions
 1. Create and activate a virtual environment:
@@ -282,86 +281,6 @@ Run from repository root:
   python scripts/ci/check_localization_literals.py
   ```
 
-This system helps the society managing committee manage:
-
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
-- Festival events
-- Food passes
-- Payments & refunds
-- Sponsors & donations
-- Expenses
-- Carry-forward balances
-- Transparent reports
-
-The system is designed with **full transparency** and **audit safety**.
-
----
-
-## 🚀 How to Run (Local)
-
-### 1️⃣ Activate virtual environment
-
-```bash
-source venv/bin/activate
 This system helps the society managing committee manage:
 
 - Festival events

@@ -2,6 +2,11 @@
 # -*- coding: utf-8 -*-
 """Seed flats for the first society when missing."""
 
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from collections.abc import Sequence
 from typing import TypedDict
 
