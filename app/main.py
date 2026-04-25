@@ -8,6 +8,7 @@ Created on Sat Jan 10 13:47:02 2026
 
 # app/main.py
 
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -64,6 +65,23 @@ class PublicRequestSizeGuardMiddleware(BaseHTTPMiddleware):
             request._receive = receive
 
         return await call_next(request)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log all incoming requests and their status codes."""
+
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        logger.info(f"Incoming request: {request.method} {request.url.path}")
+        try:
+            response = await call_next(request)
+            process_time = time.time() - start_time
+            logger.info(f"Request completed: {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.4f}s")
+            return response
+        except Exception as e:
+            process_time = time.time() - start_time
+            logger.error(f"Request failed: {request.method} {request.url.path} - Error: {str(e)} - Time: {process_time:.4f}s")
+            raise
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -175,6 +193,7 @@ if settings.CORS_ALLOWED_ORIGINS:
 
 app.add_middleware(PublicRequestSizeGuardMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Routes
 app.include_router(health_router)
