@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from scripts import bootstrap_seed, map_user_to_flat, reset_event, seed_flats, seed_reminder_config
+from scripts import bootstrap_seed, map_user_to_flat, reset_event, seed_flats, seed_periodic_tasks
 from tests.utils import QueryMock
 
 
@@ -117,33 +117,47 @@ def test_seed_flats_adds_missing_flat():
     db.commit.assert_not_called()
 
 
-def test_seed_reminder_config_raises_when_society_missing():
+def test_seed_periodic_tasks_raises_when_society_missing():
     db = _QuerySequenceDB([QueryMock(first_result=None)])
 
     with pytest.raises(ValueError, match="No society found"):
-        seed_reminder_config.seed_reminder_config(db)
+        seed_periodic_tasks.seed_periodic_tasks(db)
 
 
-def test_seed_reminder_config_is_idempotent_when_existing():
+def test_seed_periodic_tasks_is_idempotent_when_existing():
     society = SimpleNamespace(id="soc-1")
     existing = SimpleNamespace(id="cfg-1")
-    db = _QuerySequenceDB([QueryMock(first_result=society), QueryMock(first_result=existing)])
+    # 1 for society, 4 for existing tasks
+    db = _QuerySequenceDB([
+        QueryMock(first_result=society),
+        QueryMock(first_result=existing),
+        QueryMock(first_result=existing),
+        QueryMock(first_result=existing),
+        QueryMock(first_result=existing),
+    ])
 
-    created = seed_reminder_config.seed_reminder_config(db)
+    created = seed_periodic_tasks.seed_periodic_tasks(db)
 
     assert created is False
     db.add.assert_not_called()
     db.commit.assert_not_called()
 
 
-def test_seed_reminder_config_creates_when_missing():
+def test_seed_periodic_tasks_creates_when_missing():
     society = SimpleNamespace(id="soc-1")
-    db = _QuerySequenceDB([QueryMock(first_result=society), QueryMock(first_result=None)])
+    # 1 for society, 4 for missing tasks
+    db = _QuerySequenceDB([
+        QueryMock(first_result=society),
+        QueryMock(first_result=None),
+        QueryMock(first_result=None),
+        QueryMock(first_result=None),
+        QueryMock(first_result=None),
+    ])
 
-    created = seed_reminder_config.seed_reminder_config(db)
+    created = seed_periodic_tasks.seed_periodic_tasks(db)
 
     assert created is True
-    db.add.assert_called_once()
+    assert db.add.call_count == 4
     db.commit.assert_not_called()
 
 

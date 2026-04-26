@@ -28,8 +28,8 @@ Society Event Management Agent is a FastAPI backend for society operations acros
   - API process starts only HTTP routes (no background schedulers)
   - Mounts webhook/report/health APIs
 - `scripts/run_scheduler.py`
-  - Dedicated scheduler worker process
-  - Acquires advisory-lock leadership and starts reminder + announcement schedulers only for leader role
+  - Dedicated unified scheduler worker process
+  - Acquires advisory-lock leadership and starts the `SchedulerManager` which dynamically syncs periodic tasks from the database.
 - `scripts/run_single_server.sh`
   - Single-host launcher that starts both scheduler worker and API process together
 - `app/api/*`
@@ -63,8 +63,9 @@ Society Event Management Agent is a FastAPI backend for society operations acros
 - `app/modules/ledger/*`: ledger/balance continuity data
 - `app/modules/onboarding/*`: join code, pending users, approval flows
 - `app/modules/committee/*`: committee member administration
-- `app/modules/announcements/*`: announcement composition + delivery worker
-- `app/modules/reminders/*`: reminder scheduling and dispatch
+- `app/modules/announcements/*`: announcement composition + shared delivery task
+- `app/modules/reminders/*`: reminder logic (payment reminders, auto-close)
+- `app/modules/scheduler/*`: unified database-driven scheduler manager
 - `app/modules/reports/*`: report data + exporters/PDF generators
 - `app/modules/users/*`: identity resolution, member-flat mappings, user queries
 
@@ -339,7 +340,7 @@ python scripts/ci/check_test_markers.py
 ## 7.3 Utility scripts (when to use)
 
 - `scripts/seed_flats.py` — initialize flat master data
-- `scripts/seed_reminder_config.py` — seed reminder settings
+- `scripts/seed_periodic_tasks.py` — seed unified periodic tasks
 - `scripts/map_user_to_flat.py` — manual identity/flat mapping
 - `scripts/reset_event.py` — reset an event for controlled test rerun
 - `scripts/export_data.py` — data export utility

@@ -681,28 +681,30 @@ class UserFlatMapping(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     
-class ReminderConfig(Base):
-    __tablename__ = "reminder_configs"
+class PeriodicTask(Base):
+    __tablename__ = "periodic_tasks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False, unique=True)
+    task_function = Column(String(255), nullable=False)
+    kwargs_json = Column(JSONB, nullable=False, default=dict)
 
-    society_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("societies.id"),
-        nullable=False,
-        unique=True
-    )
+    enabled = Column(Boolean, nullable=False, default=True)
+    schedule_type = Column(String(50), nullable=False)
 
-    enabled = Column(Boolean, default=True)
+    interval_seconds = Column(Integer, nullable=True)
 
-    # time in 24h format
-    run_hour = Column(Integer, nullable=False)    # 0–23
-    run_minute = Column(Integer, nullable=False)  # 0–59
+    cron_minute = Column(String(50), nullable=True)
+    cron_hour = Column(String(50), nullable=True)
+    cron_day = Column(String(50), nullable=True)
+    cron_month = Column(String(50), nullable=True)
+    cron_day_of_week = Column(String(50), nullable=True)
 
-    frequency = Column(String, default="daily")
-    # daily / weekly (future)
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
+    total_runs = Column(Integer, nullable=False, default=0)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class PaymentReminder(Base):

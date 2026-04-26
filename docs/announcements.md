@@ -36,7 +36,7 @@ Flow:
 - `AnnouncementManager.queue(...)` orchestrates scope-specific behavior.
 - Resolves recipients via `AnnouncementRecipientService`.
 - Persists announcement + deliveries via `AnnouncementService`.
-- Triggers async dispatch worker (`run_pending_announcement_deliveries`) in daemon thread.
+- Triggers async dispatch worker (`run_pending_announcement_deliveries`) via the unified `SchedulerManager` (configured in `periodic_tasks` table).
 
 This keeps committee handler thin and avoids embedding recipient/query logic directly in command handling.
 

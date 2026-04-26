@@ -11,3 +11,9 @@ Clarifications:
 - This rule applies whether or not the user explicitly asks to run tests.
 - Running only a subset of tests is not sufficient for completion after code changes.
 - If the environment blocks running tests (missing system dependency, service outage, etc.), report it as a blocker and do not claim task completion.
+
+# Documentation Integrity Policy
+When implementing major architectural changes or new core modules:
+1.  **Update READMEs**: Ensure the main `README.md` and any module-level `README.md` reflect the new design.
+2.  **Sync functional docs**: Update any relevant files in `docs/` (e.g., `functional_workflows.md`) to keep the system map accurate.
+3.  **Document Configuration**: Clearly document any new database models or environment variables required for the feature.

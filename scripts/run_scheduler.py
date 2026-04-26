@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Dedicated scheduler worker entrypoint."""
+"""Dedicated unified scheduler worker entrypoint."""
 
 from __future__ import annotations
 
@@ -16,15 +16,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from app.db.base import Base
 from app.db.models import Society
 from app.db.session import SessionLocal, engine
-from app.modules.announcements.delivery_worker import (
-    acquire_announcement_scheduler_leader_lock,
-    announcement_delivery_scheduler,
-    start_announcement_delivery_scheduler,
-)
-from app.modules.reminders.reminder_scheduler import (
+from app.modules.scheduler.manager import (
     acquire_scheduler_leader_lock,
-    scheduler,
-    start_scheduler,
+    start_scheduler_manager,
+    unified_scheduler
 )
 from app.utils.logger import logger
 
@@ -61,22 +56,16 @@ def main() -> int:
     if not _startup_checks():
         return 1
 
-    reminder_lock = acquire_scheduler_leader_lock()
-    announcement_lock = acquire_announcement_scheduler_leader_lock()
+    lock = acquire_scheduler_leader_lock()
 
-    if reminder_lock and announcement_lock:
-        _lock_sessions.extend([reminder_lock, announcement_lock])
+    if lock:
+        _lock_sessions.append(lock)
         logger.info(
             "Scheduler worker startup",
             extra={"scheduler_role": "leader"},
         )
-        start_scheduler()
-        start_announcement_delivery_scheduler()
+        start_scheduler_manager()
     else:
-        if reminder_lock:
-            reminder_lock.close()
-        if announcement_lock:
-            announcement_lock.close()
         logger.info(
             "Scheduler worker startup",
             extra={"scheduler_role": "follower"},
@@ -85,10 +74,8 @@ def main() -> int:
     while _running:
         time.sleep(1)
 
-    if scheduler.running:
-        scheduler.shutdown(wait=False)
-    if announcement_delivery_scheduler.running:
-        announcement_delivery_scheduler.shutdown(wait=False)
+    if unified_scheduler.running:
+        unified_scheduler.shutdown(wait=False)
 
     for session in _lock_sessions:
         session.close()

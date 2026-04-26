@@ -10,16 +10,15 @@ Created on Sat Jan 17 12:03:14 2026
 
 from datetime import datetime, timedelta, timezone
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import text
 from app.db.session import SessionLocal
-from app.db.models import Event, ReminderConfig, WorkflowState
+from app.db.models import Event, WorkflowState
 from app.modules.audit.retention_service import AuditRetentionService
 from app.modules.events.service import EventService
 from app.modules.reminders.reminder_service import ReminderService
 from app.utils.logger import logger
 
-scheduler = BackgroundScheduler()
+
 AUTO_CLOSE_SOURCE = "system:auto_close_job"
 AUTO_CLOSE_MIN_AGE_HOURS = 2
 AUDIT_PRUNE_JOB_ID = "audit_retention_prune"
@@ -108,71 +107,3 @@ def run_audit_retention_prune():
     finally:
         db.close()
 
-
-def start_scheduler():
-    db = SessionLocal()
-    try:
-        configs = (
-            db.query(ReminderConfig)
-            .filter(ReminderConfig.enabled.is_(True))
-            .all()
-        )
-
-        for config in configs:
-            scheduler.add_job(
-                run_payment_reminders,
-                trigger="cron",
-                hour=config.run_hour,
-                minute=config.run_minute,
-                args=[config.society_id],
-                id=f"reminder_{config.society_id}",
-                replace_existing=True
-            )
-
-            scheduler.add_job(
-                run_event_auto_close_job,
-                trigger="cron",
-                hour=config.run_hour,
-                minute=config.run_minute,
-                args=[config.society_id],
-                id=f"auto_close_{config.society_id}",
-                replace_existing=True
-            )
-
-            logger.info(
-                f"Scheduler loaded for society {config.society_id} "
-                f"at {config.run_hour:02d}:{config.run_minute:02d}"
-            )
-            logger.info(
-                f"Auto-close scheduler loaded for society {config.society_id} "
-                f"at {config.run_hour:02d}:{config.run_minute:02d}"
-            )
-
-        scheduler.add_job(
-            run_audit_retention_prune,
-            trigger="cron",
-            hour=3,
-            minute=15,
-            id=AUDIT_PRUNE_JOB_ID,
-            replace_existing=True,
-        )
-        logger.info("Audit retention prune scheduler loaded at 03:15")
-
-        scheduler.start()
-    finally:
-        db.close()
-
-
-def acquire_scheduler_leader_lock(lock_key: int = 937451):
-    """Acquire and hold a session-scoped PostgreSQL advisory lock."""
-    db = SessionLocal()
-    try:
-        result = db.execute(text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key})
-        if bool(result.scalar()):
-            return db
-        db.close()
-        return None
-    except Exception:
-        logger.exception("Failed to acquire reminder scheduler advisory lock")
-        db.close()
-        return None

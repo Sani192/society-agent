@@ -239,31 +239,3 @@ def test_guard_non_whatsapp_allows_non_template():
     )
 
 
-def test_acquire_announcement_scheduler_leader_lock_returns_session_when_lock_acquired(monkeypatch):
-    db = SimpleNamespace(execute=lambda *_args, **_kwargs: SimpleNamespace(scalar=lambda: True), close=lambda: None)
-
-    monkeypatch.setattr(delivery_worker, "SessionLocal", lambda: db)
-
-    lock_session = delivery_worker.acquire_announcement_scheduler_leader_lock()
-
-    assert lock_session is db
-
-
-def test_acquire_announcement_scheduler_leader_lock_returns_none_when_not_leader(monkeypatch):
-    class _DB:
-        def __init__(self):
-            self.closed = False
-
-        def execute(self, *_args, **_kwargs):
-            return SimpleNamespace(scalar=lambda: False)
-
-        def close(self):
-            self.closed = True
-
-    db = _DB()
-    monkeypatch.setattr(delivery_worker, "SessionLocal", lambda: db)
-
-    lock_session = delivery_worker.acquire_announcement_scheduler_leader_lock()
-
-    assert lock_session is None
-    assert db.closed is True

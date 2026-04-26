@@ -11,7 +11,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.db.base import Base  # noqa: E402
-from app.db.models import Flat, ReminderConfig, Society  # noqa: E402
+from app.db.models import Flat, PeriodicTask, Society  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 
 
@@ -50,12 +50,13 @@ def seed_baseline_data() -> None:
         )
 
         db.add(
-            ReminderConfig(
-                society_id=society.id,
-                enabled=True,
-                run_hour=10,
-                run_minute=0,
-                frequency="daily",
+            PeriodicTask(
+                name="payment_reminders",
+                task_function="app.modules.reminders.reminder_scheduler.run_payment_reminders",
+                kwargs_json={"society_id": str(society.id)},
+                schedule_type="cron",
+                cron_hour="10",
+                cron_minute="0",
             )
         )
         db.commit()

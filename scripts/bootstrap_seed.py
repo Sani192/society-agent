@@ -30,7 +30,7 @@ from app.db.models import (
 from app.db.session import SessionLocal
 from app.utils.identity import normalize_identifier
 from scripts.seed_flats import seed_flats_without_commit
-from scripts.seed_reminder_config import seed_reminder_config_without_commit_with_defaults
+from scripts.seed_periodic_tasks import seed_periodic_tasks_without_commit
 
 ADVISORY_LOCK_KEY = 82473011
 BOOTSTRAP_GUARD_KEY = "initial_bootstrap"
@@ -532,23 +532,22 @@ def _verify_seeded_data(
     if not scoped_flats_exist:
         raise ValueError(f"Verification failed: flats not found for society_id={society_id}")
 
-    scoped_reminder_config_exists = cast(
+    scoped_periodic_tasks_exist = cast(
         bool,
         db.execute(
             text(
                 """
                 SELECT EXISTS(
                     SELECT 1
-                    FROM reminder_configs
-                    WHERE society_id = :society_id
+                    FROM periodic_tasks
+                    WHERE name = 'payment_reminders'
                 )
                 """
             ),
-            {"society_id": society_id},
         ).scalar_one(),
     )
-    if not scoped_reminder_config_exists:
-        raise ValueError(f"Verification failed: reminder config not found for society_id={society_id}")
+    if not scoped_periodic_tasks_exist:
+        raise ValueError(f"Verification failed: periodic tasks not found")
 
     if include_global_diagnostics:
         society_count = cast(int, db.execute(text("SELECT COUNT(*) FROM societies")).scalar_one())
@@ -573,14 +572,14 @@ def _verify_seeded_data(
             ).scalar_one(),
         )
         flats_count = cast(int, db.execute(text("SELECT COUNT(*) FROM flats")).scalar_one())
-        reminder_config_count = cast(int, db.execute(text("SELECT COUNT(*) FROM reminder_configs")).scalar_one())
+        periodic_tasks_count = cast(int, db.execute(text("SELECT COUNT(*) FROM periodic_tasks")).scalar_one())
         print(
             "Diagnostic global counts: "
             f"societies={society_count}, "
             f"active_chairmen={active_chairman_count}, "
             f"chairman_identities={chairman_identity_count}, "
             f"flats={flats_count}, "
-            f"reminder_configs={reminder_config_count}"
+            f"periodic_tasks={periodic_tasks_count}"
         )
 
 
@@ -639,33 +638,8 @@ def main() -> int:
         else:
             _run_stage(stage, lambda: seed_flats_without_commit(db, flats=flats_to_seed))
 
-        stage = "seed reminder config"
-        def _seed_reminder_config() -> Any:
-            reminder_enabled = cast(bool | None, (bootstrap_overrides or {}).get("reminder_enabled"))
-            if reminder_enabled is None:
-                reminder_enabled = _env_bool("BOOTSTRAP_REMINDER_ENABLED", default=True)
-
-            run_hour = cast(int | None, (bootstrap_overrides or {}).get("reminder_run_hour"))
-            if run_hour is None:
-                run_hour = _env_int("BOOTSTRAP_REMINDER_RUN_HOUR", default=10)
-
-            run_minute = cast(int | None, (bootstrap_overrides or {}).get("reminder_run_minute"))
-            if run_minute is None:
-                run_minute = _env_int("BOOTSTRAP_REMINDER_RUN_MINUTE", default=0)
-
-            frequency = cast(str | None, (bootstrap_overrides or {}).get("reminder_frequency"))
-            if frequency is None:
-                frequency = os.getenv("BOOTSTRAP_REMINDER_FREQUENCY", "daily")
-
-            return seed_reminder_config_without_commit_with_defaults(
-                db,
-                enabled=reminder_enabled,
-                run_hour=run_hour,
-                run_minute=run_minute,
-                frequency=frequency,
-            )
-
-        _run_stage(stage, _seed_reminder_config)
+        stage = "seed periodic tasks"
+        _run_stage(stage, lambda: seed_periodic_tasks_without_commit(db))
 
         stage = "verify seeded data"
         def _flush_and_verify():

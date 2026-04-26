@@ -99,7 +99,7 @@ TELEGRAM_WEBHOOK_SECRET=
    ```
 
 ### Bootstrap Seeding
-Use bootstrap seeding to initialize baseline records (society, chairman, chairman channel identity, flats, reminder config) in a single guarded transaction.
+Use bootstrap seeding to initialize baseline records (society, chairman, chairman channel identity, flats, periodic tasks) in a single guarded transaction.
 
 1. Run command:
    ```bash
@@ -125,7 +125,7 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
      - `onboarding`: `join_code` (string), `approval_required` (optional boolean)
      - `chairman`: `name`, `phone`, `channel_identity.external_user_id` (strings), optional `channel_identity.channel_type` (default `whatsapp`), optional `channel_identity.username`
      - `flats`: non-empty array of `{flat_number, block, owner_name}` (strings)
-     - `reminder_defaults`: `enabled` (optional boolean), `frequency` (`daily|weekly`), `run_hour` (`0..23`), `run_minute` (`0..59`)
+     - `periodic_task_defaults`: `enabled` (optional boolean), `run_hour` (`0..23`), `run_minute` (`0..59`)
    - Example:
    ```json
    {
@@ -152,9 +152,8 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
        { "flat_number": "A-101", "block": "A", "owner_name": "Ramesh Patel" },
        { "flat_number": "A-102", "block": "A", "owner_name": "Mihir Patel" }
      ],
-     "reminder_defaults": {
+     "periodic_task_defaults": {
        "enabled": true,
-       "frequency": "daily",
        "run_hour": 10,
        "run_minute": 0
      }
@@ -177,7 +176,7 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
      - `START <stage>`
      - `SUCCESS <stage>`
      - `FAIL <stage>` (stderr)
-   - Typical stages: `initialization`, `check guard`, `seed society`, `seed first chairman`, `seed chairman channel identity`, `seed flats`, `seed reminder config`, `verify seeded data`, `mark bootstrap as completed`.
+   - Typical stages: `initialization`, `check guard`, `seed society`, `seed first chairman`, `seed chairman channel identity`, `seed flats`, `seed periodic tasks`, `verify seeded data`, `mark bootstrap as completed`.
    - On fatal error, script prints: `bootstrap failed at stage '<stage>': <error>`.
    - Troubleshooting:
      - Malformed config:
@@ -220,6 +219,7 @@ Use bootstrap seeding to initialize baseline records (society, chairman, chairma
    ```bash
    python scripts/run_scheduler.py
    ```
+   The scheduler is now database-driven. Task timings and status can be configured in the `periodic_tasks` table.
 5. Open:
    - API base: `http://localhost:8000`
    - Swagger UI: `http://localhost:8000/docs`

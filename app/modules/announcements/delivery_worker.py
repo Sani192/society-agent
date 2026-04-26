@@ -10,7 +10,6 @@ from typing import Any, cast
 
 import time
 import requests  # type: ignore[import-untyped]
-from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, text
 from sqlalchemy.orm import joinedload
 
@@ -30,7 +29,6 @@ BATCH_SIZE = int(getattr(settings, "ANNOUNCEMENT_BATCH_SIZE", 20))
 SCHEDULER_INTERVAL_SECONDS = int(getattr(settings, "ANNOUNCEMENT_SCHEDULER_INTERVAL_SECONDS", 30))
 DISPATCH_BACKEND = str(getattr(settings, "ANNOUNCEMENT_DISPATCH_BACKEND", "local")).strip().lower()
 
-announcement_delivery_scheduler = BackgroundScheduler()
 
 
 def _rq_enabled() -> bool:
@@ -418,26 +416,3 @@ def run_pending_announcement_deliveries(
         db.close()
 
 
-def start_announcement_delivery_scheduler() -> None:
-    announcement_delivery_scheduler.add_job(
-        run_pending_announcement_deliveries,
-        trigger="interval",
-        seconds=SCHEDULER_INTERVAL_SECONDS,
-        id="announcement_delivery_dispatch",
-        replace_existing=True,
-    )
-    announcement_delivery_scheduler.start()
-
-
-def acquire_announcement_scheduler_leader_lock(lock_key: int = 937452):
-    db = SessionLocal()
-    try:
-        result = db.execute(text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key})
-        if bool(result.scalar()):
-            return db
-        db.close()
-        return None
-    except Exception:
-        logger.exception("Failed to acquire announcement scheduler advisory lock")
-        db.close()
-        return None
