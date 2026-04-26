@@ -42,6 +42,7 @@ This separation keeps webhook logic isolated from the core domain and makes beha
 - `CURRENCY_SYMBOL` (default: `₹`)
 - `DEFAULT_SOCIETY_NAME`
 - `ADMIN_PHONE_WHITELIST` (comma-separated phone numbers)
+- `SCHEDULER_ENABLED` (default: `true`)
 
 ### AI (optional)
 - `AI_ENABLED` (`true`/`false`)

@@ -55,6 +55,12 @@ All tasks are configured in the `periodic_tasks` database table.
     ```
 3.  **Sync**: The `SchedulerManager` will automatically pick up the new task within 30 seconds.
 
+## Global Disable
+
+You can disable the entire scheduler functionality globally by setting the `SCHEDULER_ENABLED` environment variable:
+- `SCHEDULER_ENABLED=false`: The `SchedulerManager` will skip startup and no tasks will run.
+- `SCHEDULER_ENABLED=true` (default): Normal operation.
+
 ## Operations
 
 - **Start Scheduler**: `python scripts/run_scheduler.py`

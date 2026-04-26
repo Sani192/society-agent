@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.db.session import SessionLocal
 from app.db.models import PeriodicTask
 from app.utils.logger import logger
+from app.config import settings
 
 unified_scheduler = BackgroundScheduler()
 
@@ -131,6 +132,10 @@ def sync_periodic_tasks():
 
 
 def start_scheduler_manager():
+    if not settings.SCHEDULER_ENABLED:
+        logger.info("Scheduler is disabled via settings (SCHEDULER_ENABLED=false). Skipping startup.")
+        return
+
     # Sync periodically
     unified_scheduler.add_job(
         sync_periodic_tasks,
