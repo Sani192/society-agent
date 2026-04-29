@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from typing import TypedDict
+from typing import Any, TypedDict, cast
 
 from app.db.models import PeriodicTask, Society
 from app.db.session import SessionLocal
@@ -18,12 +18,14 @@ class SeedPeriodicTaskResult(TypedDict):
     skipped_count: int
 
 
+
+
 def seed_periodic_tasks_without_commit(db) -> SeedPeriodicTaskResult:
     society = db.query(Society).first()
     if society is None:
         raise ValueError("No society found")
 
-    tasks_to_create = [
+    tasks_to_create: list[dict[str, Any]] = [
         {
             "name": "payment_reminders",
             "task_function": "app.modules.reminders.reminder_scheduler.run_payment_reminders",
@@ -67,13 +69,13 @@ def seed_periodic_tasks_without_commit(db) -> SeedPeriodicTaskResult:
             continue
 
         task = PeriodicTask(
-            name=task_data["name"],
-            task_function=task_data["task_function"],
-            kwargs_json=task_data["kwargs_json"],
-            schedule_type=task_data["schedule_type"],
-            cron_hour=task_data.get("cron_hour"),
-            cron_minute=task_data.get("cron_minute"),
-            interval_seconds=task_data.get("interval_seconds"),
+            name=cast(str, task_data["name"]),
+            task_function=cast(str, task_data["task_function"]),
+            kwargs_json=cast(dict[str, str], task_data.get("kwargs_json", {})),
+            schedule_type=cast(str, task_data["schedule_type"]),
+            cron_hour=cast(str | None, task_data.get("cron_hour")),
+            cron_minute=cast(str | None, task_data.get("cron_minute")),
+            interval_seconds=cast(int | None, task_data.get("interval_seconds")),
             enabled=True
         )
         db.add(task)
