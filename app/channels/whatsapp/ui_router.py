@@ -7,7 +7,7 @@ from datetime import timedelta
 from app.db.session import SessionLocal
 from app.db.models import CommitteeMember, Event, EventFoodToken, Flat, MemberIdentity, UserFlatMapping
 from app.modules.users.member_identity_service import MemberIdentityService
-from app.modules.users.language_service import normalize_language_code, resolve_sender_language, set_preferred_language
+from app.modules.users.language_service import resolve_sender_language, set_preferred_language
 from app.channels.whatsapp.intents import WHATSAPP_INTENTS
 from app.modules.users.user_query_service import UserQueryService
 from app.handlers.shared.common import (
@@ -63,7 +63,12 @@ from app.channels.whatsapp.committee_management_session import (
     save_committee_management_session,
 )
 from app.channels.whatsapp.approval_flow import _send_approval_selection_list
+from app.channels.whatsapp.i18n_catalog import UI_TEXT as _UI_TEXT, ui_text
+from app.channels.whatsapp.ui_handlers import HANDLERS
 
+
+
+UI_TEXT = _UI_TEXT
 
 def get_latest_event(_db):
     """Deprecated compatibility shim; global latest-event fallback is removed."""
@@ -97,8 +102,6 @@ FINANCE_EVENT_ACTIONS = {"VIEW_BALANCE", "MAKE_PAYMENT"}
 REPORT_INTENTS_REQUIRING_EVENT = {"SUMMARY", "BLOCK_REPORT", "PARTICIPATION_REPORT"}
 REPORT_AUTO_EVENT_STATES = {"ACTIVE", "LOCKED", "EVENT_DAY"}
 
-
-from app.channels.whatsapp.i18n_catalog import UI_TEXT, ui_text
 
 
 def _ui_text(lang: str | None, key: str, **params) -> str:
@@ -692,8 +695,6 @@ def _send_committee_confirmation(*, client, sender_id: str, action: str, member_
     )
 
 
-
-from app.channels.whatsapp.ui_handlers import HANDLERS
 
 
 def _try_handle_ui_message(*, client, message) -> bool:

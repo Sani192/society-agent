@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from app.channels.whatsapp.ui_handlers import dashboard, participation, payments, committee, food_ops, reports, language
 
 
