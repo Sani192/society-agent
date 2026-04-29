@@ -1,5 +1,3 @@
-import pytest
-import alembic.command
 from unittest.mock import MagicMock
 
 import app.main as main

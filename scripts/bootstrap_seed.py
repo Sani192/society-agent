@@ -547,7 +547,7 @@ def _verify_seeded_data(
         ).scalar_one(),
     )
     if not scoped_periodic_tasks_exist:
-        raise ValueError(f"Verification failed: periodic tasks not found")
+        raise ValueError("Verification failed: periodic tasks not found")
 
     if include_global_diagnostics:
         society_count = cast(int, db.execute(text("SELECT COUNT(*) FROM societies")).scalar_one())

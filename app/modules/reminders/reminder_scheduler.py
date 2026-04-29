@@ -10,7 +10,6 @@ Created on Sat Jan 17 12:03:14 2026
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import text
 from app.db.session import SessionLocal
 from app.db.models import Event, WorkflowState
 from app.modules.audit.retention_service import AuditRetentionService

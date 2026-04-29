@@ -13,7 +13,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from sqlalchemy import inspect
-from sqlalchemy import text
 import alembic.config
 import alembic.command
 
@@ -22,7 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import Message
 
-from app.db.base import Base
 from app.db.models import Society
 from app.db.session import SessionLocal
 from app.db.session import engine

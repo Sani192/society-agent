@@ -11,7 +11,7 @@ from app.config import settings
 unified_scheduler = BackgroundScheduler()
 
 # In-memory dictionary to track task hashes and avoid recreating unchanged jobs
-_task_hashes = {}
+_task_hashes: dict[str, int] = {}
 
 def acquire_scheduler_leader_lock(lock_key: int = 937450):
     """Acquire and hold a session-scoped PostgreSQL advisory lock."""
@@ -45,8 +45,9 @@ def task_wrapper(task_id: str, task_function_path: str, kwargs_json: dict):
         try:
             task = db.query(PeriodicTask).filter(PeriodicTask.id == task_id).first()
             if task:
-                task.last_run_at = datetime.now(timezone.utc)
-                task.total_runs += 1
+                setattr(task, "last_run_at", datetime.now(timezone.utc))
+                current_runs = int(getattr(task, "total_runs", 0) or 0)
+                setattr(task, "total_runs", current_runs + 1)
                 db.commit()
         except Exception:
             logger.exception("Error updating periodic task stats")
