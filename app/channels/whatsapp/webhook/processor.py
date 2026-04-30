@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import uuid4
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from app.channels.core.audit_events import persist_audit_events
 from app.channels.core.handler import handle_inbound_message
