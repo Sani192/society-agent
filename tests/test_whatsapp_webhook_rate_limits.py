@@ -10,9 +10,9 @@ pytestmark = [pytest.mark.integration]
 
 
 class StubRequest:
-    def __init__(self, ip: str = "203.0.113.10"):
+    def __init__(self, ip: str = "203.0.113.10", *, source_ip: str | None = None):
         self.headers = {"x-forwarded-for": ip}
-        self.client = SimpleNamespace(host=ip)
+        self.client = SimpleNamespace(host=source_ip or ip)
 
 
 def test_enforce_webhook_rate_limit_blocks_and_audits(monkeypatch):
@@ -61,3 +61,9 @@ def test_enforce_webhook_rate_limit_fails_open_when_redis_unavailable(monkeypatc
     monkeypatch.setattr(webhook_api, "_increment_sliding_window", _raise_backend_error)
 
     webhook_api._enforce_webhook_rate_limit(StubRequest())
+
+
+def test_client_key_ignores_forwarded_header_when_source_not_trusted(monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_CIDRS", ("10.0.0.0/8",))
+    request = StubRequest(ip="1.1.1.1", source_ip="198.51.100.5")
+    assert webhook_api._client_key(request) == "198.51.100.5"

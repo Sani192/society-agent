@@ -25,3 +25,9 @@ The API deployment manifest also sets baseline limits:
 - `TELEGRAM_WEBHOOK_MAX_BODY_BYTES=65536`
 
 Webhook limits are intentionally stricter than the global public-endpoint limit.
+
+## Security / trust configuration
+
+- Configure `TRUSTED_PROXY_CIDRS` in your Deployment env to your ingress/load-balancer proxy ranges.
+- Do not include untrusted public ranges; forwarded headers are ignored unless source IP is trusted.
+- Ensure `WHATSAPP_WEBHOOK_MAX_BODY_BYTES <= PUBLIC_ENDPOINT_MAX_BODY_BYTES` and all WhatsApp rate-limit windows/max values are positive; app startup now fails fast on invalid combinations.
