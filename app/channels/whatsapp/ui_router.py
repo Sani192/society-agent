@@ -65,6 +65,11 @@ from app.channels.whatsapp.committee_management_session import (
 from app.channels.whatsapp.approval_flow import _send_approval_selection_list
 from app.channels.whatsapp.i18n_catalog import UI_TEXT as _UI_TEXT, ui_text
 from app.channels.whatsapp.ui_handlers import HANDLERS
+from app.channels.whatsapp.errors import (
+    WhatsAppFlowStateError,
+    WhatsAppPersistenceError,
+    WhatsAppValidationError,
+)
 
 
 
@@ -114,7 +119,7 @@ def _ui_text(lang: str | None, key: str, **params) -> str:
 def _resolve_sender_language(*, db, sender_id: str) -> str:
     try:
         return resolve_sender_language(db, sender_id=sender_id, channel="whatsapp")
-    except Exception:
+    except (LookupError, ValueError, TypeError):
         return "en"
 
 
@@ -400,7 +405,7 @@ def _with_navigation(
 def _get_current_event_state(db, society_id) -> str | None:
     try:
         return get_event_state(_get_latest_event_in_context(db=db, society_id=society_id))
-    except Exception:
+    except (LookupError, ValueError, TypeError):
         return None
 
 
@@ -752,7 +757,7 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
                             db=db,
                             sender_id=canonical_sender,
                         )
-                    except Exception:
+                    except (WhatsAppPersistenceError, ValueError, TypeError):
                         is_society_member = None
                 if latest_event and not is_committee and is_society_member is not True:
                     try:
@@ -762,11 +767,11 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
                             society_id=latest_event.society_id,
                         )
                         is_society_member = True
-                    except Exception:
+                    except (LookupError, ValueError, TypeError):
                         try:
                             ensure_member_of_society(canonical_sender, db, latest_event.society_id)
                             is_society_member = True
-                        except Exception:
+                        except (PermissionError, LookupError, ValueError):
                             is_society_member = False
 
                 if not is_committee and is_society_member is False:
@@ -778,8 +783,10 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
                         buttons=[_button_row("ui::join-society", _ui_text(lang, "registration.join"))],
                     )
                     return True
-            except Exception:
-                logger.exception("Failed pre-check for WhatsApp UI registration gate")
+            except (WhatsAppValidationError, WhatsAppFlowStateError, WhatsAppPersistenceError, ValueError, TypeError) as exc:
+                logger.exception("Failed pre-check for WhatsApp UI registration gate", extra={"event": "whatsapp_ui_registration_gate_error", "error_type": type(exc).__name__})
+            except Exception as exc:
+                logger.exception("Failed pre-check for WhatsApp UI registration gate", extra={"event": "whatsapp_ui_registration_gate_fatal", "error_type": type(exc).__name__})
         finally:
             db.close()
 
@@ -952,7 +959,7 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
             if finance_session and finance_session.pending_action == "VIEW_BALANCE":
                 clear_finance_action_session(finance_session_key)
             return True
-        except Exception:
+        except (WhatsAppValidationError, WhatsAppFlowStateError, WhatsAppPersistenceError, LookupError, ValueError, TypeError):
             logger.exception("Failed to build financial overview")
             return False
         finally:
@@ -1001,7 +1008,7 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
             if finance_session and finance_session.pending_action == "MAKE_PAYMENT":
                 clear_finance_action_session(finance_session_key)
             return True
-        except Exception:
+        except (WhatsAppValidationError, WhatsAppFlowStateError, WhatsAppPersistenceError, LookupError, ValueError, TypeError):
             logger.exception("Failed to build make payment menu")
             return False
         finally:
@@ -1362,7 +1369,7 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
                     ),
                 )
                 return True
-        except Exception:
+        except (WhatsAppValidationError, WhatsAppFlowStateError, WhatsAppPersistenceError, LookupError, ValueError, TypeError):
             logger.exception(
                 "Food collection UI flow failed",
                 extra={
@@ -1592,7 +1599,7 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
                     return True
 
             return False
-        except Exception:
+        except (WhatsAppValidationError, WhatsAppFlowStateError, WhatsAppPersistenceError, LookupError, ValueError, TypeError):
             logger.exception("Failed committee management flow")
             client.send_text_message(message.sender_id, _ui_text(lang, "committee.unable_process_action"))
             return True
