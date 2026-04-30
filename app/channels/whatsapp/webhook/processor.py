@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import requests
 
-from app.channels.core.audit_events import NormalizedAuditEvent, persist_audit_events
+from app.channels.core.audit_events import persist_audit_events
 from app.channels.core.handler import handle_inbound_message
 from app.channels.core.types import InboundMessage
 from app.channels.core.webhook_runtime import WebhookRuntimeStrategy, build_exception_event, build_processing_completed_event, claim_idempotency_key, mark_envelope_status
@@ -23,13 +23,23 @@ from .retry import MAX_RETRY_ATTEMPTS, InMemoryRetryQueue, schedule_retry
 
 
 @dataclass
-class Processed: status: str = "processed"
+class Processed:
+    status: str = "processed"
+
+
 @dataclass
-class Queued: status: str = "queued"
+class Queued:
+    status: str = "queued"
+
+
 @dataclass
-class Ignored: status: str = "ignored"
+class Ignored:
+    status: str = "ignored"
+
+
 @dataclass
-class Failed: status: str = "failed"
+class Failed:
+    status: str = "failed"
 
 
 class _WhatsAppRuntimeStrategy(WebhookRuntimeStrategy):
