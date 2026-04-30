@@ -58,6 +58,12 @@ from app.utils.logger import logger
 from app.utils.operational_metrics import increment_counter
 from app.utils.security_logging import log_security_event
 from app.channels.whatsapp.response_templates import INVALID_INPUT_METADATA_KEY
+from app.channels.whatsapp.errors import (
+    WhatsAppFlowStateError,
+    WhatsAppPersistenceError,
+    WhatsAppProviderError,
+    WhatsAppValidationError,
+)
 
 from app.db.session import SessionLocal
 
@@ -562,7 +568,79 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
                 correlation_id=correlation_id_str,
                 message=message,
             )
+        except (ValueError, TypeError) as exc:
+            categorized_exc: Exception = WhatsAppValidationError(str(exc))
+            recoverable = False
+            had_nonrecoverable_failure = True
+            increment_counter("whatsapp.webhook.failed_processing")
+            log_security_event(
+                logger,
+                event="whatsapp_validation_failure",
+                actor_id=str(message.sender_id),
+                action="process_whatsapp_envelope",
+                resource_id=envelope_id,
+                method="webhook",
+                result="failed",
+                reason_code="WHATSAPP_VALIDATION_ERROR",
+                trace_id=trace_id,
+                retry_attempt=retry_attempt,
+                max_retry_attempts=MAX_RETRY_ATTEMPTS,
+            )
+            _push_dead_letter(trace_id=trace_id, correlation_id=correlation_id_str, message=message, payload_dict=payload_dict, exc=categorized_exc)
+            terminal_event = _build_exception_event(trace_id=trace_id, correlation_id=correlation_id_str, message=message, exc=categorized_exc)
+        except (requests.RequestException, TimeoutError, ConnectionError, WhatsAppRetryableError) as exc:
+            categorized_exc = WhatsAppProviderError(str(exc))
+            recoverable = True
+            if retry_attempt < MAX_RETRY_ATTEMPTS:
+                had_recoverable_failure = True
+                _schedule_retry(
+                    envelope_id=envelope_id,
+                    payload_dict=payload_dict,
+                    attempt=retry_attempt + 1,
+                )
+            else:
+                had_nonrecoverable_failure = True
+                increment_counter("whatsapp.webhook.failed_processing")
+                log_security_event(
+                    logger,
+                    event="repeated_webhook_failures",
+                    actor_id=str(message.sender_id),
+                    action="process_whatsapp_envelope",
+                    resource_id=envelope_id,
+                    method="webhook",
+                    result="failed",
+                    reason_code="WHATSAPP_PROVIDER_ERROR",
+                    trace_id=trace_id,
+                    retry_attempt=retry_attempt,
+                    max_retry_attempts=MAX_RETRY_ATTEMPTS,
+                )
+                _push_dead_letter(trace_id=trace_id, correlation_id=correlation_id_str, message=message, payload_dict=payload_dict, exc=categorized_exc)
+            terminal_event = _build_exception_event(trace_id=trace_id, correlation_id=correlation_id_str, message=message, exc=categorized_exc)
+        except (redis.RedisError, RuntimeError) as exc:
+            categorized_exc = WhatsAppPersistenceError(str(exc))
+            had_nonrecoverable_failure = True
+            increment_counter("whatsapp.webhook.failed_processing")
+            log_security_event(
+                logger,
+                event="whatsapp_persistence_failure",
+                actor_id=str(message.sender_id),
+                action="process_whatsapp_envelope",
+                resource_id=envelope_id,
+                method="webhook",
+                result="failed",
+                reason_code="WHATSAPP_PERSISTENCE_ERROR",
+                trace_id=trace_id,
+                retry_attempt=retry_attempt,
+                max_retry_attempts=MAX_RETRY_ATTEMPTS,
+            )
+            _push_dead_letter(trace_id=trace_id, correlation_id=correlation_id_str, message=message, payload_dict=payload_dict, exc=categorized_exc)
+            terminal_event = _build_exception_event(trace_id=trace_id, correlation_id=correlation_id_str, message=message, exc=categorized_exc)
         except Exception as exc:
+            categorized_exc = WhatsAppFlowStateError(str(exc))
+            logger.exception(
+                "Unexpected WhatsApp webhook processing exception",
+                extra={"event": "whatsapp_webhook_fatal_exception", "trace_id": trace_id, "correlation_id": correlation_id_str, "envelope_id": envelope_id},
+            )
             recoverable = _is_recoverable_exception(exc)
             if recoverable and retry_attempt < MAX_RETRY_ATTEMPTS:
                 had_recoverable_failure = True
@@ -583,7 +661,7 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
                         resource_id=envelope_id,
                         method="webhook",
                         result="failed",
-                        reason_code=type(exc).__name__,
+                        reason_code="WHATSAPP_FATAL_EXCEPTION",
                         trace_id=trace_id,
                         retry_attempt=retry_attempt,
                         max_retry_attempts=MAX_RETRY_ATTEMPTS,
@@ -593,13 +671,13 @@ def process_whatsapp_envelope(*, envelope_id: str, payload_dict: dict, enforce_i
                     correlation_id=correlation_id_str,
                     message=message,
                     payload_dict=payload_dict,
-                    exc=exc,
+                    exc=categorized_exc,
                 )
             terminal_event = _build_exception_event(
                 trace_id=trace_id,
                 correlation_id=correlation_id_str,
                 message=message,
-                exc=exc,
+                exc=categorized_exc,
             )
         finally:
             if terminal_event is None:

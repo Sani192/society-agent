@@ -337,3 +337,74 @@ def test_whatsapp_recoverable_failure_schedules_retry_and_sets_queued(monkeypatc
     assert statuses == ["processing", "queued"]
     assert len(whatsapp_webhook_api._RETRY_QUEUE) == 1
     assert get_counter("whatsapp.webhook.retries_scheduled") == 1
+
+
+def test_whatsapp_validation_failure_maps_security_reason_code(monkeypatch):
+    security_calls = []
+    class StubClient:
+        def send_text_message(self, *_args, **_kwargs):
+            return {"messages": [{"id": "wamid.1"}]}
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="9191",
+        display_name="A",
+        text="hello",
+        metadata={"message_id": "wamid.a"},
+    )
+
+    monkeypatch.setattr(whatsapp_webhook_api, "parse_webhook_payload", lambda _payload: [inbound])
+    monkeypatch.setattr(whatsapp_webhook_api, "_claim_idempotency_key", lambda **_kwargs: True)
+    monkeypatch.setattr(whatsapp_webhook_api, "persist_audit_events", lambda _batch: 1)
+    monkeypatch.setattr(whatsapp_webhook_api, "_try_handle_ui_message", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_session_flow", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_report_flow", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_inbound_message", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("invalid")))
+    monkeypatch.setattr(whatsapp_webhook_api, "get_whatsapp_client", lambda: StubClient())
+    monkeypatch.setattr(whatsapp_webhook_api, "log_security_event", lambda *_args, **kwargs: security_calls.append(kwargs))
+
+    whatsapp_webhook_api.process_whatsapp_envelope(envelope_id="env-1", payload_dict={"entry": [{}]}, enforce_idempotency=False)
+    assert any(call.get("reason_code") == "WHATSAPP_VALIDATION_ERROR" for call in security_calls)
+
+
+def test_whatsapp_provider_failure_maps_security_reason_code_after_retries(monkeypatch):
+    security_calls = []
+    dead_letters = []
+
+    class StubClient:
+        def send_text_message(self, *_args, **_kwargs):
+            raise ConnectionError("temporary down")
+
+    class _AuditStub:
+        def __init__(self, **_kwargs):
+            pass
+
+        def persist_dead_letter(self, **kwargs):
+            dead_letters.append(kwargs)
+
+    inbound = InboundMessage(
+        channel="whatsapp",
+        sender_id="9191",
+        display_name="A",
+        text="hello",
+        metadata={"message_id": "wamid.a"},
+    )
+    monkeypatch.setattr(whatsapp_webhook_api, "AuditTransport", _AuditStub)
+    monkeypatch.setattr(whatsapp_webhook_api, "parse_webhook_payload", lambda _payload: [inbound])
+    monkeypatch.setattr(whatsapp_webhook_api, "_claim_idempotency_key", lambda **_kwargs: True)
+    monkeypatch.setattr(whatsapp_webhook_api, "persist_audit_events", lambda _batch: 1)
+    monkeypatch.setattr(whatsapp_webhook_api, "_try_handle_ui_message", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_session_flow", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_report_flow", lambda **_kwargs: False)
+    monkeypatch.setattr(whatsapp_webhook_api, "handle_inbound_message", lambda *_args, **_kwargs: "ok")
+    monkeypatch.setattr(whatsapp_webhook_api, "get_whatsapp_client", lambda: StubClient())
+    monkeypatch.setattr(whatsapp_webhook_api, "log_security_event", lambda *_args, **kwargs: security_calls.append(kwargs))
+
+    whatsapp_webhook_api.process_whatsapp_envelope(
+        envelope_id="env-1",
+        payload_dict={"entry": [{}]},
+        enforce_idempotency=False,
+        retry_attempt=whatsapp_webhook_api.MAX_RETRY_ATTEMPTS,
+    )
+    assert any(call.get("reason_code") == "WHATSAPP_PROVIDER_ERROR" for call in security_calls)
+    assert len(dead_letters) == 1
