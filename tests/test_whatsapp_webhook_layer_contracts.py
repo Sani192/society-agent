@@ -4,6 +4,8 @@ from fastapi import HTTPException
 from app.channels.whatsapp.webhook import auth, limits, processor
 from app.channels.core.types import InboundMessage
 
+pytestmark = [pytest.mark.integration]
+
 
 def test_auth_signature_fail(monkeypatch):
     monkeypatch.setattr(auth.settings, "WHATSAPP_APP_SECRET", "secret")
