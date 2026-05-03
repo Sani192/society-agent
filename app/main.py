@@ -123,6 +123,7 @@ def _request_is_https(request: Request) -> bool:
 def _enforce_schema_readiness() -> None:
     alembic_ini_path = Path(__file__).resolve().parents[1] / "alembic.ini"
     alembic_cfg = alembic.config.Config(str(alembic_ini_path))
+    alembic_cfg.attributes["disable_logging"] = True
 
     inspector = inspect(engine)
     tables = inspector.get_table_names()
@@ -135,6 +136,8 @@ def _enforce_schema_readiness() -> None:
 
     logger.info("Running schema migrations via Alembic.")
     alembic.command.upgrade(alembic_cfg, "head")
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
