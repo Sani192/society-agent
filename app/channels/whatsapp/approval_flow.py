@@ -63,14 +63,14 @@ def _send_approval_selection_list(
         client.send_text_message(sender_id, "No society context found.")
         return True
     latest_event = _get_latest_event_in_context(db=db, society_id=society_id)
-    if not latest_event:
+    if not latest_event and approval_type != "user":
         client.send_text_message(sender_id, "No active event found.")
         return True
 
     if approval_type == "user":
         pending_users = AdminOnboardingQueryService.list_pending_users(
             db=db,
-            society_id=latest_event.society_id,
+            society_id=society_id,
         )
         rows = [
             {

@@ -2114,6 +2114,7 @@ def handle_committee_intent(
 
         AdminApprovalService.approve_user(
             db=db,
+            society_id=member.society_id,
             request_code=request_code,
             performed_by=member.id,
         )
@@ -2168,11 +2169,7 @@ def handle_committee_intent(
         if not is_action_allowed(member.role, "ALL"):
             return warning_response("Only Chairman can view pending users.")
 
-        latest_event = event
-        if not latest_event:
-            return error_response("No society context found.")
-
-        society_id = latest_event.society_id
+        society_id = member.society_id
 
         pending = AdminOnboardingQueryService.list_pending_users(
             db=db, society_id=society_id

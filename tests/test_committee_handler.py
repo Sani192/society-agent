@@ -213,7 +213,7 @@ def test_committee_remind_flat_requires_number():
 
 def test_committee_add_expense_guided_flow(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-g1", role="secretary")
+    member = SimpleNamespace(id="member-g1", role="secretary", society_id="soc-1")
     inbound = SimpleNamespace(sender_id="sender-g1", metadata={})
 
     called = {}
@@ -265,7 +265,7 @@ def test_committee_add_expense_guided_flow(monkeypatch):
 
 def test_committee_add_sponsor_guided_flow(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-g2", role="chairman")
+    member = SimpleNamespace(id="member-g2", role="chairman", society_id="soc-1")
     inbound = SimpleNamespace(sender_id="sender-g2", metadata={})
 
     db = MagicMock()
@@ -323,7 +323,7 @@ def test_committee_add_sponsor_guided_flow(monkeypatch):
 
 def test_committee_refund_sponsor_guided_flow(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-g3", role="chairman")
+    member = SimpleNamespace(id="member-g3", role="chairman", society_id="soc-1")
     inbound = SimpleNamespace(sender_id="sender-g3", metadata={})
 
     called = {}
@@ -431,7 +431,7 @@ def test_committee_remind_flat_not_joined():
 
 def test_committee_approve_user(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-1", role="chairman")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
 
     called = {}
 
@@ -472,7 +472,7 @@ def test_committee_approve_user_forbidden():
 
 def test_committee_pending_users(monkeypatch):
     event = SimpleNamespace(id="event-1", society_id="soc-1")
-    member = SimpleNamespace(id="member-1", role="chairman")
+    member = SimpleNamespace(id="member-1", role="chairman", society_id="soc-1")
     pending = [
         (
             SimpleNamespace(
