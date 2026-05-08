@@ -10,6 +10,7 @@ Created on Sun Jan 11 07:26:10 2026
 
 import json
 import os
+from ipaddress import ip_network
 from typing import Final
 from dotenv import load_dotenv
 
@@ -62,6 +63,18 @@ def _env_int(name: str, default: int) -> int:
 def _env_csv(name: str, default: str = "") -> list[str]:
     raw = os.getenv(name, default)
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _env_cidr_list(name: str, default: str = "") -> tuple[str, ...]:
+    values = _env_csv(name, default)
+    valid: list[str] = []
+    for value in values:
+        try:
+            ip_network(value, strict=False)
+        except ValueError:
+            continue
+        valid.append(value)
+    return tuple(valid)
 
 
 def _db_defaults_for_env(app_env: str) -> dict[str, int]:
@@ -174,6 +187,7 @@ class Settings:
     TELEGRAM_WEBHOOK_MAX_BODY_BYTES = _env_int("TELEGRAM_WEBHOOK_MAX_BODY_BYTES", 65536)
     WHATSAPP_SENDER_SPAM_WINDOW_SECONDS = _env_int("WHATSAPP_SENDER_SPAM_WINDOW_SECONDS", 60)
     WHATSAPP_SENDER_SPAM_MAX_MESSAGES = _env_int("WHATSAPP_SENDER_SPAM_MAX_MESSAGES", 30)
+    TRUSTED_PROXY_CIDRS = _env_cidr_list("TRUSTED_PROXY_CIDRS", "127.0.0.1/32,::1/128")
 
     _DB_DEFAULTS = _db_defaults_for_env(APP_ENV)
     DATABASE_URL = os.getenv("DATABASE_URL")

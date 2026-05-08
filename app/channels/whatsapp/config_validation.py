@@ -42,3 +42,20 @@ def validate_whatsapp_verification_config() -> WhatsAppConfigValidationResult:
         complete=not missing_fields,
         missing_fields=tuple(missing_fields),
     )
+
+
+def validate_whatsapp_startup_config() -> WhatsAppConfigValidationResult:
+    missing_fields = list(validate_whatsapp_config(require_verify_token=True).missing_fields)
+    if settings.WHATSAPP_WEBHOOK_MAX_BODY_BYTES <= 0:
+        missing_fields.append("WHATSAPP_WEBHOOK_MAX_BODY_BYTES")
+    if settings.WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS <= 0:
+        missing_fields.append("WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS")
+    if settings.WHATSAPP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS <= 0:
+        missing_fields.append("WHATSAPP_WEBHOOK_RATE_LIMIT_MAX_REQUESTS")
+    if settings.WHATSAPP_SENDER_SPAM_WINDOW_SECONDS <= 0:
+        missing_fields.append("WHATSAPP_SENDER_SPAM_WINDOW_SECONDS")
+    if settings.WHATSAPP_SENDER_SPAM_MAX_MESSAGES <= 0:
+        missing_fields.append("WHATSAPP_SENDER_SPAM_MAX_MESSAGES")
+    if settings.WHATSAPP_WEBHOOK_MAX_BODY_BYTES > settings.PUBLIC_ENDPOINT_MAX_BODY_BYTES:
+        missing_fields.append("WHATSAPP_WEBHOOK_MAX_BODY_BYTES<=PUBLIC_ENDPOINT_MAX_BODY_BYTES")
+    return WhatsAppConfigValidationResult(complete=not missing_fields, missing_fields=tuple(missing_fields))

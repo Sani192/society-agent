@@ -302,3 +302,8 @@ The system is designed with **full transparency** and **audit safety**.
 
 ```bash
 source venv/bin/activate
+## WhatsApp ingress/proxy trust settings
+
+- Set `TRUSTED_PROXY_CIDRS` to the CIDR ranges used by your ingress/controller proxies.
+- The app only honors `x-forwarded-for` for WhatsApp webhook client IP attribution when the socket source IP is in `TRUSTED_PROXY_CIDRS`.
+- Keep `WHATSAPP_WEBHOOK_MAX_BODY_BYTES` less than or equal to `PUBLIC_ENDPOINT_MAX_BODY_BYTES`; startup validation fails fast on invalid bounds.

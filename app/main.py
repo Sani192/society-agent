@@ -26,7 +26,7 @@ from app.db.session import SessionLocal
 from app.db.session import engine
 from app.utils.logger import logger
 from app.config import settings
-from app.channels.whatsapp.config_validation import validate_whatsapp_runtime_config
+from app.channels.whatsapp.config_validation import validate_whatsapp_startup_config
 from app.utils.operational_metrics import increment_counter
 
 from app.api.contracts import API_SCHEMA_VERSION
@@ -146,7 +146,7 @@ async def lifespan(app: FastAPI):
 
     # Startup sanity checks
     if settings.WHATSAPP_ENABLED:
-        validation = validate_whatsapp_runtime_config()
+        validation = validate_whatsapp_startup_config()
         if validation.complete:
             logger.info("WhatsApp startup config validation passed")
         else:
@@ -159,6 +159,7 @@ async def lifespan(app: FastAPI):
                     "missing_fields": list(validation.missing_fields),
                 },
             )
+            raise RuntimeError(f"WhatsApp startup config invalid: {', '.join(validation.missing_fields)}")
 
     db = SessionLocal()
     try:

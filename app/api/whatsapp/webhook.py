@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import heapq
+from ipaddress import ip_address, ip_network
 from typing import NoReturn, cast
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -44,8 +45,10 @@ from app.channels.whatsapp.constants import (
 from app.channels.whatsapp.report_flow import handle_report_flow
 from app.channels.whatsapp.config_validation import (
     validate_whatsapp_runtime_config,
+    validate_whatsapp_startup_config,
     validate_whatsapp_verification_config,
 )
+from app.channels.whatsapp.redaction import redact_whatsapp_payload
 from app.channels.whatsapp.session_flows import handle_session_flow
 from app.channels.whatsapp.ui_router import (
     WHATSAPP_LIST_MAX_ROWS,
@@ -133,14 +136,29 @@ def _persist_rate_limit_audit_event(
 
 
 def _client_key(request: Request) -> str:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip() or "unknown"
     client = getattr(request, "client", None)
-    host = getattr(client, "host", None)
-    if host:
-        return str(host)
+    client_host = getattr(client, "host", None)
+    client_ip = str(client_host) if client_host else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for and client_ip and _is_trusted_proxy(client_ip):
+        return forwarded_for.split(",")[0].strip() or "unknown"
+    if client_ip:
+        return client_ip
     return f"object:{id(request)}"
+
+
+def _is_trusted_proxy(client_ip: str) -> bool:
+    try:
+        parsed = ip_address(client_ip)
+    except ValueError:
+        return False
+    for cidr in settings.TRUSTED_PROXY_CIDRS:
+        try:
+            if parsed in ip_network(cidr, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _enforce_webhook_rate_limit(request: Request) -> None:
@@ -418,7 +436,7 @@ def _push_dead_letter(*, trace_id: str, correlation_id: str | None, message, pay
         correlation_id=correlation_id,
         recipient=str(message.sender_id),
         outbound_payload_metadata={
-            "envelope_payload": payload_dict,
+            "envelope_payload": redact_whatsapp_payload(payload_dict),
             "message_metadata": dict(message.metadata),
             "sender_id": message.sender_id,
         },
@@ -742,6 +760,7 @@ async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundT
     payload_data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
     payload = WhatsAppWebhookPayload.model_validate(payload_data)
     payload_dict = payload.model_dump(exclude_none=True)
+    redacted_payload = redact_whatsapp_payload(payload_dict)
 
     payload_hash = _hash_payload(raw_body)
     parsed_events = parse_webhook_events(payload_dict)
@@ -756,10 +775,10 @@ async def whatsapp_webhook_event(request: Request, background_tasks: BackgroundT
     for inbound in inbound_messages:
         _enforce_sender_spam_limit(getattr(inbound, "sender_id", None))
 
-    envelope_id = _persist_inbound_envelope(payload_hash=payload_hash, payload=payload_dict)
+    envelope_id = _persist_inbound_envelope(payload_hash=payload_hash, payload=redacted_payload)
     if background_tasks is not None:
-        background_tasks.add_task(process_whatsapp_envelope, envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=True)
+        background_tasks.add_task(process_whatsapp_envelope, envelope_id=envelope_id, payload_dict=redacted_payload, enforce_idempotency=True)
     else:
-        process_whatsapp_envelope(envelope_id=envelope_id, payload_dict=payload_dict, enforce_idempotency=False)
+        process_whatsapp_envelope(envelope_id=envelope_id, payload_dict=redacted_payload, enforce_idempotency=False)
 
     return {"status": "ok"}
