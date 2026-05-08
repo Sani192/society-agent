@@ -2,11 +2,9 @@ ROLES = [
     "chairman",
     "secretary",
     "treasurer",
-    "committee_member",
-    "non_committee_member",
-    "outsider"
+    "committee_member"
 ]
 
-EVENT_STATES = ["active", "expired", "none"]
+EVENT_STATES = ["DRAFT", "ACTIVE", "LOCKED", "EVENT_DAY", "CLOSED"]
 
 LANGUAGES = ["en", "hi", "gu"]

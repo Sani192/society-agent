@@ -2104,7 +2104,7 @@ def handle_committee_intent(
 
     if intent == "APPROVE":
         if not is_action_allowed(member.role, "ALL"):
-            return warning_response("Only Chairman can approve users.")
+            return warning_response(translate("committee.approvals.only_chairman_approve_users", lang))
 
         parts = message.split()
         if len(parts) < 3:
@@ -2119,11 +2119,11 @@ def handle_committee_intent(
             performed_by=member.id,
         )
 
-        return success_response(f"User approved ({request_code})")
+        return success_response(translate("committee.approvals.user_approved", lang, request_code=request_code))
 
     if intent == "APPROVE_PAYMENT":
         if not is_action_allowed(member.role, "PAY"):
-            return warning_response("Only Treasurer can approve payments.")
+            return warning_response(translate("committee.approvals.only_treasurer_approve_payments", lang))
 
         parts = message.split()
         if len(parts) < 3:
@@ -2134,18 +2134,18 @@ def handle_committee_intent(
             db=db, request_code=request_code
         )
         if not request:
-            return error_response("Payment request not found.")
+            return error_response(translate("committee.approvals.payment_request_not_found", lang))
         if request.status != "requested":
-            return warning_response("Payment request already processed.")
+            return warning_response(translate("committee.approvals.payment_request_already_processed", lang))
 
         PaymentRequestService.approve_request(
             db=db, request=request, performed_by=member.id
         )
-        return success_response(f"Payment approved ({request_code})")
+        return success_response(translate("committee.approvals.payment_approved", lang, request_code=request_code))
 
     if intent == "APPROVE_REFUND":
         if not is_action_allowed(member.role, "REFUND"):
-            return warning_response("Only Treasurer can approve refunds.")
+            return warning_response(translate("committee.approvals.only_treasurer_approve_refunds", lang))
 
         parts = message.split()
         if len(parts) < 3:
@@ -2156,18 +2156,18 @@ def handle_committee_intent(
             db=db, request_code=request_code
         )
         if not request:
-            return error_response("Refund request not found.")
+            return error_response(translate("committee.approvals.refund_request_not_found", lang))
         if request.status != "requested":
-            return warning_response("Refund request already processed.")
+            return warning_response(translate("committee.approvals.refund_request_already_processed", lang))
 
         RefundRequestService.approve_request(
             db=db, request=request, performed_by=member.id
         )
-        return success_response(f"Refund approved ({request_code})")
+        return success_response(translate("committee.approvals.refund_approved", lang, request_code=request_code))
 
     if intent == "PENDING_USERS":
         if not is_action_allowed(member.role, "ALL"):
-            return warning_response("Only Chairman can view pending users.")
+            return warning_response(translate("committee.approvals.only_chairman_view_pending", lang))
 
         society_id = member.society_id
 
@@ -2177,10 +2177,12 @@ def handle_committee_intent(
 
         if not pending:
             return success_response(
-                "No pending user requests.", heading="Pending Join Requests", emoji="🎉"
+                translate("committee.approvals.no_pending_requests", lang),
+                heading=translate("committee.approvals.pending_join_requests_heading", lang),
+                emoji="🎉"
             )
 
-        lines = [format_heading("Pending Join Requests", "⏳")]
+        lines = [format_heading(translate("committee.approvals.pending_join_requests_heading", lang), "⏳")]
         for pending_user, flat in pending:
             lines.append(
                 f"Request: *{pending_user.request_code}*\n"
@@ -2201,10 +2203,10 @@ def handle_committee_intent(
             override_reason=override_reason,
         )
         if not can_execute:
-            return warning_response(warning or "Action is not allowed.")
+            return warning_response(warning or translate("committee.common.action_not_allowed", lang))
 
         if not event:
-            return error_response("No active event found. Please contact committee.")
+            return error_response(translate("committee.common.no_active_event", lang))
 
         raw = normalized_message.replace("add sponsor", "", 1).strip()
 
@@ -2294,7 +2296,7 @@ def handle_committee_intent(
             override_reason=override_reason,
         )
         if not can_execute:
-            return warning_response(warning or "Action is not allowed.")
+            return warning_response(warning or translate("committee.common.action_not_allowed", lang))
 
         parts = normalized_message.split()
 
