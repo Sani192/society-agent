@@ -37,5 +37,7 @@ ROLE_ACTIONS = {
         "SUMMARY",
         "PENDING_PAYMENTS",
         "ONBOARDING_PENDING",
+        "ADD_SPONSOR",
+        "REFUND_SPONSOR"
     }
 }

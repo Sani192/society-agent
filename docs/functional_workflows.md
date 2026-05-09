@@ -69,6 +69,13 @@ Society Event Management Agent is a FastAPI backend for society operations acros
 - `app/modules/reports/*`: report data + exporters/PDF generators
 - `app/modules/users/*`: identity resolution, member-flat mappings, user queries
 
+## 2.5 Localization & multi-lingual engine
+
+- `app/i18n/catalog.py`: The source of truth for all user-facing strings (English, Hindi, Gujarati).
+- `app/commands/router.py`: Intent detection with multi-lingual keyword fallbacks.
+- `app/channels/whatsapp/i18n_catalog.py`: Channel-specific UI labels (buttons, list headers).
+- **Behavior:** The system detects user language from their profile, but remains robust by matching keywords across all supported languages (e.g., a Gujarati user typing an English command will still be understood).
+
 ## 2.4 Data, policy, and utilities
 
 - `app/db/*`: SQLAlchemy models/session/base
@@ -204,7 +211,8 @@ Owned by:
 
 ## 4) Command catalog: how to use, when to use, who can use
 
-> Command text matching is intent-driven (`app/whatsapp/intents.py` + `app/commands/router.py`).
+> Command text matching is intent-driven (`app/channels/whatsapp/intents.py` + `app/commands/router.py`).
+> The system supports **cross-language fallback**: native keywords (Hindi/Gujarati) are honored even if the user's setting is different.
 > Final availability also depends on event-state policy (`app/permissions/command_policy.py`) and role guard.
 
 ## 4.1 Public/member commands
@@ -217,15 +225,15 @@ Owned by:
 | `add pass ...` | Add/update pass counts | Member / delegated committee context | Event ACTIVE/LOCKED/EVENT_DAY |
 | `pay <amount>` | Submit payment request or record payment | Member / committee | Event ACTIVE/LOCKED/EVENT_DAY |
 | `refund <amount> reason ...` | Request/process member refund | Member / committee | Event ACTIVE/LOCKED/EVENT_DAY |
-| `my pass` | View pass + served summary | Member | Event ACTIVE/LOCKED/EVENT_DAY |
+| `my pass` | View pass + served summary | Member | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
 | `my tokens` | View token list/status | Member | After tokens generated |
-| `my payment requests` | View own payment requests | Member | Event ACTIVE/LOCKED/EVENT_DAY |
-| `my refund requests` | View own refund requests | Member | Event ACTIVE/LOCKED/EVENT_DAY |
-| `my payments` | View payment summary | Member | Event ACTIVE/LOCKED/EVENT_DAY |
-| `my balance` | View expected/paid/remaining | Member | Event ACTIVE/LOCKED/EVENT_DAY |
-| `my status` | View event status snapshot | Member | Event ACTIVE/LOCKED/EVENT_DAY |
-| `summary` | Public event summary | Member/committee | Event ACTIVE/LOCKED/EVENT_DAY |
-| `block report` | Block-wise contribution quick report | Member/committee | Event ACTIVE/LOCKED/EVENT_DAY |
+| `my payment requests` | View own payment requests | Member | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
+| `my refund requests` | View own refund requests | Member | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
+| `my payments` | View payment summary | Member | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
+| `my balance` | View expected/paid/remaining | Member | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
+| `my status` | View event status snapshot | Member | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
+| `summary` | Public event summary | Member/committee | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
+| `block report` | Block-wise contribution quick report | Member/committee | ACTIVE/LOCKED/EVENT_DAY/CLOSED |
 
 ## 4.2 Committee commands
 
@@ -237,8 +245,8 @@ Owned by:
 | `start event` | Move LOCKED -> EVENT_DAY | Committee | LOCKED |
 | `close event` | Move EVENT_DAY -> CLOSED | Committee (role-guarded) | EVENT_DAY |
 | `expense ...` | Add expense | Committee (role-guarded) | ACTIVE/LOCKED/EVENT_DAY |
-| `add sponsor ...` | Add sponsor contribution | Committee (role-guarded) | ACTIVE/LOCKED/EVENT_DAY |
-| `refund sponsor ...` | Refund sponsor contribution | Committee (role-guarded) | ACTIVE/LOCKED/EVENT_DAY |
+| `add sponsor ...` | Add sponsor contribution | Committee | ACTIVE/LOCKED/EVENT_DAY |
+| `refund sponsor ...` | Refund sponsor contribution | Committee | ACTIVE/LOCKED/EVENT_DAY |
 | `remind ...` | Send pending-payment reminder | Committee (role-guarded) | ACTIVE/LOCKED/EVENT_DAY |
 | `pending payments` | List payment pendings | Committee | ACTIVE/LOCKED/EVENT_DAY |
 | `payment requests` | View/triage payment requests | Committee | ACTIVE/LOCKED/EVENT_DAY |

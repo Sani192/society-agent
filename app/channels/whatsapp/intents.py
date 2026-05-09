@@ -70,6 +70,7 @@ INTENT_KEYWORDS_BY_LANGUAGE = {
     "MY_BALANCE": {"en": ["my balance"], "hi": ["मेरा बैलेंस"], "gu": ["મારું બેલેન્સ"]},
     "MY_STATUS": {"en": ["my status"], "hi": ["मेरी स्थिति"], "gu": ["મારી સ્થિતિ"]},
     "MENU": {"en": ["menu"], "hi": ["मेनू", "मुख्य मेनू"], "gu": ["મેનુ", "મુખ્ય મેનુ"]},
+    "MORE": {"en": ["more"], "hi": ["और", "अधिक"], "gu": ["વધુ"]},
     # ========= HELP (last, lowest risk) =========
     "HELP": {"en": ["help"], "hi": ["मदद"], "gu": ["મદદ"]},
 }

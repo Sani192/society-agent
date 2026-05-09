@@ -60,7 +60,7 @@ Before writing code, define:
 
 ### Phase 4: Generate or update automated tests
 
-Add or update pytest coverage for the changed behavior. Prefer parametrized tests for role × state × language or similar matrices when the behavior varies by actor, event state, language, channel, or command.
+Add or update pytest coverage for the changed behavior. You **MUST** update the Combinatorial Test Matrix (`tests/e2e/test_combinatorial_matrix.py`) for any new WhatsApp command or functionality. Add the command to the `COMMANDS` list and define its expected outcomes in `get_expected_response_type` to ensure it is automatically tested against all permutations of Role × Event State × Language.
 
 Tests should cover, as applicable:
 

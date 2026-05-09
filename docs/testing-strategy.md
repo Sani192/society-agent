@@ -94,4 +94,23 @@ If any required check fails, PR merge is blocked.
 
 - Configure branch protection to require all three PR stages.
 - Do not bypass required checks except via explicit repository admin emergency procedure.
-- Reliability dashboard artifacts should be retained to support pass/fail trend review and flaky cleanup work.
+## Combinatorial Testing Policy
+
+To avoid the combinatorial explosion of manual testing across various user roles, event states, and languages, the repository uses a **Matrix-based Integration Testing** approach.
+
+### Goal
+Systematically verify every permutation of:
+- **Roles**: Chairman, Secretary, Treasurer, Committee Member, Non-Committee, Non-Society.
+- **Event States**: DRAFT, ACTIVE, LOCKED, EVENT_DAY, CLOSED, No Event.
+- **Languages**: English (en), Hindi (hi), Gujarati (gu).
+- **Core Commands**: menu, help, pay, refund, summary, etc.
+
+### Implementation
+- Tests are located in `tests/e2e/test_combinatorial_matrix.py`.
+- They use the `MatrixStateFactory` to generate a fresh, isolated database state for every permutation.
+- They exercise the full `handle_inbound_message` entry point to ensure all middleware, resolvers, and handlers are tested in unison.
+
+### Enforcement
+- **Mandatory for completion**: Agents must ensure the full combinatorial suite passes before finishing any feature work related to bot commands or permissions.
+- **Matrix Updates**: Any new command or permission logic MUST be added to the `COMMANDS` list and the `get_expected_response_type` mapping in the matrix test suite.
+

@@ -423,14 +423,14 @@ def _send_dashboard_ui(*, client, sender_id: str, is_committee: bool, lang: str 
     if is_committee:
         buttons = [
             _button_row("ui::administration", _ui_text(lang, "administration.header")),
-            _button_row("ui::reports", "Reports"),
-            _button_row("ui::menu:more", "More"),
+            _button_row("ui::reports", _ui_text(lang, "common.reports")),
+            _button_row("ui::menu:more", _ui_text(lang, "common.more")),
         ]
     else:
         buttons = [
-            _button_row("ui::my-account", "My Account"),
-            _button_row("ui::finance", "Finance"),
-            _button_row("ui::menu:more", "More"),
+            _button_row("ui::my-account", _ui_text(lang, "common.my_account")),
+            _button_row("ui::finance", _ui_text(lang, "common.finance")),
+            _button_row("ui::menu:more", _ui_text(lang, "common.more")),
         ]
 
     client.send_button_message(
@@ -790,7 +790,7 @@ def _try_handle_ui_message_legacy(*, client, message) -> bool:
         finally:
             db.close()
 
-    if msg in {"menu", "help", "ui::menu", "ui::menu:more"}:
+    if msg in {"menu", "help", "more", "વધુ", "और", "अधिक", "મેનુ", "મદદ", "ui::menu", "ui::menu:more"}:
         db = SessionLocal()
         try:
             society_id, committee_member = _resolve_sender_society_context(

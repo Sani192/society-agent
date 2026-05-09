@@ -1,5 +1,6 @@
 CMDS = {
-    "menu", "help", "ui::menu", "ui::menu:more", "ui::my-account", "ui::society",
+    "menu", "help", "more", "વધુ", "और", "अधिक", "મુખ્ય મેનુ", "મુખ્ય મેનુ", "મેનુ", "મદદ",
+    "ui::menu", "ui::menu:more", "ui::my-account", "ui::society",
     "ui::join-society", "ui::finance", "ui::administration", "ui::administration:approvals",
     "ui::administration:operations", "ui::administration:operations:more", "ui::administration:reports",
     "ui::administration:committee", "ui::administration:food",

@@ -336,7 +336,7 @@ def handle_inbound_message(
             if get_committee_action_session(committee_session_key):
                 intent = "COMMITTEE_PENDING_ACTION"
 
-        if intent == "MENU" and message.channel == "whatsapp":
+        if intent in ["MENU", "MORE"] and message.channel == "whatsapp":
             export_session_key = build_export_session_key(
                 member_id=str(getattr(member, "id", "")) if member else None,
                 sender_id=canonical_sender_id,

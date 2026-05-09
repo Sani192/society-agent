@@ -6,14 +6,6 @@ NON_COMMITTEE_ACTIVE_ONLY_INTENTS = {
     "ADD_PASS",
     "PAY",
     "REFUND",
-    "MY_PASS",
-    "MY_PAYMENT_REQUESTS",
-    "MY_REFUND_REQUESTS",
-    "MY_PAYMENTS",
-    "MY_BALANCE",
-    "MY_STATUS",
-    "SUMMARY",
-    "BLOCK_REPORT",
 }
 
 COMMITTEE_INTENT_ALLOWED_STATES: dict[str, set[str]] = {

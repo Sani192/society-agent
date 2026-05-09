@@ -17,3 +17,9 @@ When implementing major architectural changes or new core modules:
 1.  **Update READMEs**: Ensure the main `README.md` and any module-level `README.md` reflect the new design.
 2.  **Sync functional docs**: Update any relevant files in `docs/` (e.g., `functional_workflows.md`) to keep the system map accurate.
 3.  **Document Configuration**: Clearly document any new database models or environment variables required for the feature.
+
+# Combinatorial Testing Policy
+When implementing any new WhatsApp bot functionality, commands, or fixing related bugs, the agent MUST:
+1. Update the **Combinatorial Test Matrix** located in `tests/e2e/test_combinatorial_matrix.py`.
+2. Add the new command to the `COMMANDS` list and define its expected outcomes based on Role and Event State.
+3. Ensure the combinatorial test suite passes fully, verifying all permutations of Roles, Event States, and Language preferences.

@@ -230,6 +230,7 @@ def detect_intent(
                 return intent
             continue
 
+    for intent, keyword in _iter_intent_keywords(intent_map, language=effective_language):
         if msg.startswith(keyword + " "):
             increment_counter("intent.detect.matched")
             increment_counter(f"intent.detect.matched.{effective_language}")
@@ -237,6 +238,20 @@ def detect_intent(
             increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
             logger.info("Intent detected by startswith", extra={"intent": intent})
             return intent
+
+    # ========= CROSS-LANGUAGE FALLBACK =========
+    # If not found in effective language, check other supported languages
+    other_languages = [l for l in SUPPORTED_INTENT_LANGUAGES if l != effective_language]
+    for other_lang in other_languages:
+        for intent, keyword in _iter_intent_keywords(intent_map, language=other_lang):
+            if msg == keyword:
+                increment_counter("intent.detect.matched.cross_lang")
+                logger.info("Intent detected by cross-language exact match", extra={"intent": intent, "source_lang": other_lang})
+                return intent
+            if msg.startswith(keyword + " ") and intent not in HIGH_RISK_GENERIC_INTENTS:
+                increment_counter("intent.detect.matched.cross_lang")
+                logger.info("Intent detected by cross-language startswith", extra={"intent": intent, "source_lang": other_lang})
+                return intent
 
     increment_counter("intent.detect.unmatched")
     increment_counter(f"intent.detect.unmatched.{effective_language}")

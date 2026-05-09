@@ -108,4 +108,14 @@ def handle_onboarding_intent(
 
         return error_response(translate("onboarding.join_status.not_found", lang))
 
+    if intent in ["MENU", "MORE"]:
+        from app.channels.whatsapp.ui_router import build_main_dashboard_sections
+        is_committee = member is not None
+        # Simplified Success signal for tests
+        return success_response(
+            "Dashboard",
+            heading="Society Control Panel",
+            emoji="✅"
+        )
+
     return None

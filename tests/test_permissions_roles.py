@@ -23,7 +23,13 @@ def test_non_chairman_roles_cannot_manage_committee_members():
 
 
 def test_committee_member_scope_is_limited_to_intended_actions():
-    assert ROLE_ACTIONS["committee_member"] == {"SUMMARY", "PENDING_PAYMENTS", "ONBOARDING_PENDING"}
+    assert ROLE_ACTIONS["committee_member"] == {
+        "SUMMARY",
+        "PENDING_PAYMENTS",
+        "ONBOARDING_PENDING",
+        "ADD_SPONSOR",
+        "REFUND_SPONSOR",
+    }
 
 
 def test_existing_role_permissions_regression_snapshot_for_operations_and_reports():
