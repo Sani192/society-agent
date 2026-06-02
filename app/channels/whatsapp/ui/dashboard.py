@@ -42,6 +42,7 @@ _MY_ACCOUNT_SECTIONS: tuple[SectionSpec, ...] = (
             ("ui::language", "dashboard.my_account.language"),
             ("help", "dashboard.my_account.help"),
             ("menu", "dashboard.my_account.menu"),
+            ("more", "dashboard.my_account.more"),
         ),
     ),
 )

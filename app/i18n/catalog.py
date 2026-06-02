@@ -29,6 +29,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "language": {"title": "Language", "description": "Change WhatsApp language"},
                 "help": {"title": "Help", "description": "Examples: help, join ABC123 A-101, pay 500, refund 200 water"},
                 "menu": {"title": "Main Menu", "description": "Examples: menu, report options, summary"},
+                "more": {"title": "More", "description": "Show more available options"},
             },
             "society": {
                 "section_title": "Society",
@@ -417,6 +418,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "language": {"title": "भाषा", "description": "व्हाट्सऐप भाषा बदलें"},
                 "help": {"title": "मदद", "description": "उदाहरण: मदद, जॉइन ABC123 A-101, भुगतान 500, रिफंड 200 पानी"},
                 "menu": {"title": "मुख्य मेनू", "description": "उदाहरण: मुख्य मेनू, रिपोर्ट विकल्प, सारांश"},
+                "more": {"title": "और", "description": "और उपलब्ध विकल्प दिखाएं"},
             },
             "society": {
                 "section_title": "सोसायटी",
@@ -677,6 +679,7 @@ TRANSLATIONS: dict[str, CatalogDict] = {
                 "language": {"title": "ભાષા", "description": "વોટ્સએપ ભાષા બદલો"},
                 "help": {"title": "મદદ", "description": "ઉદાહરણ: મદદ, જોડાઓ ABC123 A-101, ચુકવણી 500, રિફંડ 200 પાણી"},
                 "menu": {"title": "મુખ્ય મેનુ", "description": "ઉદાહરણ: મુખ્ય મેનુ, રિપોર્ટ વિકલ્પો, સારાંશ"},
+                "more": {"title": "વધુ", "description": "વધુ ઉપલબ્ધ વિકલ્પો બતાવો"},
             },
             "society": {
                 "section_title": "સોસાયટી",
