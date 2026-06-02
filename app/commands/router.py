@@ -4,7 +4,11 @@ from difflib import SequenceMatcher
 from app.utils.logger import logger
 from app.utils.operational_metrics import increment_counter
 from app.modules.users.language_service import DEFAULT_LANGUAGE, normalize_language_code
-from app.channels.whatsapp.intents import INTENTS, INTENT_KEYWORDS_BY_LANGUAGE
+from app.channels.whatsapp.intents import (
+    INTENTS,
+    INTENT_KEYWORDS_BY_LANGUAGE,
+    SUPPORTED_INTENT_LANGUAGES,
+)
 from app.i18n.catalog import translate
 
 
@@ -217,26 +221,28 @@ def detect_intent(
 
     for intent, keyword in _iter_intent_keywords(intent_map, language=effective_language):
         if intent in HIGH_RISK_GENERIC_INTENTS:
-            if _is_controlled_prefix_form(
-                msg,
-                keyword,
-                disallowed_prefix_starters=disallowed_prefix_starters,
-            ):
-                increment_counter("intent.detect.matched")
-                increment_counter(f"intent.detect.matched.{effective_language}")
-                increment_counter(f"intent.detect.intent.{intent}")
-                increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
-                logger.info("Intent detected by controlled prefix", extra={"intent": intent})
-                return intent
             continue
-
-    for intent, keyword in _iter_intent_keywords(intent_map, language=effective_language):
         if msg.startswith(keyword + " "):
             increment_counter("intent.detect.matched")
             increment_counter(f"intent.detect.matched.{effective_language}")
             increment_counter(f"intent.detect.intent.{intent}")
             increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
             logger.info("Intent detected by startswith", extra={"intent": intent})
+            return intent
+
+    for intent, keyword in _iter_intent_keywords(intent_map, language=effective_language):
+        if intent not in HIGH_RISK_GENERIC_INTENTS:
+            continue
+        if _is_controlled_prefix_form(
+            msg,
+            keyword,
+            disallowed_prefix_starters=disallowed_prefix_starters,
+        ):
+            increment_counter("intent.detect.matched")
+            increment_counter(f"intent.detect.matched.{effective_language}")
+            increment_counter(f"intent.detect.intent.{intent}")
+            increment_counter(f"intent.detect.intent.{intent}.{effective_language}")
+            logger.info("Intent detected by controlled prefix", extra={"intent": intent})
             return intent
 
     # ========= CROSS-LANGUAGE FALLBACK =========
